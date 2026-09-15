@@ -1,0 +1,181 @@
+import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CAMERA } from '../core/config.ts';
+import type { CameraMode } from '../core/types.ts';
+
+const MODES: CameraMode[] = ['cockpit', 'chase', 'far-chase'];
+
+export class CameraRig {
+  readonly camera: PerspectiveCamera;
+  readonly controls: OrbitControls;
+  mode: CameraMode = 'chase';
+  onChange: ((mode: CameraMode) => void) | undefined;
+  private readonly desiredPosition = new Vector3();
+  private readonly desiredTarget = new Vector3();
+  private readonly desiredQuaternion = new Quaternion();
+  private readonly lookMatrix = new Matrix4();
+  private readonly forward = new Vector3();
+  private readonly up = new Vector3(0, 1, 0);
+  private readonly offset = new Vector3();
+  private readonly lastPlanePosition = new Vector3();
+  private readonly planeDelta = new Vector3();
+  private readonly orbitViewDirection = new Vector3();
+  private readonly aircraftUp = new Vector3();
+  private orbitDragging = false;
+  private orbitReturnDelay = 0;
+  private hasPlanePosition = false;
+  private hasCameraPose = false;
+  private throttleFovBlend = 0;
+
+  constructor(aspect: number, domElement: HTMLElement) {
+    this.camera = new PerspectiveCamera(CAMERA.chaseFov, aspect, 0.1, 1700);
+    this.camera.position.set(0, 8, -22);
+    this.controls = new OrbitControls(this.camera, domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.08;
+    this.controls.enablePan = true;
+    this.controls.minDistance = 7;
+    this.controls.maxDistance = 260;
+    this.controls.maxPolarAngle = Math.PI * 0.94;
+    this.controls.addEventListener('start', () => {
+      this.synchronizeOrbitTarget();
+      this.orbitDragging = true;
+      this.orbitReturnDelay = Number.POSITIVE_INFINITY;
+    });
+    this.controls.addEventListener('end', () => {
+      this.orbitDragging = false;
+      this.orbitReturnDelay = 4.5;
+    });
+  }
+
+  update(
+    dt: number,
+    planePosition: Vector3,
+    planeOrientation: Quaternion,
+    crash: number,
+    throttleActive = false,
+  ): void {
+    if (this.hasPlanePosition) {
+      this.planeDelta.copy(planePosition).sub(this.lastPlanePosition);
+      if (this.orbitDragging || this.orbitReturnDelay > 0) {
+        this.camera.position.add(this.planeDelta);
+        this.controls.target.add(this.planeDelta);
+      }
+    } else {
+      this.controls.target.copy(planePosition);
+      this.hasPlanePosition = true;
+    }
+    this.lastPlanePosition.copy(planePosition);
+    this.controls.enabled = this.mode !== 'cockpit';
+    this.updateFov(dt, throttleActive);
+    if (this.controls.enabled && (this.orbitDragging || this.orbitReturnDelay > 0)) {
+      if (!this.orbitDragging) this.orbitReturnDelay = Math.max(0, this.orbitReturnDelay - dt);
+      this.controls.update(dt);
+      return;
+    }
+
+    this.forward.set(0, 0, 1).applyQuaternion(planeOrientation).normalize();
+    if (this.mode === 'chase') {
+      this.offset.set(0, 8, -22).applyQuaternion(planeOrientation);
+      this.desiredPosition.copy(planePosition).add(this.offset);
+      this.desiredTarget.copy(planePosition).addScaledVector(this.forward, 16);
+      this.desiredTarget.y += 1.8;
+      this.lookMatrix.lookAt(this.desiredPosition, this.desiredTarget, this.up);
+      this.desiredQuaternion.setFromRotationMatrix(this.lookMatrix);
+    } else if (this.mode === 'cockpit') {
+      this.offset.set(0, 0.72, 2.4).applyQuaternion(planeOrientation);
+      this.desiredPosition.copy(planePosition).add(this.offset);
+      this.desiredTarget.copy(this.desiredPosition).addScaledVector(this.forward, 60);
+      this.aircraftUp.copy(this.up).applyQuaternion(planeOrientation);
+      this.lookMatrix.lookAt(this.desiredPosition, this.desiredTarget, this.aircraftUp);
+      this.desiredQuaternion.setFromRotationMatrix(this.lookMatrix);
+    } else {
+      // Keep far chase at the 260 m OrbitControls limit while raising its viewpoint.
+      this.offset.set(0, 80, -247.38633753705963).applyQuaternion(planeOrientation);
+      this.desiredPosition.copy(planePosition).add(this.offset);
+      this.desiredTarget.copy(planePosition).addScaledVector(this.forward, 60);
+      this.desiredTarget.y += 10;
+      this.lookMatrix.lookAt(this.desiredPosition, this.desiredTarget, this.up);
+      this.desiredQuaternion.setFromRotationMatrix(this.lookMatrix);
+    }
+
+    if (crash > 0) {
+      this.desiredPosition.x += (Math.random() - 0.5) * crash * 1.8;
+      this.desiredPosition.y += (Math.random() - 0.5) * crash * 1.4;
+    }
+
+    const smoothing = this.hasCameraPose
+      ? 1 - Math.exp(-dt / CAMERA.transitionTime * 3.4)
+      : 1;
+    this.camera.position.lerp(this.desiredPosition, smoothing);
+    this.camera.quaternion.slerp(this.desiredQuaternion, smoothing);
+    this.controls.target.copy(this.desiredTarget);
+    this.hasCameraPose = true;
+  }
+
+  private synchronizeOrbitTarget(): void {
+    if (!this.hasPlanePosition || this.mode === 'cockpit') return;
+    const distanceFromPlane = this.camera.position.distanceTo(this.lastPlanePosition);
+    const orbitDistance = Math.max(
+      this.controls.minDistance,
+      Math.min(this.controls.maxDistance, distanceFromPlane),
+    );
+    this.camera.getWorldDirection(this.orbitViewDirection);
+    this.controls.target
+      .copy(this.camera.position)
+      .addScaledVector(this.orbitViewDirection, orbitDistance);
+    // With the target placed directly on the current view ray, OrbitControls
+    // can initialize its spherical state without changing the visible pose.
+    this.controls.update(0);
+  }
+
+  private updateFov(dt: number, throttleActive: boolean): void {
+    const targetBlend = throttleActive ? 1 : 0;
+    const blendTime = throttleActive ? CAMERA.throttleRiseTime : CAMERA.throttleFallTime;
+    const blendSmoothing = 1 - Math.exp(-dt / blendTime);
+    this.throttleFovBlend += (targetBlend - this.throttleFovBlend) * blendSmoothing;
+
+    const baseFov = this.mode === 'cockpit'
+      ? CAMERA.cockpitFov
+      : this.mode === 'far-chase'
+        ? CAMERA.farChaseFov
+        : CAMERA.chaseFov;
+    const desiredFov = baseFov + CAMERA.throttleFovBoost[this.mode] * this.throttleFovBlend;
+    const fovSmoothing = this.hasCameraPose
+      ? 1 - Math.exp(-dt / CAMERA.fovResponseTime)
+      : 1;
+    this.camera.fov += (desiredFov - this.camera.fov) * fovSmoothing;
+    this.camera.updateProjectionMatrix();
+  }
+
+  cycle(): CameraMode {
+    const current = MODES.indexOf(this.mode);
+    return this.select((current + 1) % MODES.length);
+  }
+
+  select(index: number): CameraMode {
+    this.mode = MODES[Math.max(0, Math.min(MODES.length - 1, index))];
+    this.orbitDragging = false;
+    this.orbitReturnDelay = 0;
+    this.controls.enabled = this.mode !== 'cockpit';
+    this.onChange?.(this.mode);
+    return this.mode;
+  }
+
+  /**
+   * Move every cached render-space camera position into the new floating-origin
+   * frame. Relative camera/aircraft geometry remains exactly unchanged.
+   */
+  applyOriginShift(originShift: Vector3): void {
+    this.camera.position.sub(originShift);
+    this.controls.target.sub(originShift);
+    this.desiredPosition.sub(originShift);
+    this.desiredTarget.sub(originShift);
+    if (this.hasPlanePosition) this.lastPlanePosition.sub(originShift);
+  }
+
+  resize(width: number, height: number): void {
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+  }
+}

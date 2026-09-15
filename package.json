@@ -1,0 +1,32 @@
+{
+  "name": "endless-flight-system",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "ios:sync": "cap sync ios",
+    "ios:open": "cap open ios",
+    "ios:run": "cap run ios",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "verify": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/ios": "^8.5.1",
+    "three": "0.186.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
+    "@types/node": "24.10.1",
+    "@types/three": "0.185.4",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
+  }
+}

@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#050708" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VECTOR" />
+    <meta
+      name="description"
+      content="An endless retro-futurist flight through procedurally generated canyon terrain."
+    />
+    <title>VECTOR // Endless Flight</title>
+  </head>
+  <body>
+    <main id="app" class="app" tabindex="-1" aria-label="Endless flight simulator">
+      <div id="scene" class="scene" aria-hidden="true"></div>
+
+      <section id="hud" class="hud" aria-label="Flight telemetry">
+        <header class="telemetry telemetry--primary">
+          <p class="eyebrow">VECTOR FLIGHT SYSTEM</p>
+          <div class="telemetry-grid">
+            <span>MODE</span><strong id="mode-value">BOOT</strong>
+            <span>CAM</span><strong id="camera-value">CHASE</strong>
+            <span>SEED</span><strong id="seed-value">00000000</strong>
+          </div>
+        </header>
+
+        <aside class="tape tape--speed" aria-label="Speed">
+          <span class="tape-label">SPD</span>
+          <strong id="speed-value">055</strong>
+          <span class="tape-unit">M/S</span>
+        </aside>
+
+        <aside class="tape tape--altitude" aria-label="Absolute altitude">
+          <span class="tape-label">ALT</span>
+          <strong id="altitude-value">028</strong>
+          <span class="tape-unit">M</span>
+        </aside>
+
+        <div class="reticle" aria-hidden="true">
+          <span class="reticle-horizontal"></span>
+          <span class="reticle-vertical"></span>
+        </div>
+
+        <div id="horizon" class="horizon" aria-hidden="true">
+          <span class="horizon-line"></span>
+          <span class="horizon-tick horizon-tick--l"></span>
+          <span class="horizon-tick horizon-tick--r"></span>
+        </div>
+
+        <section id="legend" class="legend" aria-label="Keyboard controls">
+          <button id="legend-toggle" class="legend-toggle" type="button" aria-expanded="true">
+            CONTROLS <span>[-]</span>
+          </button>
+          <div class="legend-content">
+            <p><kbd>W S</kbd><span>PITCH</span></p>
+            <p><kbd>A D</kbd><span>ROLL + YAW</span></p>
+            <p><kbd>⇧ ⌃</kbd><span>THROTTLE</span></p>
+            <p><kbd>SPACE</kbd><span>AUTO</span></p>
+            <p><kbd>R</kbd><span>CHECKPOINT</span></p>
+            <p><kbd>B</kbd><span>PROBE</span></p>
+            <p><kbd>C / 1–3</kbd><span>CAMERA</span></p>
+            <p><kbd>V</kbd><span>VIEW MODE</span></p>
+            <p><kbd>⌘/CTRL F</kbd><span>FULLSCREEN</span></p>
+          </div>
+        </section>
+
+        <nav class="system-controls" aria-label="System controls">
+          <button id="camera-button" type="button" aria-label="Change camera">CAM / 2</button>
+          <button id="audio-button" type="button" aria-label="Enable audio">AUDIO / OFF</button>
+          <button id="view-button" type="button" aria-label="Enter ambient mode">UI / ON</button>
+          <button id="settings-button" type="button" aria-label="Open visual settings" aria-expanded="false">SETTINGS</button>
+        </nav>
+
+        <section id="settings-panel" class="settings-panel" aria-label="Visual settings" hidden>
+          <header>
+            <strong>SYSTEM SETTINGS</strong>
+            <span>LIVE</span>
+          </header>
+
+          <section class="settings-section" aria-labelledby="settings-terrain-title">
+            <h2 id="settings-terrain-title">TERRAIN RENDERING</h2>
+            <label class="select-setting" for="terrain-rendering-mode">
+              <span>RENDER MODE</span>
+              <select id="terrain-rendering-mode">
+                <option value="dot" selected>DOT</option>
+                <option value="mesh">MESH</option>
+              </select>
+            </label>
+            <label class="color-setting" for="background-color">
+              <span>BACKGROUND / SKY</span><input id="background-color" type="color" value="#101314" />
+            </label>
+            <label for="terrain-fog-density">
+              <span>DISTANCE FOG</span><output id="terrain-fog-density-value">0.00165</output>
+            </label>
+            <input id="terrain-fog-density" type="range" min="0" max="0.008" step="0.00005" value="0.00165" />
+
+            <div id="dot-render-settings" class="conditional-settings">
+              <h3>DOT MODE</h3>
+              <label for="danger-distance">
+                <span>DANGER DISTANCE</span><output id="danger-distance-value">96 M</output>
+              </label>
+              <input id="danger-distance" type="range" min="16" max="192" step="1" value="96" />
+              <label for="danger-size-multiplier">
+                <span>DANGER DOT SCALE</span><output id="danger-size-multiplier-value">3.0×</output>
+              </label>
+              <input id="danger-size-multiplier" type="range" min="1" max="8" step="0.1" value="3" />
+              <label for="danger-size-falloff">
+                <span>SIZE FALLOFF</span><output id="danger-size-falloff-value">1.20</output>
+              </label>
+              <input id="danger-size-falloff" type="range" min="0.25" max="4" step="0.05" value="1.2" />
+              <label class="color-setting" for="danger-color">
+                <span>DANGER COLOR</span><input id="danger-color" type="color" value="#ff0000" />
+              </label>
+              <label for="terrain-dot-radius">
+                <span>TERRAIN DOT RADIUS</span><output id="terrain-dot-radius-value">0.14 M</output>
+              </label>
+              <input id="terrain-dot-radius" type="range" min="0.05" max="0.6" step="0.01" value="0.14" />
+              <label for="terrain-dot-density">
+                <span>DOT DENSITY</span><output id="terrain-dot-density-value">4.00 / 100 M²</output>
+              </label>
+              <input id="terrain-dot-density" type="range" min="0.25" max="25" step="0.25" value="4" />
+              <label class="color-setting" for="terrain-color">
+                <span>DOT COLOR</span><input id="terrain-color" type="color" value="#c8c8c8" />
+              </label>
+            </div>
+
+            <div id="mesh-render-settings" class="conditional-settings" hidden>
+              <h3>MESH MODE</h3>
+              <label class="color-setting" for="mesh-color">
+                <span>MESH COLOR</span><input id="mesh-color" type="color" value="#363d3e" />
+              </label>
+            </div>
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-flight-title">
+            <h2 id="settings-flight-title">FLIGHT VISUALS</h2>
+            <label class="color-setting" for="plane-color">
+              <span>PLANE COLOR</span><input id="plane-color" type="color" value="#e6e6e6" />
+            </label>
+            <label class="color-setting" for="autopilot-guide-color">
+              <span>AUTOPILOT GUIDE</span><input id="autopilot-guide-color" type="color" value="#ffee66" />
+            </label>
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-wind-title">
+            <h2 id="settings-wind-title">WIND STREAKS</h2>
+            <label for="wind-streak-count">
+              <span>STREAK COUNT</span><output id="wind-streak-count-value">120</output>
+            </label>
+            <input id="wind-streak-count" type="range" min="0" max="240" step="4" value="120" />
+            <label for="wind-streak-length">
+              <span>STREAK LENGTH</span><output id="wind-streak-length-value">22 M</output>
+            </label>
+            <input id="wind-streak-length" type="range" min="6" max="60" step="1" value="22" />
+            <label for="wind-speed-threshold">
+              <span>SPEED THRESHOLD</span><output id="wind-speed-threshold-value">20 M/S</output>
+            </label>
+            <input id="wind-speed-threshold" type="range" min="0" max="80" step="1" value="20" />
+            <label for="wind-opacity">
+              <span>OPACITY</span><output id="wind-opacity-value">0.36</output>
+            </label>
+            <input id="wind-opacity" type="range" min="0.02" max="1" step="0.01" value="0.36" />
+            <label class="color-setting" for="wind-color">
+              <span>COLOR</span><input id="wind-color" type="color" value="#e6e6e6" />
+            </label>
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-flock-title">
+            <h2 id="settings-flock-title">FLOCKS</h2>
+            <label class="toggle-setting" for="flock-enabled">
+              <span>ENABLED</span><input id="flock-enabled" type="checkbox" checked />
+            </label>
+            <label for="flock-size-min">
+              <span>FLOCK AMOUNT</span><output id="flock-size-value">10–26</output>
+            </label>
+            <div id="flock-size-range" class="dual-range" style="--range-min: 15.4%; --range-max: 76.9%" role="group" aria-label="Birds per flock range">
+              <input id="flock-size-min" type="range" min="6" max="32" step="1" value="10" aria-label="Minimum birds per flock" />
+              <input id="flock-size-max" type="range" min="6" max="32" step="1" value="26" aria-label="Maximum birds per flock" />
+            </div>
+            <label for="flock-interval">
+              <span>AVG. INTERVAL</span><output id="flock-interval-value">8 S</output>
+            </label>
+            <input id="flock-interval" type="range" min="3" max="30" step="1" value="8" />
+            <label for="flock-spread">
+              <span>FLOCK SPREAD</span><output id="flock-spread-value">30 M</output>
+            </label>
+            <input id="flock-spread" type="range" min="10" max="70" step="1" value="30" />
+            <label for="flock-speed">
+              <span>FLIGHT SPEED</span><output id="flock-speed-value">34 M/S</output>
+            </label>
+            <input id="flock-speed" type="range" min="15" max="70" step="1" value="34" />
+            <label class="color-setting" for="flock-color">
+              <span>PYRAMID COLOR</span><input id="flock-color" type="color" value="#ffffff" />
+            </label>
+            <label class="color-setting" for="flock-target-color">
+              <span>SCAN TARGET COLOR</span><input id="flock-target-color" type="color" value="#ffffff" />
+            </label>
+            <label for="flock-target-thickness">
+              <span>TARGET THICKNESS</span><output id="flock-target-thickness-value">0.160 M</output>
+            </label>
+            <input id="flock-target-thickness" type="range" min="0.02" max="0.3" step="0.005" value="0.16" />
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-crt-title">
+            <h2 id="settings-crt-title">CRT DISPLAY</h2>
+            <label class="toggle-setting" for="crt-enabled">
+              <span>CRT ENABLED</span><input id="crt-enabled" type="checkbox" checked />
+            </label>
+            <label for="crt-curvature">
+              <span>SCREEN CURVATURE</span><output id="crt-curvature-value">0.022</output>
+            </label>
+            <input id="crt-curvature" type="range" min="0" max="0.06" step="0.001" value="0.022" />
+            <label for="crt-rgb-mask">
+              <span>RGB PHOSPHOR MASK</span><output id="crt-rgb-mask-value">1.00</output>
+            </label>
+            <input id="crt-rgb-mask" type="range" min="0" max="2" step="0.05" value="1" />
+            <label for="crt-scanlines">
+              <span>SCANLINES</span><output id="crt-scanlines-value">1.00</output>
+            </label>
+            <input id="crt-scanlines" type="range" min="0" max="2" step="0.05" value="1" />
+            <label for="crt-grain">
+              <span>GRAIN</span><output id="crt-grain-value">1.00</output>
+            </label>
+            <input id="crt-grain" type="range" min="0" max="3" step="0.05" value="1" />
+            <label for="crt-vignette">
+              <span>VIGNETTE</span><output id="crt-vignette-value">1.00</output>
+            </label>
+            <input id="crt-vignette" type="range" min="0" max="2" step="0.05" value="1" />
+            <label for="crt-chromatic">
+              <span>CHROMATIC SPLIT</span><output id="crt-chromatic-value">1.00</output>
+            </label>
+            <input id="crt-chromatic" type="range" min="0" max="3" step="0.05" value="1" />
+            <label for="crt-dither">
+              <span>ORDERED DITHER</span><output id="crt-dither-value">1.00</output>
+            </label>
+            <input id="crt-dither" type="range" min="0" max="3" step="0.05" value="1" />
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-display-title">
+            <h2 id="settings-display-title">FINAL OUTPUT</h2>
+            <label class="select-setting" for="render-resolution-mode">
+              <span>RENDER RESOLUTION</span>
+              <select id="render-resolution-mode">
+                <option value="full" selected>FULL</option>
+                <option value="balanced">BALANCED / 80%</option>
+                <option value="adaptive">ADAPTIVE</option>
+              </select>
+            </label>
+            <label class="toggle-setting" for="glow-enabled">
+              <span>FINAL GLOW</span><input id="glow-enabled" type="checkbox" checked />
+            </label>
+            <label for="glow-strength">
+              <span>GLOW STRENGTH</span><output id="glow-strength-value">3.00</output>
+            </label>
+            <input id="glow-strength" type="range" min="0" max="6" step="0.05" value="3" />
+            <label for="glow-radius">
+              <span>GLOW RADIUS</span><output id="glow-radius-value">3.00</output>
+            </label>
+            <input id="glow-radius" type="range" min="0.5" max="6" step="0.05" value="3" />
+            <label class="select-setting" for="font-choice">
+              <span>UI TYPEFACE</span>
+              <select id="font-choice">
+                <option value="technical" selected>TECHNICAL</option>
+                <option value="system">SYSTEM MONO</option>
+                <option value="terminal">TERMINAL</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-system-title">
+            <h2 id="settings-system-title">WORLD + DEBUG</h2>
+            <div class="settings-actions">
+              <button id="collision-button" type="button" aria-label="Show collision mesh" aria-pressed="false">COLLISION / OFF</button>
+              <button id="seed-button" type="button" aria-label="Generate a new world">NEW SEED</button>
+            </div>
+          </section>
+        </section>
+
+        <button id="mode-button" class="mode-button" type="button" aria-label="Toggle autopilot">
+          <span class="mode-button-label">FLIGHT CONTROL</span>
+          <strong id="mode-button-value">AUTOPILOT</strong>
+        </button>
+
+        <div id="touch-joystick" class="touch-joystick" role="group" aria-label="Pitch and roll joystick">
+          <span class="touch-joystick-axis touch-joystick-axis--horizontal" aria-hidden="true"></span>
+          <span class="touch-joystick-axis touch-joystick-axis--vertical" aria-hidden="true"></span>
+          <span id="touch-joystick-thumb" class="touch-joystick-thumb" aria-hidden="true"></span>
+        </div>
+
+        <div class="coordinates" aria-hidden="true">
+          <span id="coordinates-value">X +00000 // Z +00000</span>
+          <span id="rebase-value">0000M</span>
+          <span id="fps-value">FPS 060</span>
+        </div>
+
+        <nav class="flight-actions" aria-label="Flight actions">
+          <button id="probe-button" class="flight-action" type="button" aria-label="Trigger probe wave">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4.5v4" />
+              <path d="M8.5 10.5c.8 1.15 2 1.75 3.5 1.75s2.7-.6 3.5-1.75" />
+              <path d="M5.5 12.75c1.55 2.15 3.7 3.25 6.5 3.25s4.95-1.1 6.5-3.25" />
+              <path d="M3.25 15.5C5.35 18.15 8.25 19.5 12 19.5s6.65-1.35 8.75-4" />
+            </svg>
+            <span class="sr-only">Probe</span>
+          </button>
+          <button id="throttle-button" class="flight-action" type="button" aria-label="Increase throttle" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m5.5 15 6.5-6.5 6.5 6.5M8 19l4-4 4 4" />
+            </svg>
+            <span class="sr-only">Throttle</span>
+          </button>
+        </nav>
+
+        <button id="fullscreen-button" class="fullscreen-button" type="button" aria-label="Enter fullscreen">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path class="fullscreen-expand" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+            <path class="fullscreen-contract" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />
+          </svg>
+          <span class="sr-only">Toggle fullscreen</span>
+        </button>
+      </section>
+
+      <div id="fault" class="fault" aria-live="assertive" aria-hidden="true">
+        <span>TERRAIN INTERSECT</span>
+        <strong>VECTOR RECOVERY</strong>
+      </div>
+
+      <section id="fallback" class="fallback" hidden>
+        <p>RENDER SYSTEM UNAVAILABLE</p>
+        <h1>WebGL2 is required.</h1>
+        <p>Open this experience in a current desktop browser with hardware acceleration enabled.</p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
