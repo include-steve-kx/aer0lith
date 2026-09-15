@@ -1,6 +1,6 @@
 :root {
   color-scheme: dark;
-  --ui-font: "DIN Alternate", "Avenir Next Condensed", "Arial Narrow", monospace;
+  --ui-font: "Share Tech Mono", "DIN Alternate", "Avenir Next Condensed", monospace;
   font-family: var(--ui-font);
   font-synthesis: none;
   --bg: #050708;
@@ -19,7 +19,7 @@ html[data-font="system"] {
 }
 
 html[data-font="technical"] {
-  --ui-font: "DIN Alternate", "Avenir Next Condensed", "Arial Narrow", monospace;
+  --ui-font: "Share Tech Mono", "DIN Alternate", "Avenir Next Condensed", monospace;
 }
 
 html[data-font="terminal"] {
@@ -80,34 +80,6 @@ select {
   image-rendering: auto;
   touch-action: none;
   -webkit-user-drag: none;
-}
-
-.app::before,
-.app::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 8;
-  pointer-events: none;
-}
-
-.app::before {
-  opacity: 0.2;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 2px,
-    rgb(2 8 9 / 35%) 3px,
-    rgb(2 8 9 / 35%) 4px
-  );
-  mix-blend-mode: multiply;
-}
-
-.app::after {
-  opacity: 0.13;
-  background-image: radial-gradient(rgb(215 222 215 / 28%) 0.55px, transparent 0.7px);
-  background-size: 4px 4px;
-  mask-image: linear-gradient(to bottom, transparent, #000 35%, #000 85%, transparent);
 }
 
 .hud {
@@ -246,12 +218,13 @@ select {
 .reticle-vertical { width: 1px; height: 28px; transform: translate(-50%, -50%); }
 
 .horizon {
+  --horizon-roll: 0rad;
   position: absolute;
   left: 50%;
   top: 50%;
   width: min(44vw, 420px);
   height: 70px;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) rotate(var(--horizon-roll));
   opacity: 0;
   transition: opacity 180ms ease;
 }
@@ -263,8 +236,20 @@ select {
   left: 0;
   right: 0;
   top: 50%;
+  height: 1px;
+}
+
+.horizon-line::before,
+.horizon-line::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: calc(50% - 32px);
   border-top: 1px dashed var(--ui-tone);
 }
+
+.horizon-line::before { left: 0; }
+.horizon-line::after { right: 0; }
 
 .horizon-tick {
   position: absolute;
@@ -795,12 +780,7 @@ kbd {
   gap: 8px;
   visibility: hidden;
   color: var(--magenta);
-  background: repeating-linear-gradient(
-    0deg,
-    rgb(249 38 114 / 0%) 0 7px,
-    rgb(249 38 114 / 17%) 8px 10px,
-    transparent 11px 23px
-  );
+  background: transparent;
   font-size: 12px;
   letter-spacing: 0.18em;
   text-align: center;

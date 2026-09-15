@@ -284,6 +284,9 @@ function createTerrainMaterial(): ShaderMaterial {
           uProbeColor * 1.04,
           probeSurfaceMix
         );
+        float dangerMix = smoothstep(0.0, 0.92, vAlert);
+        meshColor = mix(meshColor, uAlertColor, dangerMix);
+        meshColor += uAlertColor * vAlert * 0.05;
 
         float dangerRadiusM = uDotRadiusM * mix(1.0, uDangerSizeMultiplier, vAlert);
         float dotMask = triplanarDot(faceNormal, dangerRadiusM);

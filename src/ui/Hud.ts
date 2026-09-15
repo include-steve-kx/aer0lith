@@ -1,3 +1,4 @@
+import { Euler, type Quaternion } from 'three';
 import type { CameraMode, ExperienceMode, FlightMode, FlightSnapshot } from '../core/types.ts';
 import { bindButtonAction } from './bindButtonAction.ts';
 
@@ -24,6 +25,13 @@ const MODE_LABELS: Record<FlightMode, string> = {
   crashed: 'RECOVERY',
   paused: 'PAUSED',
 };
+
+export function zeroRollIndicatorRadians(
+  orientation: Quaternion,
+  target = new Euler(0, 0, 0, 'YXZ'),
+): number {
+  return -target.setFromQuaternion(orientation, 'YXZ').z;
+}
 
 export interface RebaseDiagnostic {
   localDistance: number;
@@ -55,6 +63,7 @@ export class Hud {
   private readonly rebaseValue = element<HTMLElement>('rebase-value');
   private readonly fpsValue = element<HTMLElement>('fps-value');
   private readonly horizon = element<HTMLElement>('horizon');
+  private readonly attitude = new Euler(0, 0, 0, 'YXZ');
 
   constructor() {
     bindButtonAction(this.legendToggle, () => {
@@ -81,6 +90,8 @@ export class Hud {
     this.audioButton.textContent = `AUDIO / ${snapshot.audioEnabled ? 'ON' : 'OFF'}`;
     this.audioButton.setAttribute('aria-label', snapshot.audioEnabled ? 'Mute audio' : 'Enable audio');
     this.horizon.classList.toggle('is-active', snapshot.camera === 'cockpit');
+    const horizonRoll = zeroRollIndicatorRadians(snapshot.orientation, this.attitude);
+    this.horizon.style.setProperty('--horizon-roll', `${horizonRoll}rad`);
     this.fault.classList.toggle('is-active', snapshot.mode === 'crashed');
     this.fault.setAttribute('aria-hidden', String(snapshot.mode !== 'crashed'));
   }

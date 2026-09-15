@@ -22,6 +22,8 @@ export class PostProcessor {
   private width = 1;
   private height = 1;
   private scale = 1;
+  private crtEnabled = true;
+  private glowEnabled = true;
 
   constructor(renderer: WebGLRenderer) {
     this.renderer = renderer;
@@ -187,6 +189,7 @@ export class PostProcessor {
   }
 
   setGlowSettings(enabled: boolean, strength: number, radius: number): void {
+    this.glowEnabled = enabled;
     this.glowMaterial.uniforms.uGlowStrength.value = enabled ? strength : 0;
     this.glowMaterial.uniforms.uGlowRadius.value = radius;
   }
@@ -201,6 +204,7 @@ export class PostProcessor {
     chromatic: number,
     dither: number,
   ): void {
+    this.crtEnabled = enabled;
     this.material.uniforms.uCrtEnabled.value = enabled ? 1 : 0;
     this.material.uniforms.uCurvature.value = curvature;
     this.material.uniforms.uRgbMaskStrength.value = rgbMask;
@@ -212,6 +216,11 @@ export class PostProcessor {
   }
 
   render(scene: Scene, camera: OrthographicCamera | import('three').PerspectiveCamera, time: number, crash: number): void {
+    if (!this.crtEnabled && !this.glowEnabled && crash <= 0 && this.scale >= 0.999) {
+      this.renderer.setRenderTarget(null);
+      this.renderer.render(scene, camera);
+      return;
+    }
     this.material.uniforms.uTime.value = time;
     this.material.uniforms.uCrash.value = crash;
     this.renderer.setRenderTarget(this.target);

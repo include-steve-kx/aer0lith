@@ -98,23 +98,27 @@
             </label>
             <input id="terrain-fog-density" type="range" min="0" max="0.008" step="0.00005" value="0.00165" />
 
-            <div id="dot-render-settings" class="conditional-settings">
-              <h3>DOT MODE</h3>
+            <div class="conditional-settings">
+              <h3>PROXIMITY DANGER</h3>
               <label for="danger-distance">
                 <span>DANGER DISTANCE</span><output id="danger-distance-value">96 M</output>
               </label>
               <input id="danger-distance" type="range" min="16" max="192" step="1" value="96" />
-              <label for="danger-size-multiplier">
-                <span>DANGER DOT SCALE</span><output id="danger-size-multiplier-value">3.0×</output>
-              </label>
-              <input id="danger-size-multiplier" type="range" min="1" max="8" step="0.1" value="3" />
               <label for="danger-size-falloff">
-                <span>SIZE FALLOFF</span><output id="danger-size-falloff-value">1.20</output>
+                <span>DANGER FALLOFF</span><output id="danger-size-falloff-value">1.20</output>
               </label>
               <input id="danger-size-falloff" type="range" min="0.25" max="4" step="0.05" value="1.2" />
               <label class="color-setting" for="danger-color">
                 <span>DANGER COLOR</span><input id="danger-color" type="color" value="#ff0000" />
               </label>
+            </div>
+
+            <div id="dot-render-settings" class="conditional-settings">
+              <h3>DOT MODE</h3>
+              <label for="danger-size-multiplier">
+                <span>DANGER DOT SCALE</span><output id="danger-size-multiplier-value">3.0×</output>
+              </label>
+              <input id="danger-size-multiplier" type="range" min="1" max="8" step="0.1" value="3" />
               <label for="terrain-dot-radius">
                 <span>TERRAIN DOT RADIUS</span><output id="terrain-dot-radius-value">0.14 M</output>
               </label>
@@ -264,7 +268,7 @@
             <label class="select-setting" for="font-choice">
               <span>UI TYPEFACE</span>
               <select id="font-choice">
-                <option value="technical" selected>TECHNICAL</option>
+                <option value="technical" selected>SHARE TECH MONO</option>
                 <option value="system">SYSTEM MONO</option>
                 <option value="terminal">TERMINAL</option>
               </select>
