@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" role="img" aria-labelledby="title desc">
+  <title id="title">From regular density samples to projected terrain dots</title>
+  <desc id="desc">Three panels show a regular density lattice, irregular interpolated surface crossings, and an independent projected dot pattern that can overlap on curved surfaces.</desc>
+  <style>
+    .bg { fill: #101314; }
+    .panel { fill: #151c1d; stroke: #4d5657; }
+    .grid { stroke: #4d5657; stroke-width: 1; }
+    .surface { fill: none; stroke: #8bdcff; stroke-width: 3; }
+    .sample { fill: #8b9494; }
+    .crossing { fill: #ffee66; stroke: #101314; stroke-width: 2; }
+    .dot { fill: #d7ded7; }
+    .overlap { fill: #f0bd6f; }
+    .label { fill: #d7ded7; font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .note { fill: #9da6a5; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+  <rect class="bg" width="960" height="360"/>
+  <g transform="translate(20 22)">
+    <rect class="panel" width="286" height="316"/>
+    <text class="label" x="16" y="28">1 · REGULAR FIELD SAMPLES</text>
+    <g class="grid">
+      <path d="M26 62H260M26 117H260M26 172H260M26 227H260M26 282H260"/>
+      <path d="M26 62V282M84 62V282M143 62V282M201 62V282M260 62V282"/>
+    </g>
+    <g class="sample">
+      <circle cx="26" cy="62" r="3"/><circle cx="84" cy="62" r="3"/><circle cx="143" cy="62" r="3"/><circle cx="201" cy="62" r="3"/><circle cx="260" cy="62" r="3"/>
+      <circle cx="26" cy="117" r="3"/><circle cx="84" cy="117" r="3"/><circle cx="143" cy="117" r="3"/><circle cx="201" cy="117" r="3"/><circle cx="260" cy="117" r="3"/>
+      <circle cx="26" cy="172" r="3"/><circle cx="84" cy="172" r="3"/><circle cx="143" cy="172" r="3"/><circle cx="201" cy="172" r="3"/><circle cx="260" cy="172" r="3"/>
+      <circle cx="26" cy="227" r="3"/><circle cx="84" cy="227" r="3"/><circle cx="143" cy="227" r="3"/><circle cx="201" cy="227" r="3"/><circle cx="260" cy="227" r="3"/>
+      <circle cx="26" cy="282" r="3"/><circle cx="84" cy="282" r="3"/><circle cx="143" cy="282" r="3"/><circle cx="201" cy="282" r="3"/><circle cx="260" cy="282" r="3"/>
+    </g>
+    <path class="surface" d="M18 258C48 236 62 178 105 165C147 152 139 94 189 99C230 104 237 172 270 180"/>
+    <text class="note" x="16" y="306">Each point stores density, not geometry.</text>
+  </g>
+  <g transform="translate(337 22)">
+    <rect class="panel" width="286" height="316"/>
+    <text class="label" x="16" y="28">2 · INTERPOLATED SURFACE</text>
+    <g class="grid">
+      <path d="M26 62H260M26 117H260M26 172H260M26 227H260M26 282H260"/>
+      <path d="M26 62V282M84 62V282M143 62V282M201 62V282M260 62V282"/>
+    </g>
+    <path class="surface" d="M26 258L67 227L84 194L105 165L143 150L157 99L201 110L235 172L260 178"/>
+    <g class="crossing">
+      <circle cx="26" cy="258" r="5"/><circle cx="67" cy="227" r="5"/><circle cx="84" cy="194" r="5"/><circle cx="105" cy="165" r="5"/><circle cx="143" cy="150" r="5"/><circle cx="157" cy="99" r="5"/><circle cx="201" cy="110" r="5"/><circle cx="235" cy="172" r="5"/><circle cx="260" cy="178" r="5"/>
+    </g>
+    <text class="note" x="16" y="306">Crossings slide along edges → unequal gaps.</text>
+  </g>
+  <g transform="translate(654 22)">
+    <rect class="panel" width="286" height="316"/>
+    <text class="label" x="16" y="28">3 · PROJECTED SDF DOTS</text>
+    <defs><clipPath id="surface"><path d="M16 260C48 232 62 177 105 164C148 151 140 94 189 99C232 104 238 170 270 180V286H16Z"/></clipPath></defs>
+    <path d="M16 260C48 232 62 177 105 164C148 151 140 94 189 99C232 104 238 170 270 180V286H16Z" fill="#222a2b" stroke="#8bdcff" stroke-width="2"/>
+    <g clip-path="url(#surface)" class="dot">
+      <circle cx="25" cy="258" r="3"/><circle cx="47" cy="236" r="3"/><circle cx="69" cy="204" r="3"/><circle cx="91" cy="174" r="3"/><circle cx="113" cy="160" r="3"/><circle cx="135" cy="139" r="3"/><circle cx="157" cy="102" r="3"/><circle cx="179" cy="100" r="3"/><circle cx="201" cy="113" r="3"/><circle cx="223" cy="149" r="3"/><circle cx="245" cy="176" r="3"/><circle cx="267" cy="181" r="3"/>
+      <circle cx="37" cy="268" r="3"/><circle cx="60" cy="251" r="3"/><circle cx="83" cy="220" r="3"/><circle cx="106" cy="193" r="3"/><circle cx="129" cy="169" r="3"/><circle cx="152" cy="145" r="3"/><circle cx="175" cy="125" r="3"/><circle cx="198" cy="128" r="3"/><circle cx="221" cy="151" r="3"/><circle cx="244" cy="186" r="3"/>
+      <circle cx="63" cy="276" r="3"/><circle cx="90" cy="255" r="3"/><circle cx="117" cy="229" r="3"/><circle cx="144" cy="199" r="3"/><circle cx="171" cy="175" r="3"/><circle cx="198" cy="169" r="3"/><circle cx="225" cy="187" r="3"/>
+    </g>
+    <g class="overlap"><circle cx="150" cy="137" r="3"/><circle cx="155" cy="132" r="3"/><circle cx="160" cy="127" r="3"/></g>
+    <path d="M156 132L112 72" stroke="#f0bd6f"/>
+    <text class="note" x="20" y="64">projection overlap</text>
+    <text class="note" x="16" y="306">Dots are visual; triangles continue below.</text>
+  </g>
+</svg>
