@@ -1,6 +1,6 @@
 # Development history
 
-This document reconstructs VECTOR’s design evolution from the development conversation and the resulting source tree. The Git repository was created after the interactive prototype had already been built, so these milestones are a narrative record—not a claim that exact historical source snapshots existed for every stage.
+This document reconstructs Aer0lith’s design evolution from the development conversation and the resulting source tree. The project began under the working names Flow and VECTOR before adopting Aer0lith. The Git repository was created after the interactive prototype had already been built, so these milestones are a narrative record—not a claim that exact historical source snapshots existed for every stage.
 
 ## 1. Endless flight foundation
 

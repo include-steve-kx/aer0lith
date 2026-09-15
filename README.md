@@ -1,4 +1,4 @@
-# VECTOR // Endless Flight
+# Aer0lith
 
 An endless retro-futurist flight experiment built with Three.js, vanilla TypeScript, and Vite. A deterministic 3D density field forms an infinite alien world of caves, apertures, arches, roofs, constrictions, and open chambers around a procedural aircraft. All geometry, visual effects, and audio are generated at runtime; there are no downloaded scene assets or backend services.
 
@@ -99,7 +99,7 @@ npm run build && npm run ios:sync && npx cap run ios --target <DEVICE_ID>
 Worlds can be revisited with the `seed` query parameter:
 
 ```text
-http://localhost:5173/?seed=vector-alpha
+http://localhost:5173/?seed=aer0lith-alpha
 ```
 
 The same seed produces the same 3D flight route and density field across cubic chunk boundaries.

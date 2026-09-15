@@ -6,8 +6,9 @@ function element<T extends HTMLElement>(id: string): T {
   return result as T;
 }
 
-const STORAGE_KEY_V1 = 'vector-flight.visual-settings.v1';
-const STORAGE_KEY_V2 = 'vector-flight.visual-settings.v2';
+const STORAGE_KEY = 'aer0lith.visual-settings.v2';
+const LEGACY_STORAGE_KEY_V1 = 'vector-flight.visual-settings.v1';
+const LEGACY_STORAGE_KEY_V2 = 'vector-flight.visual-settings.v2';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -234,11 +235,14 @@ export class SettingsPanel {
 
   private restore(): void {
     try {
-      const currentRaw = localStorage.getItem(STORAGE_KEY_V2);
-      const legacyRaw = currentRaw ? null : localStorage.getItem(STORAGE_KEY_V1);
-      const parsed = JSON.parse(currentRaw ?? legacyRaw ?? 'null') as unknown;
+      const currentRaw = localStorage.getItem(STORAGE_KEY);
+      const legacyV2Raw = currentRaw ? null : localStorage.getItem(LEGACY_STORAGE_KEY_V2);
+      const legacyV1Raw = currentRaw || legacyV2Raw
+        ? null
+        : localStorage.getItem(LEGACY_STORAGE_KEY_V1);
+      const parsed = JSON.parse(currentRaw ?? legacyV2Raw ?? legacyV1Raw ?? 'null') as unknown;
       if (!isRecord(parsed)) return;
-      const saved = currentRaw ? parsed : migrateVisualSettingsV1(parsed);
+      const saved = legacyV1Raw ? migrateVisualSettingsV1(parsed) : parsed;
       if (
         saved.renderResolutionMode === 'full'
         || saved.renderResolutionMode === 'balanced'
@@ -302,7 +306,7 @@ export class SettingsPanel {
 
   private persist(settings: VisualSettings): void {
     try {
-      localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(settings));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     } catch {
       // Visual controls continue to work when browser storage is unavailable.
     }
