@@ -69,6 +69,10 @@ export interface VisualSettings {
   crtVignette: number;
   crtChromatic: number;
   crtDither: number;
+  motionBlurEnabled: boolean;
+  motionBlurStrength: number;
+  motionBlurStartSpeed: number;
+  motionBlurMaxPixels: number;
   glowEnabled: boolean;
   glowStrength: number;
   glowRadius: number;
@@ -117,6 +121,13 @@ export class SettingsPanel {
   private readonly crtVignette = element<HTMLInputElement>('crt-vignette');
   private readonly crtChromatic = element<HTMLInputElement>('crt-chromatic');
   private readonly crtDither = element<HTMLInputElement>('crt-dither');
+  private readonly motionBlurEnabled = element<HTMLInputElement>('motion-blur-enabled');
+  private readonly motionBlurStrength = element<HTMLInputElement>('motion-blur-strength');
+  private readonly motionBlurStartSpeed = element<HTMLInputElement>('motion-blur-start-speed');
+  private readonly motionBlurMaxPixels = element<HTMLInputElement>('motion-blur-max-pixels');
+  private readonly motionBlurStrengthValue = element<HTMLOutputElement>('motion-blur-strength-value');
+  private readonly motionBlurStartSpeedValue = element<HTMLOutputElement>('motion-blur-start-speed-value');
+  private readonly motionBlurMaxPixelsValue = element<HTMLOutputElement>('motion-blur-max-pixels-value');
   private readonly glowEnabled = element<HTMLInputElement>('glow-enabled');
   private readonly glowStrength = element<HTMLInputElement>('glow-strength');
   private readonly glowRadius = element<HTMLInputElement>('glow-radius');
@@ -206,6 +217,10 @@ export class SettingsPanel {
       crtVignette: this.crtVignette.valueAsNumber,
       crtChromatic: this.crtChromatic.valueAsNumber,
       crtDither: this.crtDither.valueAsNumber,
+      motionBlurEnabled: this.motionBlurEnabled.checked,
+      motionBlurStrength: this.motionBlurStrength.valueAsNumber,
+      motionBlurStartSpeed: this.motionBlurStartSpeed.valueAsNumber,
+      motionBlurMaxPixels: this.motionBlurMaxPixels.valueAsNumber,
       glowEnabled: this.glowEnabled.checked,
       glowStrength: this.glowStrength.valueAsNumber,
       glowRadius: this.glowRadius.valueAsNumber,
@@ -293,6 +308,10 @@ export class SettingsPanel {
       this.restoreRange(this.crtVignette, saved.crtVignette);
       this.restoreRange(this.crtChromatic, saved.crtChromatic);
       this.restoreRange(this.crtDither, saved.crtDither);
+      if (typeof saved.motionBlurEnabled === 'boolean') this.motionBlurEnabled.checked = saved.motionBlurEnabled;
+      this.restoreRange(this.motionBlurStrength, saved.motionBlurStrength);
+      this.restoreRange(this.motionBlurStartSpeed, saved.motionBlurStartSpeed);
+      this.restoreRange(this.motionBlurMaxPixels, saved.motionBlurMaxPixels);
       if (typeof saved.glowEnabled === 'boolean') this.glowEnabled.checked = saved.glowEnabled;
       this.restoreRange(this.glowStrength, saved.glowStrength);
       this.restoreRange(this.glowRadius, saved.glowRadius);
@@ -361,6 +380,9 @@ export class SettingsPanel {
     this.crtVignetteValue.textContent = this.crtVignette.valueAsNumber.toFixed(2);
     this.crtChromaticValue.textContent = this.crtChromatic.valueAsNumber.toFixed(2);
     this.crtDitherValue.textContent = this.crtDither.valueAsNumber.toFixed(2);
+    this.motionBlurStrengthValue.textContent = this.motionBlurStrength.valueAsNumber.toFixed(2);
+    this.motionBlurStartSpeedValue.textContent = `${this.motionBlurStartSpeed.valueAsNumber.toFixed(0)} M/S`;
+    this.motionBlurMaxPixelsValue.textContent = `${this.motionBlurMaxPixels.valueAsNumber.toFixed(0)} PX`;
     this.glowStrengthValue.textContent = this.glowStrength.valueAsNumber.toFixed(2);
     this.glowRadiusValue.textContent = this.glowRadius.valueAsNumber.toFixed(2);
   }

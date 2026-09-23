@@ -1,0 +1,11 @@
+# Speed-dependent motion blur
+
+The Motion Blur section in Settings provides an enable switch, strength, start speed (m/s), and maximum streak length (pixels at 1080p, scaled with resolution). Defaults are enabled, 0.45 strength, 20 m/s start speed, and a 12-pixel cap. Settings persist with the other appearance controls.
+
+The effect samples scene color along a projected flight-velocity vector. Scene depth determines the physical displacement. A speed-dependent minimum streak makes distant scenery visibly blur too; nearby surfaces can extend farther, up to the selected cap. At the default settings this minimum is about 5 pixels at 55 m/s and 18 pixels at 120 m/s (before the 12-pixel cap and center protection). The previous physical-only displacement was often subpixel at cruising speed, even with a high strength setting. A smooth speed curve increases the shutter duration toward maximum flight speed. The ship and its immediate surroundings are protected, the screen center has less blur, and the HTML HUD stays sharp. It runs before CRT and glow and can be used with those effects off.
+
+This is a lightweight approximation for flight translation, not a full per-object velocity-buffer implementation: independently moving flock members and camera rotation do not get separate physical motion vectors. Empty gaps in the terrain's dot mode use an 80-meter depth proxy so points can streak into empty pixels rather than merely dimming. The effect uses twelve neighboring color/depth samples in the existing post-process pass and no accumulating frame history.
+
+Pause preserves the same flight velocity and image exposure. No blur history or animation advances while paused, so appearance edits and camera orbit remain live without ghost trails or a jump on resume. Crash recovery sets translation blur to zero.
+
+The depth-reconstruction and directional-sampling approach follows [GPU Gems 3, Chapter 27](https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-27-motion-blur-post-processing-effect), adapted to a synthetic shutter interval driven by the ship's speed. The scene depth comes from a [Three.js DepthTexture](https://threejs.org/docs/pages/DepthTexture.html).

@@ -1,4 +1,7 @@
 import {
+  DepthTexture,
+  Matrix4,
+  Vector3,
   LinearFilter,
   Mesh,
   OrthographicCamera,
@@ -9,6 +12,7 @@ import {
   WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
+import { motionBlurExposure, motionBlurStreak } from './MotionBlur.ts';
 
 export class PostProcessor {
   private readonly renderer: WebGLRenderer;
@@ -24,15 +28,26 @@ export class PostProcessor {
   private scale = 1;
   private crtEnabled = true;
   private glowEnabled = true;
+  private motionBlurEnabled = true;
+  private motionBlurStrength = 0.45;
+  private motionBlurStartSpeed = 20;
 
   constructor(renderer: WebGLRenderer) {
     this.renderer = renderer;
     this.target = this.createTarget(1, 1);
     this.processedTarget = this.createTarget(1, 1);
+    this.target.depthTexture = new DepthTexture(1, 1);
     this.material = new ShaderMaterial({
       uniforms: {
         tDiffuse: { value: this.target.texture },
         uResolution: { value: new Vector2(1, 1) },
+        tDepth: { value: this.target.depthTexture },
+        uProjection: { value: new Matrix4() },
+        uProjectionInverse: { value: new Matrix4() },
+        uTravelView: { value: new Vector3() },
+        uShipView: { value: new Vector3() },
+        uBlurLimit: { value: 12 },
+        uBlurPixels: { value: 0 },
         uTime: { value: 0 },
         uCrash: { value: 0 },
         uCrtEnabled: { value: 1 },
@@ -54,6 +69,13 @@ export class PostProcessor {
       fragmentShader: `
         uniform sampler2D tDiffuse;
         uniform vec2 uResolution;
+        uniform sampler2D tDepth;
+        uniform mat4 uProjection;
+        uniform mat4 uProjectionInverse;
+        uniform vec3 uTravelView;
+        uniform vec3 uShipView;
+        uniform float uBlurLimit;
+        uniform float uBlurPixels;
         uniform float uTime;
         uniform float uCrash;
         uniform float uCrtEnabled;
@@ -72,6 +94,47 @@ export class PostProcessor {
           vec2 f = mod(floor(p), 4.0);
           return mod(f.x + f.y * 2.0, 4.0) / 4.0;
         }
+        vec3 viewPosition(vec2 uv, float depth) {
+          vec4 p = uProjectionInverse * vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+          return p.xyz / p.w;
+        }
+        float shipMask(vec3 p, float depth) {
+          return depth < 0.99999 ? smoothstep(7.0, 9.0, distance(p, uShipView)) : 1.0;
+        }
+        vec3 motionSample(vec2 uv) {
+          vec3 center = texture2D(tDiffuse, uv).rgb;
+          if (uBlurLimit <= 0.0 || dot(uTravelView, uTravelView) < 0.0000001) return center;
+          float depth = texture2D(tDepth, uv).x;
+          vec3 p = viewPosition(uv, depth);
+          // The dot renderer has gaps with no depth. A modest proxy distance
+          // lets bright dots extend into those gaps rather than merely dimming.
+          if (depth >= 0.99999) p *= 80.0 / max(0.001, -p.z);
+          float mask = shipMask(p, depth);
+          vec4 previous = uProjection * vec4(p + uTravelView, 1.0);
+          if (previous.w <= 0.001 || mask < 0.001) return center;
+          vec2 streak = uv - (previous.xy / previous.w * 0.5 + 0.5);
+          // Physical reprojection alone is subpixel over most of this large
+          // world. Give it a speed-dependent screen-space floor, retaining
+          // its direction, depth response, sharp ship, and clear center.
+          float pixels = length(streak * uResolution);
+          if (pixels < 0.0001) return center;
+          float limit = uBlurLimit * uResolution.y / 1080.0;
+          float minimum = uBlurPixels * uResolution.y / 1080.0;
+          streak *= min(limit, max(pixels, minimum)) / pixels;
+          streak *= mask * smoothstep(0.10, 0.65, length(uv - 0.5) * 1.7);
+          vec3 total = center;
+          float weight = 1.0;
+          for (int i = 0; i < 12; i++) {
+            float t = (float(i) + 0.5) / 12.0 - 0.5;
+            vec2 sampleUv = clamp(uv + streak * t, vec2(0.001), vec2(0.999));
+            float sampleDepth = texture2D(tDepth, sampleUv).x;
+            float sampleWeight = shipMask(viewPosition(sampleUv, sampleDepth), sampleDepth);
+            sampleWeight *= 1.0 - abs(t);
+            total += texture2D(tDiffuse, sampleUv).rgb * sampleWeight;
+            weight += sampleWeight;
+          }
+          return total / weight;
+        }
         void main() {
           vec2 curved = vUv * 2.0 - 1.0;
           curved *= 1.0 + dot(curved, curved) * uCurvature * uCrtEnabled;
@@ -89,10 +152,10 @@ export class PostProcessor {
             texel.x * (0.58 * uChromaticStrength * uCrtEnabled + 3.2 * uCrash),
             0.0
           );
-          vec3 color;
-          color.r = texture2D(tDiffuse, uv + aberration).r;
-          color.g = texture2D(tDiffuse, uv).g;
-          color.b = texture2D(tDiffuse, uv - aberration).b;
+          vec3 base = texture2D(tDiffuse, uv).rgb;
+          vec3 color = motionSample(uv);
+          color.r += texture2D(tDiffuse, uv + aberration).r - base.r;
+          color.b += texture2D(tDiffuse, uv - aberration).b - base.b;
           float scanWave = sin(uv.y * uResolution.y * 3.14159);
           float scan = 1.0 - 0.12 * uScanlineStrength * uCrtEnabled * (1.0 - scanWave);
           float phosphorColumn = mod(floor(uv.x * uResolution.x), 3.0);
@@ -123,6 +186,7 @@ export class PostProcessor {
         uTexel: { value: new Vector2(1, 1) },
         uGlowStrength: { value: 3 },
         uGlowRadius: { value: 3 },
+        uNativeOutput: { value: 0 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -136,6 +200,7 @@ export class PostProcessor {
         uniform vec2 uTexel;
         uniform float uGlowStrength;
         uniform float uGlowRadius;
+        uniform float uNativeOutput;
         varying vec2 vUv;
         vec3 glowSample(vec2 offset) {
           vec3 sampleColor = texture2D(tDiffuse, vUv + offset * uTexel).rgb;
@@ -154,6 +219,11 @@ export class PostProcessor {
             glowSample(vec2(0.0, 5.0) * uGlowRadius) + glowSample(vec2(0.0, -5.0) * uGlowRadius);
           vec3 color = base + (nearGlow * 0.064 + wideGlow * 0.03) * uGlowStrength;
           gl_FragColor = vec4(color, 1.0);
+          // Match the native renderer when motion blur is the only effect.
+          // Keep the existing CRT/glow presentation's tonal response intact.
+          if (uNativeOutput > 0.5) {
+            #include <colorspace_fragment>
+          }
         }
       `,
     });
@@ -194,6 +264,13 @@ export class PostProcessor {
     this.glowMaterial.uniforms.uGlowRadius.value = radius;
   }
 
+  setMotionBlurSettings(enabled: boolean, strength: number, startSpeed: number, maxPixels: number): void {
+    this.motionBlurEnabled = enabled;
+    this.motionBlurStrength = strength;
+    this.motionBlurStartSpeed = startSpeed;
+    this.material.uniforms.uBlurLimit.value = Math.max(0, Math.min(32, maxPixels));
+  }
+
   setCrtSettings(
     enabled: boolean,
     curvature: number,
@@ -215,8 +292,20 @@ export class PostProcessor {
     this.material.uniforms.uDitherStrength.value = dither;
   }
 
-  render(scene: Scene, camera: OrthographicCamera | import('three').PerspectiveCamera, time: number, crash: number): void {
-    if (!this.crtEnabled && !this.glowEnabled && crash <= 0 && this.scale >= 0.999) {
+  render(scene: Scene, camera: OrthographicCamera | import('three').PerspectiveCamera, time: number, crash: number,
+    velocity = new Vector3(), shipPosition = new Vector3()): void {
+    const exposure = this.motionBlurEnabled
+      ? motionBlurExposure(velocity.length(), this.motionBlurStrength, this.motionBlurStartSpeed) : 0;
+    this.material.uniforms.uBlurPixels.value = this.motionBlurEnabled
+      ? motionBlurStreak(velocity.length(), this.motionBlurStrength, this.motionBlurStartSpeed) : 0;
+    this.glowMaterial.uniforms.uNativeOutput.value = !this.crtEnabled && !this.glowEnabled && crash <= 0 ? 1 : 0;
+    camera.updateMatrixWorld();
+    this.material.uniforms.uProjection.value.copy(camera.projectionMatrix);
+    this.material.uniforms.uProjectionInverse.value.copy(camera.projectionMatrixInverse);
+    this.material.uniforms.uShipView.value.copy(shipPosition).applyMatrix4(camera.matrixWorldInverse);
+    this.material.uniforms.uTravelView.value.copy(velocity)
+      .transformDirection(camera.matrixWorldInverse).multiplyScalar(velocity.length() * exposure);
+    if (exposure <= 0 && !this.crtEnabled && !this.glowEnabled && crash <= 0 && this.scale >= 0.999) {
       this.renderer.setRenderTarget(null);
       this.renderer.render(scene, camera);
       return;

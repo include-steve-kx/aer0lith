@@ -246,6 +246,25 @@
             <input id="crt-dither" type="range" min="0" max="3" step="0.05" value="1" />
           </section>
 
+          <section class="settings-section" aria-labelledby="settings-motion-title">
+            <h2 id="settings-motion-title">MOTION BLUR</h2>
+            <label class="toggle-setting" for="motion-blur-enabled">
+              <span>SPEED BLUR</span><input id="motion-blur-enabled" type="checkbox" checked />
+            </label>
+            <label for="motion-blur-strength">
+              <span>STRENGTH</span><output id="motion-blur-strength-value">0.45</output>
+            </label>
+            <input id="motion-blur-strength" type="range" min="0" max="1.5" step="0.05" value="0.45" />
+            <label for="motion-blur-start-speed">
+              <span>START SPEED</span><output id="motion-blur-start-speed-value">20 M/S</output>
+            </label>
+            <input id="motion-blur-start-speed" type="range" min="0" max="100" step="5" value="20" />
+            <label for="motion-blur-max-pixels">
+              <span>MAX STREAK</span><output id="motion-blur-max-pixels-value">12 PX</output>
+            </label>
+            <input id="motion-blur-max-pixels" type="range" min="0" max="32" step="1" value="12" />
+          </section>
+
           <section class="settings-section" aria-labelledby="settings-display-title">
             <h2 id="settings-display-title">FINAL OUTPUT</h2>
             <label class="select-setting" for="render-resolution-mode">

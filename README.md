@@ -56,6 +56,10 @@ Pause holds the current frame's aircraft, flocks, scan boxes, wind, trails, prob
 
 Scan boxes retain their selected color while fading through per-instance alpha.
 
+The spacecraft uses just 22 triangles: a pointed diamond-section hull and four tetrahedral wings arranged in an X. One mesh and one adjustable color cover the entire ship; there are no separate canopy, engine, or trim colors.
+
+Settings > Motion Blur controls subtle speed-dependent scenery blur: enable, strength, start speed, and maximum streak length. The default strength is 0.45, starting at 20 m/s with a 12-pixel cap at 1080p. The ship and HUD stay sharp, and the paused scene retains a stable exposure. See [motion-blur behavior and implementation](docs/motion-blur.md).
+
 The world convention is one Three.js unit per meter. `ALT` is absolute world altitude relative to the procedural world's zero-meter datum, speed is shown in meters per second, and distances in the sensor settings are meters. In Analysis mode, a fixed-world thin gold line previews the autopilot route; it fades away when manual control begins. Terrain points close to the aircraft warm toward the configurable danger color as a proximity cue.
 
 The top-right settings panel adjusts terrain rendering, fog, dots, plane and route colors, wind, flock behavior and scan targets, CRT processing, final glow, render resolution, and the UI typeface in real time. Every adjustment is stored locally in the browser and restored on the next visit. Terrain defaults to RGB `200, 200, 200`, the aircraft to RGB `230, 230, 230`, and the route guide to a warm yellow. The default 96-meter danger field enlarges nearby terrain dots toward 3× and pure red using the same three-dimensional rule for floor and wall samples. Scan targets default to white with `0.16 M` corner thickness. Final glow defaults to strength 3 and radius 3. Full-resolution rendering is the default; balanced 80% and adaptive modes remain available for slower devices.

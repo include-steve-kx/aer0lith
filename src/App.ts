@@ -53,6 +53,7 @@ export class App {
   private readonly renderOrigin = new Vector3();
   private readonly renderPlanePosition = new Vector3();
   private readonly originShift = new Vector3();
+  private readonly blurVelocity = new Vector3();
   private accumulator = 0;
   private lastTime = performance.now();
   private elapsed = 0;
@@ -173,6 +174,8 @@ export class App {
         settings.crtChromatic,
         settings.crtDither,
       );
+      this.post.setMotionBlurSettings(settings.motionBlurEnabled, settings.motionBlurStrength,
+        settings.motionBlurStartSpeed, settings.motionBlurMaxPixels);
       this.post.setGlowSettings(settings.glowEnabled, settings.glowStrength, settings.glowRadius);
       document.documentElement.dataset.font = settings.fontChoice;
     };
@@ -270,11 +273,15 @@ export class App {
       this.updateHud(this.frameAverage);
       this.lastHudUpdate = this.renderElapsed;
     }
+    this.blurVelocity.set(0, 0, this.flight.mode === 'crashed' ? 0 : this.flight.speed)
+      .applyQuaternion(this.flight.orientation);
     this.post.render(
       this.scene,
       this.cameraRig.camera,
       this.elapsed,
       this.flight.crashIntensity,
+      this.blurVelocity,
+      this.renderPlanePosition,
     );
   };
 
