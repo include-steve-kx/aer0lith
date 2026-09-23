@@ -67,7 +67,7 @@ Paste this **entire block into Terminal on Steve's Mac**. It uses the existing c
 
   xcrun devicectl device install app \
     --device "$AER0LITH_PHONE_UDID" \
-    "$AER0LITH_BUILD_DIR/Build/Products/Debug-iphoneos/App.app"
+    "$AER0LITH_BUILD_DIR/Build/Products/Debug-iphoneos/Aer0lith.app"
 
   xcrun devicectl device process launch \
     --device "$AER0LITH_PHONE_UDID" \
