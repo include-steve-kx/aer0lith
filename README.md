@@ -44,13 +44,17 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 | `M` | Toggle audio |
 | `R` | Recover at the latest safe checkpoint |
 | `B` | Trigger a terrain probe wave |
-| `P` / `Escape` | Pause |
+| Pause button / `P` / `Escape` | Pause / resume simulation |
 | `N` | Generate a new seeded world |
 | `Ctrl` / `Cmd` + `F` | Toggle fullscreen |
 
 Any flight input takes control from autopilot. Autopilot is the default endless-flight mode and continuously maintains terrain clearance. Ambient mode removes the interface while retaining the active autopilot guide, aircraft, and terrain; press `V` or the faint Analysis button to restore the interface. Audio starts muted and is synthesized through the Web Audio API after it is explicitly enabled.
 
 Camera `1` is the cockpit view, camera `2` is the default chase view, and camera `3` is a higher, farther chase view that follows directly behind the aircraft.
+
+Pause holds the current frame's aircraft, flocks, scan boxes, wind, trails, probe wave, route fade, and CRT animation. Rendering continues so camera selection, orbit/pan/zoom, and appearance settings remain usable. Paused orbit stays where you leave it. Resume continues from the same simulation state without catching up elapsed wall time. The pause button remains visible in Ambient mode.
+
+Scan boxes retain their selected color while fading through per-instance alpha.
 
 The world convention is one Three.js unit per meter. `ALT` is absolute world altitude relative to the procedural world's zero-meter datum, speed is shown in meters per second, and distances in the sensor settings are meters. In Analysis mode, a fixed-world thin gold line previews the autopilot route; it fades away when manual control begins. Terrain points close to the aircraft warm toward the configurable danger color as a proximity cue.
 

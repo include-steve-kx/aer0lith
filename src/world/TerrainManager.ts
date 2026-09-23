@@ -479,7 +479,21 @@ export class TerrainManager {
     }
   }
 
+  private paused = false;
+  private readonly deferredResults: Array<[TerrainWorkerSlot, ChunkGenerationResponse]> = [];
+
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+    if (!paused) {
+      for (const [slot, response] of this.deferredResults.splice(0)) this.acceptWorkerResult(slot, response);
+    }
+  }
+
   private acceptWorkerResult(slot: TerrainWorkerSlot, response: ChunkGenerationResponse): void {
+    if (this.paused) {
+      this.deferredResults.push([slot, response]);
+      return;
+    }
     slot.busy = false;
     const key = this.inFlight.get(response.requestId);
     this.inFlight.delete(response.requestId);

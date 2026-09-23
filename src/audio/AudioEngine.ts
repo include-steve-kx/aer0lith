@@ -53,13 +53,13 @@ export class AudioEngine {
     this.wind.start();
   }
 
-  update(speed: number, throttle: number): void {
+  update(speed: number, throttle: number, paused = false): void {
     if (!this.context || !this.engine || !this.engineGain || !this.windGain) return;
     const now = this.context.currentTime;
     this.engine.frequency.setTargetAtTime(42 + speed * 1.35 + throttle * 24, now, 0.08);
-    this.engineGain.gain.setTargetAtTime(0.19 + throttle * 0.23, now, 0.12);
+    this.engineGain.gain.setTargetAtTime(paused ? 0 : 0.19 + throttle * 0.23, now, 0.12);
     const speedRatio = (speed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
-    this.windGain.gain.setTargetAtTime(0.025 + speedRatio * 0.1, now, 0.15);
+    this.windGain.gain.setTargetAtTime(paused ? 0 : 0.025 + speedRatio * 0.1, now, 0.15);
   }
 
   beep(frequency = 520, duration = 0.045): void {

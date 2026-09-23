@@ -111,3 +111,38 @@ test('active throttle smoothly widens and then restores camera FOV', () => {
   }
   assert.ok(Math.abs(rig.camera.fov - baseFov) < 0.05);
 });
+
+test('pause holds the current camera and boost FOV, but permits selecting a new view', () => {
+  const rig = new CameraRig(16 / 9, fakeElement());
+  const plane = new Vector3(0, 60, 0);
+  const orientation = new Quaternion();
+  rig.update(1 / 60, plane, orientation, 0, true);
+  rig.select(2);
+  rig.update(1 / 60, plane, orientation, 0, true);
+  rig.setPaused();
+  const position = rig.camera.position.clone();
+  const rotation = rig.camera.quaternion.clone();
+  const fov = rig.camera.fov;
+  for (let i = 0; i < 300; i++) rig.update(1 / 60, plane, orientation, 1, false, true);
+  assert.deepEqual(rig.camera.position, position);
+  assert.deepEqual(rig.camera.quaternion.toArray(), rotation.toArray());
+  assert.equal(rig.camera.fov, fov);
+  rig.select(0);
+  rig.update(1 / 60, plane, orientation, 0, false, true);
+  assert.ok(rig.camera.position.distanceTo(position) > 0.1);
+});
+
+test('a paused orbit does not return to chase after the normal delay', () => {
+  const rig = new CameraRig(16 / 9, fakeElement());
+  const plane = new Vector3(0, 60, 0);
+  const orientation = new Quaternion();
+  rig.update(1 / 60, plane, orientation, 0);
+  rig.setPaused();
+  rig.controls.dispatchEvent({ type: 'start' });
+  rig.camera.position.set(18, 66, 0);
+  rig.controls.update(0);
+  rig.controls.dispatchEvent({ type: 'end' });
+  const position = rig.camera.position.clone();
+  for (let i = 0; i < 600; i++) rig.update(1 / 60, plane, orientation, 0, false, true);
+  assert.ok(rig.camera.position.distanceTo(position) < 1e-7);
+});

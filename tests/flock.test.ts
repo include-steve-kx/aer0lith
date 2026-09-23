@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Quaternion, Scene, Vector3 } from 'three';
+import { Matrix4, MeshBasicMaterial, Quaternion, Scene, Vector3 } from 'three';
 import { FLOCK } from '../src/core/config.ts';
 import type { FlightPath, TerrainSampler } from '../src/core/types.ts';
 import { fibonacciSpherePoint, FlockSystem, probeEncounterStrength } from '../src/world/FlockSystem.ts';
@@ -86,4 +86,33 @@ test('flocks reuse a fixed-capacity pool during repeated appearances', () => {
   assert.equal(flocks.capacity, FLOCK.maxFlocks * FLOCK.maxBirdsPerFlock);
   assert.equal(flocks.targetPoolCapacity, flocks.capacity * 24);
   assert.ok(flocks.activeFlockCount > 0);
+});
+
+test('scanned brackets fade in alpha, keep their tint, and freeze with the birds', () => {
+  const flocks = new FlockSystem(new Scene(), openTerrain, 'fade-freeze');
+  const plane = new Vector3(0, 40, 0);
+  const orientation = new Quaternion();
+  const origin = new Vector3();
+  for (let frame = 0; frame < 300; frame++) flocks.update(1 / 60, plane, orientation, 55, origin);
+  // Locate an actual active bird from the public instance matrices.
+  const birds = flocks.group.children[0] as import('three').InstancedMesh;
+  const targets = flocks.group.children[1] as import('three').InstancedMesh;
+  const matrix = new Matrix4();
+  birds.getMatrixAt(0, matrix);
+  const birdPosition = new Vector3().setFromMatrixPosition(matrix);
+  const probe = birdPosition.clone().add(new Vector3(0, 0, -30));
+  flocks.update(0, plane, orientation, 55, origin, false, probe, 30, true, true);
+  assert.ok(targets.count > 0);
+  const alpha = targets.geometry.getAttribute('instanceAlpha');
+  const initialAlpha = alpha.getX(0);
+  const tint = (targets.material as MeshBasicMaterial).color.clone();
+  const matrices = Array.from(birds.instanceMatrix.array);
+  for (let frame = 0; frame < 120; frame++) flocks.update(1 / 60, plane, orientation, 55, origin, true);
+  assert.deepEqual(Array.from(birds.instanceMatrix.array), matrices);
+  assert.equal(alpha.getX(0), initialAlpha);
+  for (let frame = 0; frame < 145; frame++) flocks.update(1 / 60, plane, orientation, 55, origin);
+  assert.ok(alpha.getX(0) < initialAlpha * 0.5);
+  assert.deepEqual((targets.material as MeshBasicMaterial).color, tint);
+  assert.equal(targets.instanceColor, null, 'RGB must not be used for fading');
+  assert.equal((targets.material as MeshBasicMaterial).depthWrite, false);
 });

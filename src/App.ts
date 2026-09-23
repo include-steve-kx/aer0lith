@@ -63,6 +63,9 @@ export class App {
   private resolutionMode: 'full' | 'balanced' | 'adaptive' = 'full';
   private adaptiveRenderScale = 1;
   private running = true;
+  private paused = false;
+  private renderElapsed = 0;
+  private throttleActive = false;
   private experienceMode: ExperienceMode = 'analysis';
   private collisionDebugEnabled = false;
 
@@ -119,13 +122,13 @@ export class App {
     this.cameraRig.onChange = () => this.audio.beep(760, 0.035);
 
     this.input = new InputManager(root, {
-      onManualInput: () => this.flight.takeManualControl(),
-      onToggleAutopilot: () => this.flight.toggleAutopilot(),
+      onManualInput: () => { if (!this.paused) this.flight.takeManualControl(); },
+      onToggleAutopilot: () => this.toggleAutopilot(),
       onCycleCamera: () => this.setCamera(this.cameraRig.cycle()),
       onSelectCamera: (index) => this.setCamera(this.cameraRig.select(index)),
       onToggleAudio: () => void this.toggleAudio(),
       onReset: () => this.resetFlight(),
-      onPause: () => this.flight.togglePause(),
+      onPause: () => this.togglePause(),
       onNewSeed: () => this.newSeed(),
       onToggleExperienceMode: () => this.toggleExperienceMode(),
       onToggleFullscreen: () => void this.toggleFullscreen(),
@@ -139,7 +142,8 @@ export class App {
     bindButtonAction(this.hud.cameraButton, () => this.setCamera(this.cameraRig.cycle()));
     bindButtonAction(this.hud.audioButton, () => void this.toggleAudio());
     bindButtonAction(this.hud.seedButton, () => this.newSeed());
-    bindButtonAction(this.hud.modeButton, () => this.flight.toggleAutopilot());
+    bindButtonAction(this.hud.modeButton, () => this.toggleAutopilot());
+    bindButtonAction(this.hud.pauseButton, () => this.togglePause());
     bindButtonAction(this.hud.viewButton, () => this.toggleExperienceMode());
     bindButtonAction(this.hud.fullscreenButton, () => void this.toggleFullscreen());
     bindButtonAction(this.hud.collisionButton, () => this.toggleCollisionDebug());
@@ -196,71 +200,75 @@ export class App {
     if (document.hidden) return;
     const rawDelta = Math.min((now - this.lastTime) / 1000, 0.08);
     this.lastTime = now;
-    this.elapsed += rawDelta;
-    this.accumulator += rawDelta;
-    const frameInput = this.input.read();
-    let substeps = 0;
-    while (this.accumulator >= FLIGHT.fixedStep && substeps < FLIGHT.maxSubsteps) {
-      this.flight.update(FLIGHT.fixedStep, frameInput);
-      this.accumulator -= FLIGHT.fixedStep;
-      substeps += 1;
-    }
-    if (substeps === FLIGHT.maxSubsteps) this.accumulator = 0;
+    this.renderElapsed += rawDelta;
+    if (!this.paused) {
+      this.elapsed += rawDelta;
+      this.accumulator += rawDelta;
+      const frameInput = this.input.read();
+      let substeps = 0;
+      while (this.accumulator >= FLIGHT.fixedStep && substeps < FLIGHT.maxSubsteps) {
+        this.flight.update(FLIGHT.fixedStep, frameInput);
+        this.accumulator -= FLIGHT.fixedStep;
+        substeps += 1;
+      }
+      if (substeps === FLIGHT.maxSubsteps) this.accumulator = 0;
 
-    this.maybeRebase();
-    this.terrain.update(this.flight.position, this.renderOrigin);
-    if (this.flight.mode !== 'paused' && this.probeScheduler.update(rawDelta)) this.triggerProbe();
-    this.terrain.updateProbe(rawDelta, this.renderOrigin);
-    this.hud.setProbeActive(this.terrain.isProbeActive);
-    this.trail.add(this.flight.position, this.flight.orientation, this.renderOrigin);
-    const throttleActive = frameInput.throttle > 0
-      && this.flight.mode !== 'paused'
-      && this.flight.mode !== 'crashed';
-    this.trail.update(rawDelta, throttleActive);
-    if (this.elapsed - this.lastRouteUpdate > 0.25) {
-      this.route.update(this.flight.position, this.renderOrigin);
-      this.lastRouteUpdate = this.elapsed;
+      this.maybeRebase();
+      this.terrain.update(this.flight.position, this.renderOrigin);
+      if (this.flight.mode !== 'paused' && this.probeScheduler.update(rawDelta)) this.triggerProbe();
+      this.terrain.updateProbe(rawDelta, this.renderOrigin);
+      this.hud.setProbeActive(this.terrain.isProbeActive);
+      this.trail.add(this.flight.position, this.flight.orientation, this.renderOrigin);
+      const throttleActive = frameInput.throttle > 0
+        && this.flight.mode !== 'paused'
+        && this.flight.mode !== 'crashed';
+      this.throttleActive = throttleActive;
+      this.trail.update(rawDelta, throttleActive);
+      if (this.elapsed - this.lastRouteUpdate > 0.25) {
+        this.route.update(this.flight.position, this.renderOrigin);
+        this.lastRouteUpdate = this.elapsed;
+      }
+      this.syncViews();
+      this.terrain.updateAircraftPosition(this.renderPlanePosition);
+      this.route.updateAircraftPosition(this.renderPlanePosition);
+      this.route.setAutopilotActive(this.flight.mode === 'autopilot');
+      this.route.animate(rawDelta);
+      this.wind.update(
+        rawDelta,
+        this.renderPlanePosition,
+        this.flight.orientation,
+        this.flight.speed,
+        throttleActive,
+        this.flight.mode === 'paused' || this.flight.mode === 'crashed',
+      );
+      this.flocks.update(
+        rawDelta,
+        this.flight.position,
+        this.flight.orientation,
+        this.flight.speed,
+        this.renderOrigin,
+        this.flight.mode === 'paused' || this.flight.mode === 'crashed',
+        this.terrain.currentProbeWorldCenter,
+        this.terrain.currentProbeRadius,
+        this.terrain.isProbeActive,
+        this.terrain.isProbeExpanding,
+      );
+    } else {
+      // Rebuild only presentation data, so color/thickness controls stay live.
+      this.flocks.update(0, this.flight.position, this.flight.orientation,
+        this.flight.speed, this.renderOrigin, true);
+      this.syncViews();
     }
-    this.syncViews();
-    this.terrain.updateAircraftPosition(this.renderPlanePosition);
-    this.route.updateAircraftPosition(this.renderPlanePosition);
-    this.route.setAutopilotActive(this.flight.mode === 'autopilot');
-    this.route.animate(rawDelta);
-    this.cameraRig.update(
-      rawDelta,
-      this.renderPlanePosition,
-      this.flight.orientation,
-      this.flight.crashIntensity,
-      throttleActive,
-    );
-    this.wind.update(
-      rawDelta,
-      this.renderPlanePosition,
-      this.flight.orientation,
-      this.flight.speed,
-      throttleActive,
-      this.flight.mode === 'paused' || this.flight.mode === 'crashed',
-    );
-    this.flocks.update(
-      rawDelta,
-      this.flight.position,
-      this.flight.orientation,
-      this.flight.speed,
-      this.renderOrigin,
-      this.flight.mode === 'paused' || this.flight.mode === 'crashed',
-      this.terrain.currentProbeWorldCenter,
-      this.terrain.currentProbeRadius,
-      this.terrain.isProbeActive,
-      this.terrain.isProbeExpanding,
-    );
-    this.audio.update(this.flight.speed, this.flight.throttle);
+    this.cameraRig.update(rawDelta, this.renderPlanePosition, this.flight.orientation,
+      this.flight.crashIntensity, this.throttleActive, this.paused);
+    this.audio.update(this.flight.speed, this.flight.throttle, this.paused);
 
     const instantFps = rawDelta > 0 ? 1 / rawDelta : 60;
     this.frameAverage += (instantFps - this.frameAverage) * 0.035;
-    this.updateQuality(rawDelta);
-    if (this.elapsed - this.lastHudUpdate > 0.1) {
+    if (!this.paused) this.updateQuality(rawDelta);
+    if (this.renderElapsed - this.lastHudUpdate > 0.1) {
       this.updateHud(this.frameAverage);
-      this.lastHudUpdate = this.elapsed;
+      this.lastHudUpdate = this.renderElapsed;
     }
     this.post.render(
       this.scene,
@@ -309,9 +317,25 @@ export class App {
   }
 
   private triggerProbe(): void {
+    if (this.paused) return;
     this.terrain.triggerProbe(this.flight.position);
     this.probeScheduler.reset();
     this.audio.beep(920, 0.035);
+  }
+
+  private toggleAutopilot(): void {
+    if (!this.paused) this.flight.toggleAutopilot();
+  }
+
+  private togglePause(): void {
+    this.paused = !this.paused;
+    // Never accumulate paused wall time or run a catch-up step on resume.
+    this.lastTime = performance.now();
+    this.terrain.setPaused(this.paused);
+    if (this.paused) this.cameraRig.setPaused();
+    this.root.classList.toggle('is-paused', this.paused);
+    this.hud.setPaused(this.paused);
+    this.updateHud(this.frameAverage);
   }
 
   private toggleCollisionDebug(): void {
@@ -326,6 +350,7 @@ export class App {
   }
 
   private resetFlight(): void {
+    if (this.paused) return;
     this.flight.reset();
     this.trail.clear();
     this.trail.add(this.flight.position, this.flight.orientation, this.renderOrigin, true);
@@ -360,7 +385,7 @@ export class App {
 
   private updateHud(fps: number): void {
     const snapshot: FlightSnapshot = {
-      mode: this.flight.mode,
+      mode: this.paused ? 'paused' : this.flight.mode,
       camera: this.cameraRig.mode,
       position: this.flight.position,
       orientation: this.flight.orientation,

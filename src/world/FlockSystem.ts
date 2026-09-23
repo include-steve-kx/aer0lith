@@ -7,6 +7,7 @@ import {
   DynamicDrawUsage,
   Group,
   InstancedMesh,
+  InstancedBufferAttribute,
   Matrix4,
   MathUtils,
   MeshBasicMaterial,
@@ -194,8 +195,10 @@ export class FlockSystem {
   private readonly flutterRotation = new Quaternion();
   private readonly scale = new Vector3();
   private readonly targetMatrix = new Matrix4();
-  private readonly targetColor = new Color();
   private readonly targetTint = new Color(0xffffff);
+  private readonly targetAlpha = new InstancedBufferAttribute(
+    new Float32Array(this.capacity * this.targetCornerTransforms.length), 1,
+  );
   private settings: FlockVisualSettings = {
     flockEnabled: true,
     flockMinSize: FLOCK.defaultMinBirdsPerFlock,
@@ -235,15 +238,28 @@ export class FlockSystem {
       opacity: 0.94,
       depthTest: true,
       depthWrite: false,
-      fog: true,
+      fog: false,
       toneMapped: false,
     });
+    // Keep RGB at the chosen tint. Each scanned bird fades independently in
+    // alpha; darkening instanceColor leaves nearly opaque black brackets.
+    this.targetMaterial.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float instanceAlpha;\nvarying float vTargetAlpha;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTargetAlpha = instanceAlpha;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying float vTargetAlpha;')
+        .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vTargetAlpha;');
+    };
+    this.targetMaterial.customProgramCacheKey = () => 'flock-target-alpha-v1';
     this.targetMesh = new InstancedMesh(
       new BoxGeometry(1, 1, 1),
       this.targetMaterial,
       this.capacity * this.targetCornerTransforms.length,
     );
     this.targetMesh.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.targetAlpha.setUsage(DynamicDrawUsage);
+    this.targetMesh.geometry.setAttribute('instanceAlpha', this.targetAlpha);
     this.targetMesh.frustumCulled = false;
     this.targetMesh.renderOrder = 5;
     this.targetMesh.count = 0;
@@ -288,6 +304,7 @@ export class FlockSystem {
     this.material.color.set(settings.flockColor);
     this.material.emissive.set(settings.flockColor).multiplyScalar(0.05);
     this.targetTint.set(settings.flockTargetColor);
+    this.targetMaterial.color.copy(this.targetTint);
     updateTargetCornerTransforms(this.targetCornerTransforms, this.settings.flockTargetThickness);
     if (!settings.flockEnabled) {
       for (const flock of this.flocks) this.releaseFlock(flock);
@@ -328,8 +345,8 @@ export class FlockSystem {
         if (flock.active) this.updateFlock(flock, safeDt, planeWorldPosition, planeSpeed);
       }
     }
-    this.updateProbeTargets(
-      frozen ? 0 : safeDt,
+    if (!frozen) this.updateProbeTargets(
+      safeDt,
       probeWorldCenter,
       probeRadius,
       probeActive,
@@ -564,11 +581,10 @@ export class FlockSystem {
       this.mesh.setMatrixAt(index, this.dummy.matrix);
       if (boid.active && boid.scanHighlight > 0.015) {
         const visibility = MathUtils.smoothstep(boid.scanHighlight, 0.015, 0.34);
-        this.targetColor.copy(this.targetTint).multiplyScalar(0.08 + visibility * 0.92);
         for (const localTransform of this.targetCornerTransforms) {
           this.targetMatrix.multiplyMatrices(this.dummy.matrix, localTransform);
           this.targetMesh.setMatrixAt(targetIndex, this.targetMatrix);
-          this.targetMesh.setColorAt(targetIndex, this.targetColor);
+          this.targetAlpha.setX(targetIndex, visibility);
           targetIndex += 1;
         }
       }
@@ -576,7 +592,7 @@ export class FlockSystem {
     this.mesh.instanceMatrix.needsUpdate = true;
     this.targetMesh.count = targetIndex;
     this.targetMesh.instanceMatrix.needsUpdate = true;
-    if (this.targetMesh.instanceColor) this.targetMesh.instanceColor.needsUpdate = true;
+    this.targetAlpha.needsUpdate = true;
   }
 
   private updateProbeTargets(

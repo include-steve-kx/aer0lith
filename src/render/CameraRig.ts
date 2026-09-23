@@ -26,6 +26,8 @@ export class CameraRig {
   private hasPlanePosition = false;
   private hasCameraPose = false;
   private throttleFovBlend = 0;
+  private cameraSelectionPending = false;
+  private pausedOrbitRequested = false;
 
   constructor(aspect: number, domElement: HTMLElement) {
     this.camera = new PerspectiveCamera(CAMERA.chaseFov, aspect, 0.1, 1700);
@@ -38,6 +40,8 @@ export class CameraRig {
     this.controls.maxDistance = 260;
     this.controls.maxPolarAngle = Math.PI * 0.94;
     this.controls.addEventListener('start', () => {
+      this.pausedOrbitRequested = true;
+      this.cameraSelectionPending = false;
       this.synchronizeOrbitTarget();
       this.orbitDragging = true;
       this.orbitReturnDelay = Number.POSITIVE_INFINITY;
@@ -54,7 +58,16 @@ export class CameraRig {
     planeOrientation: Quaternion,
     crash: number,
     throttleActive = false,
+    paused = false,
   ): void {
+    // Hold the exact pose/FOV until a camera control is used. In paused orbit
+    // the user owns the view; the normal return-to-chase countdown is stopped.
+    if (paused && !this.cameraSelectionPending) {
+      if (this.controls.enabled && this.pausedOrbitRequested) {
+        this.controls.update(dt);
+      }
+      return;
+    }
     if (this.hasPlanePosition) {
       this.planeDelta.copy(planePosition).sub(this.lastPlanePosition);
       if (this.orbitDragging || this.orbitReturnDelay > 0) {
@@ -67,7 +80,7 @@ export class CameraRig {
     }
     this.lastPlanePosition.copy(planePosition);
     this.controls.enabled = this.mode !== 'cockpit';
-    this.updateFov(dt, throttleActive);
+    this.updateFov(dt, throttleActive, paused);
     if (this.controls.enabled && (this.orbitDragging || this.orbitReturnDelay > 0)) {
       if (!this.orbitDragging) this.orbitReturnDelay = Math.max(0, this.orbitReturnDelay - dt);
       this.controls.update(dt);
@@ -99,7 +112,7 @@ export class CameraRig {
       this.desiredQuaternion.setFromRotationMatrix(this.lookMatrix);
     }
 
-    if (crash > 0) {
+    if (crash > 0 && !paused) {
       this.desiredPosition.x += (Math.random() - 0.5) * crash * 1.8;
       this.desiredPosition.y += (Math.random() - 0.5) * crash * 1.4;
     }
@@ -111,6 +124,10 @@ export class CameraRig {
     this.camera.quaternion.slerp(this.desiredQuaternion, smoothing);
     this.controls.target.copy(this.desiredTarget);
     this.hasCameraPose = true;
+    if (this.camera.position.distanceToSquared(this.desiredPosition) < 1e-8
+      && this.camera.quaternion.angleTo(this.desiredQuaternion) < 1e-5) {
+      this.cameraSelectionPending = false;
+    }
   }
 
   private synchronizeOrbitTarget(): void {
@@ -129,11 +146,16 @@ export class CameraRig {
     this.controls.update(0);
   }
 
-  private updateFov(dt: number, throttleActive: boolean): void {
+  setPaused(): void {
+    this.cameraSelectionPending = false;
+    this.pausedOrbitRequested = false;
+  }
+
+  private updateFov(dt: number, throttleActive: boolean, paused: boolean): void {
     const targetBlend = throttleActive ? 1 : 0;
     const blendTime = throttleActive ? CAMERA.throttleRiseTime : CAMERA.throttleFallTime;
     const blendSmoothing = 1 - Math.exp(-dt / blendTime);
-    this.throttleFovBlend += (targetBlend - this.throttleFovBlend) * blendSmoothing;
+    if (!paused) this.throttleFovBlend += (targetBlend - this.throttleFovBlend) * blendSmoothing;
 
     const baseFov = this.mode === 'cockpit'
       ? CAMERA.cockpitFov
@@ -154,6 +176,7 @@ export class CameraRig {
   }
 
   select(index: number): CameraMode {
+    this.cameraSelectionPending = true;
     this.mode = MODES[Math.max(0, Math.min(MODES.length - 1, index))];
     this.orbitDragging = false;
     this.orbitReturnDelay = 0;

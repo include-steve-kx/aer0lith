@@ -108,7 +108,7 @@ select {
 }
 
 .hud.is-ambient > :not(.system-controls),
-.hud.is-ambient .system-controls button:not(#view-button) {
+.hud.is-ambient .system-controls button:not(#view-button):not(#pause-button) {
   opacity: 0;
   pointer-events: none;
 }
@@ -117,7 +117,8 @@ select {
   pointer-events: none;
 }
 
-.hud.is-ambient #view-button {
+.hud.is-ambient #view-button,
+.hud.is-ambient #pause-button {
   opacity: 1;
   border-color: var(--ui-tone);
   color: var(--ui-tone);
@@ -355,9 +356,9 @@ kbd {
   position: absolute;
   z-index: 2;
   right: calc(18px * var(--ui-scale));
-  top: calc(78px * var(--ui-scale));
+  top: calc(110px * var(--ui-scale));
   width: calc(278px * var(--ui-scale));
-  max-height: calc(100vh - 110px);
+  max-height: calc(100vh - 142px);
   padding: 11px 12px 13px;
   border: 1px solid var(--line);
   color: var(--ui-tone);
@@ -854,7 +855,7 @@ kbd {
   .tape--altitude { right: 8px; }
   .system-controls { right: 8px; top: 8px; grid-template-columns: repeat(2, 1fr); }
   .system-controls button { min-width: 72px; padding: 6px 4px; font-size: 8px; }
-  .settings-panel { right: 8px; top: 72px; width: min(300px, calc(100vw - 16px)); max-height: calc(100vh - 88px); }
+  .settings-panel { right: 8px; top: 104px; width: min(300px, calc(100vw - 16px)); max-height: calc(100vh - 120px); }
   .flight-actions { right: 8px; bottom: 8px; }
   .fullscreen-button { right: 8px; bottom: 8px; }
   .mode-button { left: 50%; bottom: 8px; min-width: 142px; transform: translateX(-50%); }
@@ -872,3 +873,8 @@ kbd {
   .mode-button { min-width: 126px; }
   .coordinates { gap: 8px; font-size: 7px; }
 }
+
+#pause-button { grid-column: 1 / -1; }
+.hud.is-ambient #pause-button { pointer-events: auto; }
+.app.is-paused *, .app.is-paused *::before, .app.is-paused *::after { animation-play-state: paused !important; }
+button:disabled { opacity: 0.45; cursor: default; }

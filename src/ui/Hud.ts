@@ -38,6 +38,7 @@ export interface RebaseDiagnostic {
 }
 
 export class Hud {
+  readonly pauseButton = element<HTMLButtonElement>('pause-button');
   readonly cameraButton = element<HTMLButtonElement>('camera-button');
   readonly audioButton = element<HTMLButtonElement>('audio-button');
   readonly seedButton = element<HTMLButtonElement>('seed-button');
@@ -125,6 +126,15 @@ export class Hud {
     this.collisionButton.textContent = `COLLISION / ${active ? 'ON' : 'OFF'}`;
     this.collisionButton.setAttribute('aria-label', active ? 'Hide collision mesh' : 'Show collision mesh');
     this.collisionButton.setAttribute('aria-pressed', String(active));
+  }
+
+  setPaused(paused: boolean): void {
+    this.pauseButton.textContent = paused ? 'RESUME' : 'PAUSE';
+    this.pauseButton.setAttribute('aria-label', paused ? 'Resume game' : 'Pause game');
+    this.pauseButton.setAttribute('aria-pressed', String(paused));
+    this.modeButton.disabled = paused;
+    this.probeButton.disabled = paused;
+    this.throttleButton.disabled = paused;
   }
 
   setProbeActive(active: boolean): void {
