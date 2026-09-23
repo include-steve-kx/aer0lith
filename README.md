@@ -12,6 +12,8 @@ Occasional abstract flocks are simulated as pooled boids and drawn as elongated 
 
 See the [laptop and iPhone setup guide](SETUP.md) for first-time setup, troubleshooting, and a complete copy-paste block that builds, installs, and launches the app on Steve's iPhone.
 
+The [spaceship design study](docs/spaceship-design-research.md) and [flight-interface research](docs/ui-interaction-design-research.md) include annotated image references and downloadable PDF reports under `output/pdf/`. The spaceship study records an earlier concept; the current ship is described below.
+
 Requires Node.js 22.12 or newer.
 
 Install dependencies once, then start the development server:

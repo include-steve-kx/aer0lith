@@ -3,6 +3,7 @@ dist/
 .tmp-tests/
 build/
 .build/
+tmp/
 inspos/
 .DS_Store
 *.log
