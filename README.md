@@ -10,6 +10,8 @@ Occasional abstract flocks are simulated as pooled boids and drawn as elongated 
 
 ## Run the web version
 
+See the [laptop and iPhone setup guide](SETUP.md) for first-time setup, troubleshooting, and a complete copy-paste block that builds, installs, and launches the app on Steve's iPhone.
+
 Requires Node.js 22.12 or newer.
 
 Install dependencies once, then start the development server:
@@ -69,6 +71,8 @@ The autopilot guide is fixed in world space and fades away before reaching the a
 Every 10–30 seconds, the aircraft emits a fast light-blue terrain probe from the ground region directly beneath its position. The terrain shader renders its continuous ring, recolors scanned dots with a lingering afterglow, and temporarily lifts the surface before returning it to its generated height. Pressing `B` emits a probe immediately and restarts the automatic interval.
 
 ## Run on an iPhone with Capacitor
+
+The native app supports **landscape left and landscape right only**. This is a build setting in `ios/App/App/Info.plist`, not a runtime visual toggle. The ordinary browser version follows its browser window size. See [orientation configuration](SETUP.md#landscape-only-native-app) and the [complete phone deployment commands](SETUP.md#copy-paste-build-install-and-launch-on-steves-iphone).
 
 Requirements: macOS with Xcode installed, an Apple development team selected in Xcode, and an unlocked iPhone with Developer Mode enabled. Connect the phone by USB and trust the Mac.
 
