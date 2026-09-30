@@ -177,6 +177,20 @@ test('a single shallow collision sample does not trigger recovery', () => {
   assert.equal(flight.mode, 'manual');
 });
 
+test('boost changes speed without disengaging autopilot; steering takes over', () => {
+  const terrain = {
+    sample: () => ({ x: 0, y: 50, tangentX: 0, tangentY: 0, width: 200, height: 200, openness: 1 }),
+    densityAt: () => -100, collisionDensityAt: () => -100,
+  } as unknown as ProceduralTerrain;
+  const flight = new FlightController(terrain);
+  for (let i = 0; i < 8 * 120; i++) flight.update(FLIGHT.fixedStep, { ...neutral, throttle: 1 });
+  assert.equal(flight.mode, 'autopilot'); assert.ok(flight.speed > 115);
+  flight.update(FLIGHT.fixedStep, { ...neutral, throttle: -1 });
+  assert.equal(flight.mode, 'autopilot', 'braking also preserves steering assistance');
+  flight.update(FLIGHT.fixedStep, { ...neutral, roll: 0.1, throttle: 1 });
+  assert.equal(flight.mode, 'manual');
+});
+
 test('cockpit uses compact bounds, still collides head-on, and camera switching restores full wings', () => {
   const terrain = {
     sample: () => ({ x: 0, y: 0, tangentX: 0, tangentY: 0, width: 200, height: 200, openness: 1 }),

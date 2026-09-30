@@ -118,6 +118,7 @@ export class App {
 
     this.flight.onCrash = () => {
       this.audio.crash();
+      this.input.boost.reset();
     };
     this.flight.onModeChange = () => {
       this.audio.beep(this.flight.mode === 'autopilot' ? 690 : 510, 0.045);
@@ -211,7 +212,7 @@ export class App {
       this.elapsed += rawDelta;
       this.accumulator += rawDelta;
       this.flight.setCockpitCollision(this.cameraRig.mode === 'cockpit');
-      const frameInput = this.input.read();
+      const frameInput = this.input.read(this.flight.mode === 'crashed' ? 0 : rawDelta);
       let substeps = 0;
       while (this.accumulator >= FLIGHT.fixedStep && substeps < FLIGHT.maxSubsteps) {
         this.flight.update(FLIGHT.fixedStep, frameInput);
@@ -266,6 +267,7 @@ export class App {
         this.flight.speed, this.renderOrigin, true);
       this.syncViews();
     }
+    this.hud.setBoostState(this.input.boost.active, this.input.boost.locked, this.input.boost.progress);
     this.cameraRig.update(rawDelta, this.renderPlanePosition, this.flight.cameraOrientation,
       this.flight.crashIntensity, this.throttleActive, this.paused);
     this.audio.update(this.flight.speed, this.flight.throttle, this.paused);
@@ -371,6 +373,7 @@ export class App {
 
   private resetFlight(): void {
     if (this.paused) return;
+    this.input.boost.reset();
     this.flight.reset();
     this.trail.clear();
     this.trail.add(this.flight.position, this.flight.orientation, this.renderOrigin, true);

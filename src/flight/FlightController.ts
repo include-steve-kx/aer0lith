@@ -77,9 +77,10 @@ export class FlightController {
       return;
     }
 
+    if (input.pitch !== 0 || input.roll !== 0 || input.yaw !== 0) this.takeManualControl();
     this.rollCooldown = Math.max(0, this.rollCooldown - dt);
     if (this.isRolling) { this.updateThrottle(dt, input.throttle); this.updateRoll(dt); }
-    else if (this.mode === 'autopilot') this.updateAutopilot(dt);
+    else if (this.mode === 'autopilot') this.updateAutopilot(dt, input.throttle);
     else this.updateManual(dt, input);
 
     this.syncOrientation();
@@ -141,7 +142,7 @@ export class FlightController {
 
   private cancelRoll(): void { this.rollDirection = 0; this.rollAngle = 0; this.rollCooldown = 0; }
 
-  private updateAutopilot(dt: number): void {
+  private updateAutopilot(dt: number, throttleInput: number): void {
     const lookAhead = clamp(this.speed * 1.25, 52, 105);
     const route = this.terrain.sample(this.position.z + lookAhead);
     const localRoute = this.terrain.sample(this.position.z);
@@ -187,6 +188,10 @@ export class FlightController {
       0,
       0.42,
     );
+    if (Math.abs(throttleInput) > 0.01) {
+      this.updateThrottle(dt, throttleInput);
+      return;
+    }
     const targetThrottle = 0.62 - turnPenalty;
     this.throttle = approach(this.throttle, targetThrottle, 0.22 * dt);
     const targetSpeed = FLIGHT.minSpeed + this.throttle * (FLIGHT.maxSpeed - FLIGHT.minSpeed);

@@ -543,6 +543,8 @@ kbd {
   gap: 6px;
 }
 
+.settings-actions > :only-child { grid-column: 1 / -1; }
+
 .settings-actions button {
   min-height: 28px;
   padding: 5px 6px;
@@ -878,3 +880,48 @@ kbd {
 .hud.is-ambient #pause-button { pointer-events: auto; }
 .app.is-paused *, .app.is-paused *::before, .app.is-paused *::after { animation-play-state: paused !important; }
 button:disabled { opacity: 0.45; cursor: default; }
+
+/* Fill is driven by simulation time, so pause also freezes the charge. */
+#throttle-button {
+  --boost-fill: 0%;
+  position: relative;
+  isolation: isolate;
+  background: #050708;
+  border-color: #fff;
+  color: #fff;
+  grid-template-rows: 1fr auto;
+  gap: 1px;
+  padding: 5px;
+}
+#throttle-button::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--boost-fill);
+  background: #fff;
+  pointer-events: none;
+  z-index: -1;
+}
+#throttle-button svg, #throttle-button .boost-label {
+  color: #fff;
+  mix-blend-mode: difference;
+  pointer-events: none;
+}
+#throttle-button svg { height: 18px; }
+.boost-label { font-size: 7px; line-height: 1; letter-spacing: 0; }
+#throttle-button.is-locked { border-color: #050708; outline: 1px solid #fff; }
+#throttle-button.is-locked::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border: 2px solid white;
+  pointer-events: none;
+  animation: boost-lock-ripple 550ms ease-out both;
+}
+@keyframes boost-lock-ripple {
+  from { transform: scale(1); opacity: 0.95; }
+  to { transform: scale(1.65); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #throttle-button.is-locked::after { animation: none; opacity: 0; }
+}
