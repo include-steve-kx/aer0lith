@@ -43,6 +43,7 @@ export interface VisualSettings extends FlightEffectSettings {
   boostShakeFrequency: number;
   shipGhostEnabled: boolean;
   shipGhostOpacity: number;
+  shipGhostColor: string;
   scanGlassStrength: number;
   scanGlassDispersion: number;
   renderResolutionMode: 'full' | 'balanced' | 'adaptive';
@@ -145,6 +146,7 @@ export class SettingsPanel {
   private readonly boostShakeFrequencyValue = element<HTMLOutputElement>('boost-shake-frequency-value');
   private readonly scanGlassPersistence = element<HTMLInputElement>('scan-glass-persistence');
   private readonly scanGlassPersistenceValue = element<HTMLOutputElement>('scan-glass-persistence-value');
+  private readonly shipGhostColor = element<HTMLInputElement>('ship-ghost-color');
   private readonly shipGhostOpacity = element<HTMLInputElement>('ship-ghost-opacity');
   private readonly shipGhostOpacityValue = element<HTMLOutputElement>('ship-ghost-opacity-value');
   private readonly boostExhaustColor = element<HTMLInputElement>('boost-exhaust-color');
@@ -295,6 +297,7 @@ export class SettingsPanel {
       boostShakeFrequency: this.boostShakeFrequency.valueAsNumber,
       scanGlassPersistence: this.scanGlassPersistence.valueAsNumber,
       shipGhostOpacity: this.shipGhostOpacity.valueAsNumber,
+      shipGhostColor: this.shipGhostColor.value,
       boostExhaustColor: this.boostExhaustColor.value,
       boostExhaustLength: this.boostExhaustLength.valueAsNumber,
       wingWarpLength: this.wingWarpLength.valueAsNumber,
@@ -439,7 +442,9 @@ export class SettingsPanel {
       this.restoreRange(this.boostShakeStrength, saved.boostExhaustWidth === undefined && saved.boostShakeStrength === 0.35 ? 0.65 : saved.boostShakeStrength);
       this.restoreRange(this.boostShakeFrequency, saved.boostShakeFrequency);
       this.restoreRange(this.scanGlassPersistence, saved.scanGlassPersistence);
-      this.restoreRange(this.shipGhostOpacity, saved.shipGhostOpacity);
+      // Upgrade the previous faint default once; preserve explicit custom opacity.
+      this.restoreRange(this.shipGhostOpacity, saved.shipGhostColor === undefined && saved.shipGhostOpacity === 0.13 ? 0.5 : saved.shipGhostOpacity);
+      this.restoreColor(this.shipGhostColor, saved.shipGhostColor ?? saved.autopilotGuideColor);
       this.restoreColor(this.boostExhaustColor, saved.boostExhaustColor);
       this.restoreRange(this.boostExhaustLength, saved.boostExhaustWidth === undefined && saved.boostExhaustLength === 36 ? 54 : saved.boostExhaustLength);
       this.restoreRange(this.wingWarpLength, saved.wingWarpLength);
@@ -545,7 +550,7 @@ export class SettingsPanel {
     this.boostShakeStrengthValue.textContent = this.boostShakeStrength.valueAsNumber.toFixed(2) + '';
     this.boostShakeFrequencyValue.textContent = this.boostShakeFrequency.valueAsNumber.toFixed(0) + ' HZ';
     this.scanGlassPersistenceValue.textContent = this.scanGlassPersistence.valueAsNumber.toFixed(2) + ' S';
-    this.shipGhostOpacityValue.textContent = this.shipGhostOpacity.valueAsNumber.toFixed(2) + '';
+    this.shipGhostOpacityValue.textContent = (this.shipGhostOpacity.valueAsNumber * 100).toFixed(0) + '%';
     this.boostExhaustLengthValue.textContent = this.boostExhaustLength.valueAsNumber.toFixed(0) + ' m';
     this.wingWarpLengthValue.textContent = this.wingWarpLength.valueAsNumber.toFixed(0) + ' m';
     this.wingWarpHeightValue.textContent = this.wingWarpHeight.valueAsNumber.toFixed(2) + ' m';

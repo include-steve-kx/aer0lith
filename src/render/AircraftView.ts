@@ -11,7 +11,7 @@ export class AircraftView {
 
   private readonly ghostGroup = new Group();
   private readonly ghostMaterial = new ShaderMaterial({
-    uniforms: { uColor: { value: new Color('#fff0a3') }, uOpacity: { value: 0.13 } },
+    uniforms: { uColor: { value: new Color('#ffee66') }, uOpacity: { value: 0.5 } },
     vertexShader: `
       varying vec3 vNormal, vView;
       void main() {
@@ -25,15 +25,14 @@ export class AircraftView {
       uniform float uOpacity;
       varying vec3 vNormal, vView;
       void main() {
-        float rim = pow(1.0 - abs(dot(normalize(vNormal), normalize(-vView))), 2.0);
         float facet = 0.78 + 0.22 * abs(dot(normalize(vNormal), normalize(vec3(0.4, 0.8, 0.5))));
-        gl_FragColor = vec4(uColor * facet, uOpacity * (1.25 + 0.2 * rim));
+        gl_FragColor = vec4(uColor * facet, uOpacity);
       }`,
     transparent: true, depthWrite: false, depthFunc: GreaterDepth,
     stencilWrite: true, stencilWriteMask: 0, stencilFunc: NotEqualStencilFunc, stencilRef: 1,
   });
   private readonly outlineMaterial = new ShaderMaterial({
-    uniforms: { uColor: { value: new Color('#d7e2e6') }, uOpacity: { value: 0.42 } },
+    uniforms: { uColor: { value: new Color('#ffffff') }, uOpacity: { value: 1 } },
     vertexShader: `
       void main() {
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -52,8 +51,9 @@ export class AircraftView {
     const geometry = createAircraftGeometry();
     const mesh = new Mesh(geometry, this.bodyMaterial);
     mesh.name = 'monochrome hull and four blades';
-    // World opaque geometry first; mark only the ship fragments that are visible.
-    mesh.renderOrder = 1;
+    // Terrain is order 1 and flocks are order 2. Draw after both before marking
+    // visible pixels; sharing terrain order lets material sorting mask the ghost.
+    mesh.renderOrder = 3;
     this.group.add(mesh, this.ghostGroup);
     const ghost = new Mesh(geometry, this.ghostMaterial);
     const outline = new LineSegments(new EdgesGeometry(geometry, 18), this.outlineMaterial);
@@ -66,10 +66,11 @@ export class AircraftView {
     this.bodyMaterial.color.set(value);
   }
 
-  setOcclusionSettings(enabled: boolean, opacity: number): void {
-    this.ghostGroup.visible = enabled && opacity > 0;
+  setOcclusionSettings(enabled: boolean, opacity: number, color = '#ffee66'): void {
+    this.ghostGroup.visible = enabled;
     this.ghostMaterial.uniforms.uOpacity.value = opacity;
-    this.outlineMaterial.uniforms.uOpacity.value = Math.min(0.8, opacity * 3.2);
+    this.ghostMaterial.uniforms.uColor.value.set(color);
+    this.outlineMaterial.uniforms.uOpacity.value = 1;
   }
 
   setCockpitMode(active: boolean): void {
