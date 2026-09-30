@@ -1,6 +1,8 @@
 import {
   Color,
   DepthTexture,
+  DepthStencilFormat,
+  UnsignedInt248Type,
   Matrix4,
   Vector3,
   LinearFilter,
@@ -44,7 +46,9 @@ export class PostProcessor {
     this.renderer = renderer;
     this.target = this.createTarget(1, 1);
     this.processedTarget = this.createTarget(1, 1);
-    this.target.depthTexture = new DepthTexture(1, 1);
+    this.target.stencilBuffer = true;
+    this.target.depthTexture = new DepthTexture(1, 1, UnsignedInt248Type);
+    this.target.depthTexture.format = DepthStencilFormat;
     this.wakeTarget = this.createTarget(1, 1);
     this.wakeTarget.depthTexture = new DepthTexture(1, 1);
     this.material = new ShaderMaterial({

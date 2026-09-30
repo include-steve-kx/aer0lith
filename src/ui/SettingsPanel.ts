@@ -41,6 +41,8 @@ export interface VisualSettings extends FlightEffectSettings {
   scanGlassPersistence: number;
   boostShakeStrength: number;
   boostShakeFrequency: number;
+  shipGhostEnabled: boolean;
+  shipGhostOpacity: number;
   scanGlassStrength: number;
   scanGlassDispersion: number;
   renderResolutionMode: 'full' | 'balanced' | 'adaptive';
@@ -128,6 +130,7 @@ export class SettingsPanel {
   private readonly boostGlassLength = element<HTMLInputElement>('boost-glass-length');
   private readonly boostGlassLengthValue = element<HTMLOutputElement>('boost-glass-length-value');
   private readonly boostGlassEnabled = element<HTMLInputElement>('boost-glass-enabled');
+  private readonly shipGhostEnabled = element<HTMLInputElement>('ship-ghost-enabled');
   private readonly boostRefraction = element<HTMLInputElement>('boost-refraction');
   private readonly boostRefractionValue = element<HTMLOutputElement>('boost-refraction-value');
   private readonly boostDispersion = element<HTMLInputElement>('boost-dispersion');
@@ -142,6 +145,8 @@ export class SettingsPanel {
   private readonly boostShakeFrequencyValue = element<HTMLOutputElement>('boost-shake-frequency-value');
   private readonly scanGlassPersistence = element<HTMLInputElement>('scan-glass-persistence');
   private readonly scanGlassPersistenceValue = element<HTMLOutputElement>('scan-glass-persistence-value');
+  private readonly shipGhostOpacity = element<HTMLInputElement>('ship-ghost-opacity');
+  private readonly shipGhostOpacityValue = element<HTMLOutputElement>('ship-ghost-opacity-value');
   private readonly boostExhaustColor = element<HTMLInputElement>('boost-exhaust-color');
   private readonly boostExhaustLength = element<HTMLInputElement>('boost-exhaust-length');
   private readonly boostExhaustLengthValue = element<HTMLOutputElement>('boost-exhaust-length-value');
@@ -281,6 +286,7 @@ export class SettingsPanel {
       boostExhaustWidth: this.boostExhaustWidth.valueAsNumber,
       boostGlassWidth: this.boostGlassWidth.valueAsNumber,
       boostGlassLength: this.boostGlassLength.valueAsNumber,
+      shipGhostEnabled: this.shipGhostEnabled.checked,
       boostRefraction: this.boostRefraction.valueAsNumber,
       boostDispersion: this.boostDispersion.valueAsNumber,
       boostFlutter: this.boostFlutter.valueAsNumber,
@@ -288,6 +294,7 @@ export class SettingsPanel {
       boostShakeStrength: this.boostShakeStrength.valueAsNumber,
       boostShakeFrequency: this.boostShakeFrequency.valueAsNumber,
       scanGlassPersistence: this.scanGlassPersistence.valueAsNumber,
+      shipGhostOpacity: this.shipGhostOpacity.valueAsNumber,
       boostExhaustColor: this.boostExhaustColor.value,
       boostExhaustLength: this.boostExhaustLength.valueAsNumber,
       wingWarpLength: this.wingWarpLength.valueAsNumber,
@@ -421,6 +428,7 @@ export class SettingsPanel {
       this.restoreRange(this.scanGlassStrength, saved.scanGlassStrength);
       this.restoreRange(this.scanGlassDispersion, saved.scanGlassDispersion);
       if (typeof saved.boostGlassEnabled === 'boolean') this.boostGlassEnabled.checked = saved.boostGlassEnabled;
+      if (typeof saved.shipGhostEnabled === 'boolean') this.shipGhostEnabled.checked = saved.shipGhostEnabled;
       this.restoreRange(this.boostExhaustWidth, saved.boostExhaustWidth);
       this.restoreRange(this.boostGlassWidth, saved.boostGlassWidth);
       this.restoreRange(this.boostGlassLength, saved.boostGlassLength);
@@ -431,6 +439,7 @@ export class SettingsPanel {
       this.restoreRange(this.boostShakeStrength, saved.boostExhaustWidth === undefined && saved.boostShakeStrength === 0.35 ? 0.65 : saved.boostShakeStrength);
       this.restoreRange(this.boostShakeFrequency, saved.boostShakeFrequency);
       this.restoreRange(this.scanGlassPersistence, saved.scanGlassPersistence);
+      this.restoreRange(this.shipGhostOpacity, saved.shipGhostOpacity);
       this.restoreColor(this.boostExhaustColor, saved.boostExhaustColor);
       this.restoreRange(this.boostExhaustLength, saved.boostExhaustWidth === undefined && saved.boostExhaustLength === 36 ? 54 : saved.boostExhaustLength);
       this.restoreRange(this.wingWarpLength, saved.wingWarpLength);
@@ -536,6 +545,7 @@ export class SettingsPanel {
     this.boostShakeStrengthValue.textContent = this.boostShakeStrength.valueAsNumber.toFixed(2) + '';
     this.boostShakeFrequencyValue.textContent = this.boostShakeFrequency.valueAsNumber.toFixed(0) + ' HZ';
     this.scanGlassPersistenceValue.textContent = this.scanGlassPersistence.valueAsNumber.toFixed(2) + ' S';
+    this.shipGhostOpacityValue.textContent = this.shipGhostOpacity.valueAsNumber.toFixed(2) + '';
     this.boostExhaustLengthValue.textContent = this.boostExhaustLength.valueAsNumber.toFixed(0) + ' m';
     this.wingWarpLengthValue.textContent = this.wingWarpLength.valueAsNumber.toFixed(0) + ' m';
     this.wingWarpHeightValue.textContent = this.wingWarpHeight.valueAsNumber.toFixed(2) + ' m';

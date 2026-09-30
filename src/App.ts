@@ -171,6 +171,7 @@ export class App {
         this.scene.fog.density = settings.terrainFogDensity;
       }
       this.aircraft.setColor(settings.planeColor);
+      this.aircraft.setOcclusionSettings(settings.shipGhostEnabled, settings.shipGhostOpacity);
       this.boostShake.strength = settings.boostShakeStrength;
       this.boostShake.frequency = settings.boostShakeFrequency;
       this.flightEffects.configure(settings);
