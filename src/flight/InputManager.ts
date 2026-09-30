@@ -35,7 +35,7 @@ export interface JoystickInput {
 
 const CAPTURED = new Set([
   'KeyW', 'KeyS', 'KeyA', 'KeyD', 'ShiftLeft', 'ShiftRight',
-  'ControlLeft', 'ControlRight', 'Space', 'KeyC', 'Digit1', 'Digit2', 'Digit3',
+  'ControlLeft', 'ControlRight', 'KeyT', 'KeyC', 'Digit1', 'Digit2', 'Digit3',
   'KeyM', 'KeyI', 'KeyP', 'Escape', 'KeyN', 'KeyB',
   'KeyV', 'KeyQ', 'KeyE',
 ]);
@@ -255,7 +255,7 @@ export class InputManager {
     switch (event.code) {
       case 'KeyQ': this.actions.onRoll(-1); break;
       case 'KeyE': this.actions.onRoll(1); break;
-      case 'Space': this.actions.onToggleAutopilot(); break;
+      case 'KeyT': this.actions.onToggleAutopilot(); break;
       case 'KeyC': this.actions.onCycleCamera(); break;
       case 'Digit1': this.actions.onSelectCamera(0); break;
       case 'Digit2': this.actions.onSelectCamera(1); break;

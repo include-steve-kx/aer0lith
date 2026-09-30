@@ -42,7 +42,7 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 | `A` / `D` | Coordinated roll and yaw left / right |
 | `Q` / `E` | One 360° dodge roll left / right; also available above the joystick |
 | `Shift` / `Ctrl` | Boost / brake without disengaging autopilot. Hold boost for 5 seconds + 2 seconds of fill to lock; tap again to unlock. |
-| `Space` | Toggle autopilot |
+| `T` | Toggle autopilot |
 | `C` or `1`–`3` | Cycle or select camera |
 | Mouse in camera `2` / `3` | Left-drag orbit, right-drag pan, wheel zoom; Shift does not change drag actions. Camera returns after release. |
 | `V` | Toggle Analysis / Ambient presentation mode |
