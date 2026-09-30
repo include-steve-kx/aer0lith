@@ -1,4 +1,3 @@
-import { explosionImpulse } from './combat/ExplosionForce.ts';
 import { BulletSystem } from './combat/BulletSystem.ts';
 import { BulletView } from './combat/BulletView.ts';
 import { RockLibrary } from './combat/geometry.ts';
@@ -133,11 +132,10 @@ export class App {
     this.combatView = new CombatView(this.meteors, this.missiles, this.impacts);
     this.bullets = new BulletSystem(this.meteors, seed);
     this.bulletView = new BulletView(this.bullets);
-    this.meteors.onDestroyed = (rock, point, direction) => {
-      this.impacts.spawn(rock, point, direction);
+    this.meteors.onDestroyed = (rock, _point, direction) => {
+      this.impacts.spawn(rock, rock.position, direction);
       const settings = this.impacts.settings;
-      explosionImpulse(this.explosionImpulse, this.flight.position, point, direction,
-        rock.diameter, settings.explosionPush, settings.explosionShakeRadius);
+      this.meteors.predictExplosionImpulse(this.explosionImpulse, rock);
       this.flight.applyExternalImpulse(this.explosionImpulse, settings.explosionPushLife);
     };
     this.refractionContributors = [this.combatView, this.bulletView];
@@ -315,6 +313,7 @@ export class App {
         }
         this.flight.update(dt, frameInput);
         if (this.flight.mode !== 'crashed') {
+          this.meteors.updateProximity(dt, this.flight.previousPosition, this.flight.position, this.flight.orientation);
           this.meteors.scan(this.scan);
           const resolver = this.bullets.resolver;
           resolver.begin();

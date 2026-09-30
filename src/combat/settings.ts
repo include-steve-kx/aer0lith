@@ -11,6 +11,9 @@ export const COMBAT_LIMITS = {
 export const DEFAULT_METEORS = {
   meteorBulletHits: 4,
   meteorEnabled: true,
+  meteorProximityEnabled: true,
+  meteorTriggerDistance: 50,
+  meteorDangerColor: '#ffffff',
   meteorMinDiameter: 6,
   meteorMaxDiameter: 36,
   meteorCount: 12,
@@ -24,6 +27,7 @@ export const DEFAULT_METEORS = {
   meteorTargetColor: '#ffffff',
   meteorTargetThickness: 0.05,
   meteorMarkers: true,
+  meteorPushVectorScale: 1,
 };
 export const DEFAULT_MISSILES = {
   missileEnabled: true,
@@ -88,6 +92,9 @@ export type ControlSpec = readonly [
 export const METEOR_CONTROLS: readonly ControlSpec[] = [
   ['meteorBulletHits', 'BULLET HITS AT 12 M', 1, 20, 1],
   ['meteorEnabled', 'METEORS ENABLED'],
+  ['meteorProximityEnabled', 'PROXIMITY EXPLOSIONS'],
+  ['meteorTriggerDistance', 'EXPLODE AT SURFACE DISTANCE', 5, 150, 1, ' M'],
+  ['meteorDangerColor', 'METEOR DANGER COLOR'],
   ['meteorMinDiameter', 'MIN DIAMETER', 2, 72, 1, ' M'],
   ['meteorMaxDiameter', 'MAX DIAMETER', 2, 72, 1, ' M'],
   ['meteorCount', 'METEORS / ENCOUNTER', 1, 24, 1],
@@ -101,6 +108,7 @@ export const METEOR_CONTROLS: readonly ControlSpec[] = [
   ['meteorTargetColor', 'TARGET COLOR'],
   ['meteorTargetThickness', 'BOX THICKNESS', 0.04, 0.3, 0.01, ' M'],
   ['meteorMarkers', 'TARGET MARKERS'],
+  ['meteorPushVectorScale', 'PUSH VECTOR LENGTH', 0, 10, 0.1, '×'],
 ];
 export const MISSILE_CONTROLS: readonly ControlSpec[] = [
   ['missileEnabled', 'AUTOMATIC MISSILES'],

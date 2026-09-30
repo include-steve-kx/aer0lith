@@ -27,6 +27,7 @@ import {
 } from 'three';
 import { COMBAT_LIMITS, type CombatSettings } from './settings.ts';
 import { MeteorSystem } from './MeteorSystem.ts';
+import { PushVectorView } from './PushVectorView.ts';
 import { MissileSystem } from './MissileSystem.ts';
 import { ImpactSystem } from './ImpactSystem.ts';
 import { refractionOutput } from '../render/RefractionShader.ts';
@@ -134,6 +135,7 @@ export class RibbonBatch {
   }
 }
 export class CombatView implements RefractionContributor {
+  private readonly pushVectors = new PushVectorView();
   readonly group = new Group();
   readonly scene = new Scene();
   private readonly rockMeshes: InstancedMesh[];
@@ -172,6 +174,8 @@ export class CombatView implements RefractionContributor {
   ).setUsage(DynamicDrawUsage);
   private readonly dummy = new Object3D();
   private readonly tint = new Color();
+  private readonly rockColor = new Color();
+  private readonly dangerColor = new Color();
   private readonly color = new Color();
   private readonly fragmentOrder = Array.from(
     { length: COMBAT_LIMITS.fragments },
@@ -340,6 +344,7 @@ export class CombatView implements RefractionContributor {
     );
     this.rings.frustumCulled = false;
     this.group.add(
+      this.pushVectors.group,
       this.boxes,
       this.missilesMesh,
       this.trails.mesh,
@@ -352,7 +357,9 @@ export class CombatView implements RefractionContributor {
   }
   configure(settings: CombatSettings): void {
     this.settings = settings;
-    this.rockMaterial.color.set(settings.meteorColor);
+    this.rockMaterial.color.set(0xffffff);
+    this.rockColor.set(settings.meteorColor);
+    this.dangerColor.set(settings.meteorDangerColor);
     (this.boxes.material as ShaderMaterial).uniforms.uColor.value.set(
       settings.meteorTargetColor,
     );
@@ -403,6 +410,7 @@ export class CombatView implements RefractionContributor {
     markers: boolean,
     debug: boolean,
   ): void {
+    this.pushVectors.sync(this.meteors, origin, markers);
     camera.getWorldPosition(this.cameraWorld);
     this.rockMeshes.forEach((m) => (m.count = 0));
     this.debugMeshes.forEach((m) => (m.count = 0));
@@ -418,7 +426,9 @@ export class CombatView implements RefractionContributor {
       const mesh = this.rockMeshes[m.variant],
         i = mesh.count++;
       mesh.setMatrixAt(i, this.dummy.matrix);
-      mesh.setColorAt(i, this.tint.setScalar(m.brightness + m.hitFlash * 5));
+      mesh.setColorAt(i, this.tint.copy(this.rockColor)
+        .lerp(this.dangerColor, this.meteors.dangerIntensity(m))
+        .multiplyScalar(m.brightness + m.hitFlash * 5));
       if (debug) {
         const d = this.debugMeshes[m.variant];
         d.setMatrixAt(d.count++, this.dummy.matrix);
@@ -618,6 +628,7 @@ export class CombatView implements RefractionContributor {
       mesh.dispose();
     }
     geometry.forEach((g) => g.dispose());
+    this.pushVectors.dispose();
     this.trails.dispose();
     this.fragments.dispose();
     this.debugPaths.dispose();

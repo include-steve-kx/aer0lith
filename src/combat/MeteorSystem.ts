@@ -1,4 +1,5 @@
 import { Quaternion, Vector3 } from 'three';
+import { explosionImpulse } from './ExplosionForce.ts';
 import {
   AIRCRAFT_PARTS,
   COCKPIT_COLLISION_POINTS,
@@ -49,6 +50,52 @@ export class MeteorState {
   spinFactor = 1;
 }
 export class MeteorSystem implements DynamicObstacleProvider {
+  readonly shipPosition = new Vector3();
+  private readonly proximityHandle: MeteorHandle = { slot: -1, generation: 0 };
+  private readonly proximityStart = new Vector3();
+  private readonly proximityTravel = new Vector3();
+  private readonly proximityCenter = new Vector3();
+  private readonly proximityDirection = new Vector3(0, 0, 1);
+
+  /** The exact single-explosion impulse used by both physics and scanned arrows.
+   * Combined impulses are subsequently capped by FlightController. */
+  predictExplosionImpulse(out: Vector3, rock: Pick<MeteorState, 'position' | 'diameter'>): Vector3 {
+    return explosionImpulse(out, this.shipPosition, rock.position, this.proximityDirection,
+      rock.diameter, this.settings.explosionPush, this.settings.explosionShakeRadius);
+  }
+
+  /** Surface clearance drives both the tint and the proximity fuse. */
+  dangerIntensity(rock: MeteorState): number {
+    if (!this.settings.meteorProximityEnabled) return 0;
+    const clearance = Math.max(0, this.shipPosition.distanceTo(rock.position) - rock.radius);
+    const trigger = this.settings.meteorTriggerDistance;
+    const t = Math.max(0, Math.min(1, (clearance - trigger) / (trigger * 2)));
+    return 1 - t * t * (3 - 2 * t);
+  }
+
+  updateProximity(dt: number, from: Vector3, to: Vector3, orientation: Quaternion): void {
+    if (dt <= 0) return;
+    this.shipPosition.copy(to);
+    this.proximityDirection.set(0, 0, 1).applyQuaternion(orientation);
+    if (!this.settings.meteorEnabled || !this.settings.meteorProximityEnabled) return;
+    for (let slot = 0; slot < this.rocks.length; slot++) {
+      const rock = this.rocks[slot];
+      if (!rock.active) continue;
+      // Sweep relative motion so a fast dodge cannot skip the fuse radius.
+      this.proximityStart.subVectors(from, rock.previous);
+      this.proximityTravel.subVectors(to, rock.position).sub(this.proximityStart);
+      const lengthSq = this.proximityTravel.lengthSq();
+      const t = lengthSq > 1e-12 ? Math.max(0, Math.min(1, -this.proximityStart.dot(this.proximityTravel) / lengthSq)) : 0;
+      this.proximityStart.addScaledVector(this.proximityTravel, t);
+      const radius = rock.radius + this.settings.meteorTriggerDistance;
+      if (this.proximityStart.lengthSq() > radius * radius) continue;
+      this.proximityCenter.lerpVectors(rock.previous, rock.position, t);
+      this.proximityHandle.slot = slot;
+      this.proximityHandle.generation = rock.generation;
+      this.applyHit(this.proximityHandle, this.proximityCenter, this.proximityDirection, true);
+    }
+  }
+
   onDestroyed?: (rock: MeteorState, point: Vector3, direction: Vector3) => void;
   private readonly destroyed = new MeteorState();
   applyHit(handle: MeteorHandle, point: Vector3, direction: Vector3, lethal = false): 'invalid' | 'damaged' | 'destroyed' {

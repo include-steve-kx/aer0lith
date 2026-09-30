@@ -28,6 +28,12 @@ export class CombatSettingsControls {
       const heading = document.createElement('h2');
       heading.textContent = name;
       section.append(heading);
+      if (name === 'METEORS') {
+        const hint = document.createElement('p');
+        hint.className = 'settings-help';
+        hint.textContent = 'Danger tint starts at 3× the trigger distance from the rock surface and reaches full intensity at detonation.';
+        section.append(hint);
+      }
       for (const spec of specs) this.addControl(section, spec);
       panel.append(section);
       this.sections.push(section);
