@@ -45,7 +45,9 @@ export const DEFAULT_MISSILES = {
   missileHud: true,
 };
 export const DEFAULT_IMPACTS = {
-  explosionPush: 30, explosionPushLife: 2,
+  explosionPush: 30,
+  explosionVelocityAxisFactor: 0.5,
+  explosionPushLife: 2,
   explosionSize: 1.5,
   explosionLife: 1.2,
   explosionRefraction: 0.8,
@@ -127,6 +129,7 @@ export const MISSILE_CONTROLS: readonly ControlSpec[] = [
 ];
 export const DESTRUCTION_CONTROLS: readonly ControlSpec[] = [
   ['explosionPush', 'EXPLOSION PUSH', 0, 180, 1, ' M/S'],
+  ['explosionVelocityAxisFactor', 'VELOCITY-AXIS PUSH', 0, 1, 0.05, '×'],
   ['explosionPushLife', 'PUSH SETTLING TIME', 0.2, 4, 0.1, ' S'],
   ['explosionSize', 'EXPLOSION SIZE', 0.5, 3, 0.1, '×'],
   ['explosionLife', 'EXPLOSION DURATION', 0.3, 2, 0.1, ' S'],

@@ -384,14 +384,25 @@ test("moving meteor partial-step sweeps exclude motion before bullet birth", () 
 
 test('explosion push uses ship distance, shared radius and outward direction independent of camera', async () => {
   const { explosionImpulse } = await import('../src/combat/ExplosionForce.ts');
-  const out = new Vector3();
-  explosionImpulse(out,new Vector3(60,0,0),zero,forward,12,12,120);
+  const out = new Vector3(), velocity = new Vector3(0,0,90);
+  explosionImpulse(out,new Vector3(60,0,0),zero,velocity,forward,12,12,120,.5);
   assert.deepEqual(out.toArray(),[6,0,0]);
-  explosionImpulse(out,new Vector3(120,0,0),zero,forward,12,12,120); assert.equal(out.length(),0);
-  explosionImpulse(out,new Vector3(121,0,0),zero,forward,12,12,120); assert.equal(out.length(),0);
-  explosionImpulse(out,zero,zero,forward,12,12,120); assert.equal(out.z,-12); assert.equal(Math.hypot(out.x,out.y),0);
-  explosionImpulse(out,new Vector3(0,0,-60),zero,forward,36,12,120); assert.equal(out.z,-9);
-  explosionImpulse(out,new Vector3(60,0,0),zero,forward,12,0,120); assert.equal(out.length(),0);
+  explosionImpulse(out,new Vector3(120,0,0),zero,velocity,forward,12,12,120,.5); assert.equal(out.length(),0);
+  explosionImpulse(out,new Vector3(121,0,0),zero,velocity,forward,12,12,120,.5); assert.equal(out.length(),0);
+  explosionImpulse(out,zero,zero,velocity,forward,12,12,120,.5); assert.equal(out.z,-6); assert.equal(Math.hypot(out.x,out.y),0);
+  explosionImpulse(out,new Vector3(0,0,-60),zero,velocity,forward,36,12,120,.5); assert.equal(out.z,-4.5);
+  explosionImpulse(out,new Vector3(60,0,0),zero,velocity,forward,12,0,120,.5); assert.equal(out.length(),0);
+});
+
+test('velocity-axis push factor scales only the component parallel to ship travel', async () => {
+  const { explosionImpulse } = await import('../src/combat/ExplosionForce.ts');
+  const out = new Vector3(), velocity = new Vector3(0,0,90), ship = new Vector3(60,0,-60);
+  explosionImpulse(out,ship,zero,velocity,forward,12,12,1e9,.5);
+  assert.ok(Math.abs(out.x - 12 / Math.sqrt(2)) < 1e-6);
+  assert.ok(Math.abs(out.z + 6 / Math.sqrt(2)) < 1e-6);
+  explosionImpulse(out,ship,zero,velocity,forward,12,12,1e9,0);
+  assert.ok(Math.abs(out.x - 12 / Math.sqrt(2)) < 1e-6);
+  assert.ok(Math.abs(out.z) < 1e-8);
 });
 
 

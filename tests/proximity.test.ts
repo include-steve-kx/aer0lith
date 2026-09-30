@@ -72,6 +72,7 @@ test('new defaults fit slider bounds and restoration preserves saved custom sett
   assert.equal(DEFAULT_COMBAT.explosionShakeRadius, 400);
   assert.equal(DEFAULT_COMBAT.bulletRate, 36);
   assert.equal(DEFAULT_COMBAT.explosionPush, 30);
+  assert.equal(DEFAULT_COMBAT.explosionVelocityAxisFactor, 0.5);
   assert.equal(DEFAULT_COMBAT.explosionPushLife, 2);
   assert.equal(DEFAULT_COMBAT.meteorMaxDiameter, 36);
   assert.equal(DEFAULT_COMBAT.meteorCount, 12);

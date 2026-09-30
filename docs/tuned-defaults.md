@@ -16,8 +16,11 @@ booster/scan dispersion 0–1.2, scan refraction 0–4, missile trails up to 360
 12 s, bullet bolts up to 8 m and trails up to 2 s. Thin wake controls have finer
 steps. Blast influence is now 20–1,000 m, default **400 m**, replacing the
 captured 200 m default. Push strength defaults to **30 m/s** (range 0–180 m/s),
-with **2 s** settling (range 0.2–4 s). Accumulated external velocity is capped
-at 180 m/s to contain overlapping explosions while allowing meteor size scaling.
+with a **0.5× velocity-axis factor** (range 0–1×) and **2 s** settling
+(range 0.2–4 s). The factor scales only the component parallel to the aircraft's
+current travel direction; perpendicular push remains at full strength. Accumulated
+external velocity is capped at 180 m/s to contain overlapping explosions while
+allowing meteor size scaling.
 This is separate from the engine speed and the proximity detonation distance.
 
 The revised meteor preset uses **6–36 m** rocks, **12** per encounter, **5 m/s**
@@ -54,7 +57,9 @@ shortened roll/recovery with unchanged displacement.
 
 Scanned push arrows use the same `MeteorSystem.predictExplosionImpulse` calculation
 as physical destruction, from the meteor center. Impulse is strength × smooth
-radius falloff × clamp(diameter / 12, 0.5, 1.5), directed away from the meteor.
+radius falloff × clamp(diameter / 12, 0.5, 1.5), directed away from the meteor,
+then decomposed against current aircraft velocity so only its parallel component
+receives the velocity-axis factor.
 At coincident centers, opposite ship-forward is the shared fallback. The arrow
 represents one explosion, before combining residual velocity/other explosions
 and applying the accumulated cap. Its tip is center + impulse × display scale.

@@ -51,6 +51,7 @@ export class MeteorState {
 }
 export class MeteorSystem implements DynamicObstacleProvider {
   readonly shipPosition = new Vector3();
+  readonly shipVelocity = new Vector3();
   private readonly proximityHandle: MeteorHandle = { slot: -1, generation: 0 };
   private readonly proximityStart = new Vector3();
   private readonly proximityTravel = new Vector3();
@@ -60,8 +61,9 @@ export class MeteorSystem implements DynamicObstacleProvider {
   /** The exact single-explosion impulse used by both physics and scanned arrows.
    * Combined impulses are subsequently capped by FlightController. */
   predictExplosionImpulse(out: Vector3, rock: Pick<MeteorState, 'position' | 'diameter'>): Vector3 {
-    return explosionImpulse(out, this.shipPosition, rock.position, this.proximityDirection,
-      rock.diameter, this.settings.explosionPush, this.settings.explosionShakeRadius);
+    return explosionImpulse(out, this.shipPosition, rock.position, this.shipVelocity,
+      this.proximityDirection, rock.diameter, this.settings.explosionPush,
+      this.settings.explosionShakeRadius, this.settings.explosionVelocityAxisFactor);
   }
 
   /** Surface clearance drives both the tint and the proximity fuse. */
@@ -76,6 +78,7 @@ export class MeteorSystem implements DynamicObstacleProvider {
   updateProximity(dt: number, from: Vector3, to: Vector3, orientation: Quaternion): void {
     if (dt <= 0) return;
     this.shipPosition.copy(to);
+    this.shipVelocity.subVectors(to, from).divideScalar(dt);
     this.proximityDirection.set(0, 0, 1).applyQuaternion(orientation);
     if (!this.settings.meteorEnabled || !this.settings.meteorProximityEnabled) return;
     for (let slot = 0; slot < this.rocks.length; slot++) {
