@@ -150,7 +150,7 @@ test('booster refraction is independent of the two side wakes and shares flame d
   const flame = effects.group.children[0].children[0] as Mesh<BufferGeometry, ShaderMaterial>;
   assert.equal(glass.geometry, flame.geometry);
   assert.equal(glass.material.uniforms.uFlutter, flame.material.uniforms.uFlutter);
-  assert.equal(glass.material.uniforms.uFlowTime, flame.material.uniforms.uFlowTime);
+  assert.equal(glass.material.uniforms.uFlutterTime, flame.material.uniforms.uFlutterTime);
   effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, wingWarpEnabled: false, boostGlassEnabled: false });
   assert.equal(effects.hasWake, false);
   effects.dispose();
@@ -163,16 +163,16 @@ test('both flame and side flutter increase with speed and freeze at zero simulat
   effects.update(1, true, 30);
   const slowFlame = flame.material.uniforms.uFlutter.value;
   const slowSide = side.material.uniforms.uFlutter.value;
-  const slowTime = flame.material.uniforms.uFlowTime.value;
-  const slowSideTime = side.material.uniforms.uTime.value;
+  const slowTime = flame.material.uniforms.uFlutterTime.value;
+  const slowSideTime = side.material.uniforms.uFlutterTime.value;
   effects.update(1, true, 120);
-  assert.ok(Math.abs((flame.material.uniforms.uFlowTime.value - slowTime) / slowTime - 4) < 1e-8);
-  assert.ok(Math.abs((side.material.uniforms.uTime.value - slowSideTime) / slowSideTime - 4) < 1e-8);
+  assert.ok(Math.abs((flame.material.uniforms.uFlutterTime.value - slowTime) / slowTime - 4) < 1e-8);
+  assert.ok(Math.abs((side.material.uniforms.uFlutterTime.value - slowSideTime) / slowSideTime - 4) < 1e-8);
   assert.ok(flame.material.uniforms.uFlutter.value > slowFlame * 2);
   assert.ok(side.material.uniforms.uFlutter.value > slowSide * 2);
-  const time = flame.material.uniforms.uFlowTime.value;
+  const time = flame.material.uniforms.uFlutterTime.value;
   effects.update(0, false, 120);
-  assert.equal(flame.material.uniforms.uFlowTime.value, time);
+  assert.equal(flame.material.uniforms.uFlutterTime.value, time);
   effects.dispose();
 });
 
@@ -204,7 +204,8 @@ test('slender flames and compact glass have independent geometry controls and a 
   const geometry = glass.geometry;
   effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, wingWarpEnabled: false, boostGlassWidth: .8,
     boostGlassLength: .4, boostGlassDebug: true });
-  assert.equal(effects.hasWake, false);
+  assert.equal(effects.hasWake, true, 'debug preserves the refraction pass');
+  assert.equal(glass.material.uniforms.uDebug.value, 1);
   assert.equal(debugGroup.visible, true); assert.equal(effects.group.children[0].visible, false);
   assert.equal(debug.geometry, glass.geometry); assert.equal(debug.material.vertexShader, glass.material.vertexShader);
   assert.equal(debug.material.uniforms, glass.material.uniforms);
@@ -216,5 +217,62 @@ test('slender flames and compact glass have independent geometry controls and a 
   assert.equal(debug.material.uniforms.uPower.value, 1);
   effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, wingWarpEnabled: false });
   assert.equal(debugGroup.visible, false); assert.equal(glass.geometry, geometry);
+  effects.dispose();
+});
+
+test('debug toggles preserve pooled glass and recover while paused, independently of boost', () => {
+  const effects = new FlightEffects(), trail = new TrailView(), origin = new Vector3();
+  for (let i = 0; i < 40; i++) trail.add(new Vector3(0, 20, i * 3), new Quaternion(), origin, true);
+  effects.syncWake(trail, origin); effects.update(0.3, true, 80);
+  const wake = effects.wakeGroup.children[0] as Mesh<BufferGeometry, ShaderMaterial>;
+  const geometry = wake.geometry, count = geometry.drawRange.count;
+  const boost = effects.wakeScene.children[1].children[0] as Mesh<BufferGeometry, ShaderMaterial>;
+  const frozen = wake.material.uniforms.uFlutterTime.value;
+  for (let i = 0; i < 20; i++) {
+    for (const [side, rear] of [[true, false], [false, true], [true, true], [false, false]]) {
+      effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, wakeDebugEnabled: side, boostGlassDebug: rear });
+      assert.equal(effects.hasWake, true, 'inspection cannot deactivate the glass pass');
+      assert.equal(effects.wakeGroup.visible, true);
+      assert.equal(effects.debugGroup.visible, side);
+      assert.equal(wake.material.uniforms.uDebug.value, side ? 1 : 0);
+      assert.equal(boost.material.uniforms.uDebug.value, rear ? 1 : 0);
+      assert.equal(wake.material.uniforms.uFlutterTime.value, frozen);
+      assert.equal(wake.geometry, geometry); assert.equal(geometry.drawRange.count, count);
+    }
+  }
+  effects.update(10, false, 80);
+  effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, boostGlassDebug: true });
+  effects.configure({ ...DEFAULT_FLIGHT_EFFECTS });
+  assert.equal(effects.hasWake, true, 'side glass must survive the end of the boost');
+  assert.equal(effects.wakeGroup.visible, true);
+  effects.dispose();
+});
+
+test('all four flow/flutter controls integrate speed independently without phase jumps', () => {
+  const effects = new FlightEffects();
+  const flame = (effects.group.children[0].children[0] as Mesh<BufferGeometry, ShaderMaterial>).material.uniforms;
+  const side = (effects.wakeGroup.children[0] as Mesh<BufferGeometry, ShaderMaterial>).material.uniforms;
+  const phases = () => [side.uFlowDistance.value, side.uFlutterTime.value, flame.uFlowDistance.value, flame.uFlutterTime.value];
+  effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, wingWarpFlowRate: 2, wingWarpFlutterRate: 0.5,
+    boostFlowRate: 0.25, boostFlutterRate: 3 });
+  effects.update(1, true, 55);
+  assert.deepEqual(phases(), [110, .5, 13.75, 3]);
+  const slow = phases(); effects.update(1, true, 110);
+  phases().forEach((v, i) => assert.ok(Math.abs(v - slow[i] * 3) < 1e-10, 'double speed doubles each phase increment'));
+  const before = phases();
+  effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, wingWarpFlowRate: 0, wingWarpFlutterRate: 0,
+    boostFlowRate: 0, boostFlutterRate: 0 });
+  assert.deepEqual(phases(), before, 'editing controls does not rephase surfaces');
+  effects.update(1, true, 120); assert.deepEqual(phases(), before, 'zero stops each independent animation');
+  const controls = ['wingWarpFlowRate', 'wingWarpFlutterRate', 'boostFlowRate', 'boostFlutterRate'] as const;
+  for (let i = 0; i < controls.length; i++) {
+    effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, wingWarpFlowRate: 0, wingWarpFlutterRate: 0,
+      boostFlowRate: 0, boostFlutterRate: 0, [controls[i]]: 1 });
+    const snapshot = phases(); effects.update(1, true, 55);
+    phases().forEach((v, j) => assert.equal(v - snapshot[j], j === i ? (i % 2 === 0 ? 55 : 1) : 0));
+  }
+  effects.configure(DEFAULT_FLIGHT_EFFECTS);
+  const frozen = phases(); effects.update(0, true, 120); assert.deepEqual(phases(), frozen);
+  effects.update(1, true, 0); assert.deepEqual(phases(), frozen, 'zero plane speed stops all phase travel');
   effects.dispose();
 });

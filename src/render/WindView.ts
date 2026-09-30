@@ -19,6 +19,8 @@ export interface WindVisualSettings {
   windSpeedThreshold: number;
   windOpacity: number;
   windColor: string;
+  windCountSpeedResponse?: number;
+  windLengthSpeedResponse?: number;
 }
 
 const WORLD_UP = new Vector3(0, 1, 0);
@@ -61,6 +63,11 @@ export class WindView {
   private readonly spawnPosition = new Vector3();
   private readonly flowDirection = new Vector3(0, 0, -1);
   private initialized = false;
+  private speed = 55;
+  private baseCount: number = WIND.defaultLineCount;
+  private baseLength = 22;
+  private countSpeedResponse = 1;
+  private lengthSpeedResponse = 1;
 
   constructor() {
     // One unit ribbon expanded per instance in the vertex shader. The long
@@ -86,13 +93,16 @@ export class WindView {
     this.geometry.setAttribute('aHead', this.headAttribute);
     this.geometry.setAttribute('aFade', this.fadeAttribute);
 
+    const indices = new Float32Array(WIND.maxLineCount);
     const energy = new Float32Array(WIND.maxLineCount);
     const variation = new Float32Array(WIND.maxLineCount * 2);
     for (let index = 0; index < WIND.maxLineCount; index += 1) {
+      indices[index] = index;
       energy[index] = 0.56 + pseudoRandom(index, 4) * 0.44;
       variation[index * 2] = pseudoRandom(index, 5) * 2 - 1;
       variation[index * 2 + 1] = pseudoRandom(index, 6) * 2 - 1;
     }
+    this.geometry.setAttribute('aIndex', new InstancedBufferAttribute(indices, 1));
     this.geometry.setAttribute('aEnergy', new InstancedBufferAttribute(energy, 1));
     this.geometry.setAttribute('aVariation', new InstancedBufferAttribute(variation, 2));
     this.geometry.instanceCount = WIND.defaultLineCount;
@@ -105,6 +115,7 @@ export class WindView {
         uFlowUp: { value: new Vector3(0, 1, 0) },
         uThrottle: { value: 0 },
         uSpeed: { value: 0 },
+        uCount: { value: WIND.defaultLineCount },
         uLength: { value: 22 },
         uWidth: { value: WIND.ribbonWidth },
         uThreshold: { value: 20 },
@@ -122,6 +133,7 @@ export class WindView {
         attribute vec3 aHead;
         attribute float aFade;
         attribute float aEnergy;
+        attribute float aIndex;
         attribute vec2 aVariation;
         uniform vec3 uPlanePosition;
         uniform vec3 uFlowDirection;
@@ -129,6 +141,7 @@ export class WindView {
         uniform vec3 uFlowUp;
         uniform float uThrottle;
         uniform float uSpeed;
+        uniform float uCount;
         uniform float uLength;
         uniform float uWidth;
         uniform float uThreshold;
@@ -143,9 +156,7 @@ export class WindView {
             + uFlowRight * aVariation.x * 0.035
             + uFlowUp * aVariation.y * 0.022
           );
-          float lengthM = uLength
-            * mix(0.68, 1.12, aEnergy)
-            * mix(1.0, 1.22, uThrottle);
+          float lengthM = uLength * mix(0.68, 1.12, aEnergy);
           float widthM = uWidth * mix(0.72, 1.15, aEnergy);
 
           vec3 headView = (modelViewMatrix * vec4(aHead, 1.0)).xyz;
@@ -162,9 +173,6 @@ export class WindView {
             - flowView * position.x * lengthM
             + side * position.y * widthM;
           vec4 clipPosition = projectionMatrix * vec4(viewPosition, 1.0);
-          vec4 headClip = projectionMatrix * vec4(headView, 1.0);
-          float radialNdc = length(headClip.xy / max(0.001, abs(headClip.w)));
-          float centerFade = smoothstep(0.10, 0.28, radialNdc);
           float speedFade = smoothstep(uThreshold, uThreshold + 12.0, uSpeed);
           float planeDistance = distance(aHead, uPlanePosition);
           float distanceFade = smoothstep(8.0, 24.0, planeDistance)
@@ -175,7 +183,7 @@ export class WindView {
           vAlpha = uOpacity
             * mix(0.72, 1.0, aEnergy)
             * mix(1.0, 1.18, uThrottle)
-            * speedFade * distanceFade * centerFade * aFade;
+            * speedFade * distanceFade * clamp(uCount - aIndex, 0.0, 1.0) * aFade;
           gl_Position = clipPosition;
         }
       `,
@@ -239,6 +247,8 @@ export class WindView {
     const throttleSmoothing = frozen ? 0 : 1 - Math.exp(-dt / throttleResponse);
     this.material.uniforms.uThrottle.value = throttle
       + ((throttleActive ? 1 : 0) - throttle) * throttleSmoothing;
+    this.speed = Math.max(0, speed);
+    this.updateSpeedPresentation();
     this.material.uniforms.uSpeed.value = speed;
     (this.material.uniforms.uPlanePosition.value as Vector3).copy(planePosition);
     (this.material.uniforms.uFlowDirection.value as Vector3).copy(this.flowDirection);
@@ -302,13 +312,13 @@ export class WindView {
       )
       : WIND.aheadDistance - 28 + pseudoRandom(index, 11, cycle) * 46;
     const angle = pseudoRandom(index, 12, cycle) * Math.PI * 2;
-    const radial = 14 + Math.sqrt(pseudoRandom(index, 13, cycle)) * (
-      WIND.lateralRadius - 14
-    );
+    // sqrt(U) samples uniform area across the whole ellipse, including its
+    // center. The old +14 m inner radius left a hollow tunnel ahead of the ship.
+    const radial = Math.sqrt(pseudoRandom(index, 13, cycle)) * WIND.lateralRadius;
     const lateral = Math.cos(angle) * radial;
     const vertical = Math.sin(angle) * radial * (
       WIND.verticalRadius / WIND.lateralRadius
-    ) + (pseudoRandom(index, 14, cycle) - 0.5) * 16;
+    );
 
     this.spawnPosition.copy(planePosition)
       .addScaledVector(this.forward, along)
@@ -348,14 +358,22 @@ export class WindView {
   }
 
   applyVisualSettings(settings: WindVisualSettings): void {
-    this.geometry.instanceCount = Math.round(Math.max(
-      0,
-      Math.min(WIND.maxLineCount, settings.windStreakCount),
-    ));
-    this.material.uniforms.uLength.value = settings.windStreakLength;
+    this.baseCount = Math.max(0, Math.min(WIND.maxLineCount, settings.windStreakCount));
+    this.baseLength = settings.windStreakLength;
+    this.countSpeedResponse = settings.windCountSpeedResponse ?? 1;
+    this.lengthSpeedResponse = settings.windLengthSpeedResponse ?? 1;
+    this.updateSpeedPresentation();
     this.material.uniforms.uThreshold.value = settings.windSpeedThreshold;
     this.material.uniforms.uOpacity.value = settings.windOpacity;
     (this.material.uniforms.uColor.value as Color).set(settings.windColor);
+  }
+
+  private updateSpeedPresentation(): void {
+    const ratio = Math.max(0, Math.min(3, this.speed / 55));
+    const count = Math.min(WIND.maxLineCount, this.baseCount * Math.pow(ratio, this.countSpeedResponse));
+    this.geometry.instanceCount = Math.ceil(count);
+    this.material.uniforms.uCount.value = count;
+    this.material.uniforms.uLength.value = this.baseLength * Math.pow(ratio, this.lengthSpeedResponse);
   }
 
   setAtmosphere(backgroundColor: string, fogDensity: number): void {
@@ -382,8 +400,10 @@ export class WindView {
   }
 
   get configuredLength(): number {
-    return this.material.uniforms.uLength.value as number;
+    return this.baseLength;
   }
+
+  get effectiveLength(): number { return this.material.uniforms.uLength.value as number; }
 
   get configuredThreshold(): number {
     return this.material.uniforms.uThreshold.value as number;

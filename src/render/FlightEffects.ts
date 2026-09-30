@@ -22,12 +22,15 @@ export interface FlightEffectSettings {
   boostDispersion: number;
   boostFlutter: number;
   boostFlutterRate: number;
+  boostFlowRate: number;
   wingWarpEnabled: boolean;
   wingWarpStrength: number;
   wingWarpLength: number;
   wingWarpHeight: number;
   wingWarpThickness: number;
   wingWarpFlutter: number;
+  wingWarpFlutterRate: number;
+  wingWarpFlowRate: number;
   wingWarpOpacity: number;
   wingWarpDispersion: number;
   wakeDebugEnabled: boolean;
@@ -38,9 +41,9 @@ export const DEFAULT_FLIGHT_EFFECTS: FlightEffectSettings = {
   boostGlassWidth: 0.55, boostGlassLength: 0.65, boostGlassDebug: false, boostFadeDuration: 2.8,
   boostExhaustColor: '#8cffe0', wingWarpEnabled: true, wingWarpStrength: 1,
   wingWarpLength: 120, wingWarpHeight: 14, wingWarpThickness: 0.3,
-  wingWarpFlutter: 0.6, wingWarpOpacity: 0.045, wingWarpDispersion: 0.12,
+  wingWarpFlutter: 0.6, wingWarpFlutterRate: 1, wingWarpFlowRate: 1, wingWarpOpacity: 0.045, wingWarpDispersion: 0.12,
   boostGlassEnabled: true, boostRefraction: 1, boostDispersion: 0.18,
-  boostFlutter: 0.45, boostFlutterRate: 1, wakeDebugEnabled: false,
+  boostFlutter: 0.45, boostFlutterRate: 1, boostFlowRate: 1, wakeDebugEnabled: false,
 };
 
 /** Pooled meshes/light; animation advances only on simulation time. */
@@ -62,7 +65,10 @@ export class FlightEffects {
   private readonly debugMaterials: ShaderMaterial[] = [];
   private readonly geometries: BufferGeometry[] = [];
   private elapsed = 0;
-  private flowTime = 0;
+  private sideFlowDistance = 0;
+  private sideFlutterTime = 0;
+  private boostFlowDistance = 0;
+  private boostFlutterTime = 0;
   private speed = 55;
   private settings = { ...DEFAULT_FLIGHT_EFFECTS };
   private readonly sheets = [new WakeSheetGeometry(), new WakeSheetGeometry()];
@@ -79,12 +85,12 @@ export class FlightEffects {
     this.wakeScene.add(this.wakeGroup, this.boostGlassGroup);
     this.exhaustMaterial = new ShaderMaterial({
       uniforms: { uTime: { value: 0 }, uPower: { value: 0 }, uLength: { value: 12 },
-        uColor: { value: this.lightColor }, uFlowTime: { value: 0 },
+        uColor: { value: this.lightColor }, uFlowDistance: { value: 0 }, uFlutterTime: { value: 0 },
         uFlutter: { value: 0.45 }, uShellScale: { value: 1 } },
       transparent: true, depthWrite: false, blending: AdditiveBlending,
       side: DoubleSide, toneMapped: false,
       vertexShader: `
-        uniform float uTime, uPower, uLength, uFlowTime, uFlutter, uShellScale;
+        uniform float uTime, uPower, uLength, uFlowDistance, uFlutterTime, uFlutter, uShellScale;
         varying vec2 vUv;
         varying vec3 vView, vNormal;
         void main() {
@@ -93,9 +99,10 @@ export class FlightEffects {
           float angle = uv.x * 6.283185;
           // Flutter changes the flame's surface and tongues, never its centerline.
           float flutter = min(1.0, uFlutter * 0.65);
-          float turbulence = sin(angle * 3.0 + t * 17.0 - uFlowTime * 17.0)
-            * sin(angle * 2.0 - t * 11.0 + uFlowTime * 12.0);
-          float tongue = 0.82 + 0.18 * sin(angle * 5.0 + uFlowTime * 8.0);
+          float downstream = t * uLength - uFlowDistance;
+          float turbulence = sin(angle * 3.0 + downstream * 0.45)
+            * sin(angle * 2.0 + uFlutterTime * 12.0);
+          float tongue = 0.82 + 0.18 * sin(angle * 5.0 + uFlutterTime * 8.0);
           float envelope = pow(max(0.0, 1.0 - t), 0.72) * (1.0 + 2.5 * sin(t * 3.14159));
           vec3 p = position;
           p.xy *= envelope * (1.0 + flutter * 0.35 * turbulence)
@@ -107,7 +114,7 @@ export class FlightEffects {
           gl_Position = projectionMatrix * view;
         }`,
       fragmentShader: `
-        uniform float uFlowTime, uPower, uFlutter;
+        uniform float uFlowDistance, uFlutterTime, uLength, uPower, uFlutter;
         uniform vec3 uColor;
         varying vec2 vUv;
         varying vec3 vView, vNormal;
@@ -116,10 +123,11 @@ export class FlightEffects {
           float facing = abs(dot(normalize(vNormal), normalize(-vView)));
           float core = pow(facing, 3.0) * (1.0 - smoothstep(0.1, 0.75, t));
           float angle = vUv.x * 6.283185;
-          float turbulence = sin(angle * 5.0 + t * 31.0 - uFlowTime * 22.0)
-            * sin(angle * 3.0 - t * 19.0 + uFlowTime * 13.0);
+          float downstream = t * uLength - uFlowDistance;
+          float turbulence = sin(angle * 5.0 + downstream * 0.8)
+            * sin(angle * 3.0 + downstream * 0.46 + uFlutterTime * 13.0);
           float flutter = min(1.0, uFlutter * 0.65);
-          float tip = 0.76 + 0.2 * sin(angle * 4.0 + uFlowTime * 7.0)
+          float tip = 0.76 + 0.2 * sin(angle * 4.0 + uFlutterTime * 7.0)
             + flutter * 0.08 * turbulence;
           float tongues = 1.0 - smoothstep(tip - 0.2, tip, t);
           float tail = pow(1.0 - t, 0.85) * smoothstep(0.0, 0.035, t) * tongues;
@@ -140,10 +148,11 @@ export class FlightEffects {
     }
     this.boostGlassMaterial = new ShaderMaterial({
       uniforms: { ...this.exhaustMaterial.uniforms, uShellScale: { value: 0.55 }, uLength: { value: 0 }, uPower: { value: 0 },
-        tDepth: { value: null }, uResolution: { value: new Vector2() },
+        uDebug: { value: 0 }, tDepth: { value: null }, uResolution: { value: new Vector2() },
         uRefraction: { value: 1 }, uDispersion: { value: 0.18 }, uSheen: { value: 0.02 } },
       vertexShader: this.exhaustMaterial.vertexShader,
       fragmentShader: `
+        uniform float uDebug;
         uniform sampler2D tDepth;
         uniform vec2 uResolution;
         uniform float uPower;
@@ -151,6 +160,7 @@ export class FlightEffects {
         varying vec3 vView;
         ${refractionOutput}
         void main() {
+          if (uDebug > 0.5) discard;
           if (gl_FragCoord.z > texture2D(tDepth, gl_FragCoord.xy / uResolution).r + 0.000001) discard;
           vec3 n = normalize(cross(dFdx(vView), dFdy(vView)));
           if (!gl_FrontFacing) n = -n;
@@ -186,21 +196,24 @@ export class FlightEffects {
       this.boostDebugGroup.add(debug);
     }
     this.wakeMaterial = new ShaderMaterial({
-      uniforms: { uTime: { value: 0 }, uPower: { value: 0 },
+      uniforms: { uFlutterTime: { value: 0 }, uFlowDistance: { value: 0 }, uLength: { value: 120 }, uPower: { value: 0 },
         uFlutter: { value: 0.6 }, uRefraction: { value: 1 },
         uDispersion: { value: 0.12 }, uSheen: { value: 0.045 },
-        tDepth: { value: null }, uResolution: { value: new Vector2(1, 1) } },
+        uDebug: { value: 0 }, tDepth: { value: null }, uResolution: { value: new Vector2(1, 1) } },
       // This pass stores vectors, not color. Never blend or color-convert them.
       blending: NoBlending, depthWrite: true, side: DoubleSide,
       vertexShader: `
-        uniform float uTime, uFlutter;
-        attribute float aDistance;
+        uniform float uFlutterTime, uFlowDistance, uLength, uFlutter;
         varying vec2 vUv;
         varying vec3 vView;
         void main() {
           vUv = uv;
-          float ripple = sin(aDistance * 0.45 - uTime * 3.2 + uv.x * 5.0)
-            + 0.35 * sin(aDistance * 0.91 + uTime * 1.7 - uv.x * 9.0);
+          // In aircraft-relative metres: positive phase travel is rearward.
+          float downstream = uv.y * uLength - uFlowDistance;
+          float ripple = sin(downstream * 0.45 + uv.x * 5.0)
+            * (0.7 + 0.3 * sin(uFlutterTime * 3.2 + uv.x * 6.0))
+            + 0.35 * sin(downstream * 0.91 - uv.x * 9.0)
+            * cos(uFlutterTime * 1.7 - uv.x * 4.0);
           vec3 p = position + normal * ripple * uFlutter * sin(uv.x * 3.14159)
             * smoothstep(0.0, 0.04, uv.y);
           vec4 view = modelViewMatrix * vec4(p, 1.0);
@@ -208,6 +221,7 @@ export class FlightEffects {
           gl_Position = projectionMatrix * view;
         }`,
       fragmentShader: `
+        uniform float uDebug;
         uniform sampler2D tDepth;
         uniform vec2 uResolution;
         uniform float uPower;
@@ -215,6 +229,7 @@ export class FlightEffects {
         varying vec2 vUv;
         varying vec3 vView;
         void main() {
+          if (uDebug > 0.5) discard;
           vec2 screenUv = gl_FragCoord.xy / uResolution;
           // Foreground terrain and the ship occlude the distortion volumes.
           if (gl_FragCoord.z > texture2D(tDepth, screenUv).r + 0.000001) discard;
@@ -266,14 +281,14 @@ export class FlightEffects {
   }
 
   private get sideGlassVisible(): boolean {
-    return !this.settings.wakeDebugEnabled && !this.cockpit && this.speed > 0
+    return !this.cockpit && this.speed > 0
       && this.settings.wingWarpEnabled && this.sheets[0].drawRange.count > 0
-      && (this.settings.wingWarpStrength > 0 || this.settings.wingWarpOpacity > 0);
+      && (this.settings.wingWarpStrength > 0 || this.settings.wingWarpOpacity > 0 || this.settings.wingWarpDispersion > 0);
   }
 
   private get boostGlassVisible(): boolean {
-    return !this.settings.boostGlassDebug && this.settings.boostGlassEnabled && this.lightIntensity > 0.001 && !this.cockpit
-      && this.settings.boostRefraction > 0;
+    return this.settings.boostGlassEnabled && this.lightIntensity > 0.001 && !this.cockpit
+      && (this.settings.boostRefraction > 0 || this.settings.boostDispersion > 0);
   }
 
   get hasWake(): boolean { return this.sideGlassVisible || this.boostGlassVisible; }
@@ -302,7 +317,13 @@ export class FlightEffects {
   update(dt: number, pressed: boolean, speed: number, crashed = false): void {
     this.elapsed += Math.max(0, dt);
     this.speed = crashed ? 0 : speed;
-    this.flowTime += Math.max(0, dt) * Math.max(0, this.speed / 55);
+    // Integrate each control separately. Editing a speed while paused must not
+    // rescale accumulated phase or make the surface jump.
+    const travel = Math.max(0, dt) * Math.max(0, this.speed);
+    this.sideFlowDistance += travel * this.settings.wingWarpFlowRate;
+    this.boostFlowDistance += travel * this.settings.boostFlowRate;
+    this.sideFlutterTime += travel / 55 * this.settings.wingWarpFlutterRate;
+    this.boostFlutterTime += travel / 55 * this.settings.boostFlutterRate;
     if (crashed) this.burst.reset();
     else this.burst.update(dt, pressed);
     this.refresh();
@@ -319,7 +340,11 @@ export class FlightEffects {
   }
 
   prepareWake(depth: Texture, width: number, height: number): void {
+    // Inspection changes shading, not glass visibility or pass lifetime. Refresh
+    // here as well so a paused/debug transition always binds the current state.
+    this.refresh();
     for (const material of [this.wakeMaterial, this.boostGlassMaterial]) {
+      material.uniformsNeedUpdate = true;
       material.uniforms.tDepth.value = depth;
       material.uniforms.uResolution.value.set(width, height);
     }
@@ -346,9 +371,15 @@ export class FlightEffects {
     this.boostDebugGroup.visible = this.settings.boostGlassDebug && !this.cockpit;
     // Keep the light allocated, avoiding shader recompilation on every press.
     this.light.intensity = 65 * power;
+    // Keep the refraction pass alive during opaque inspection. Discard its
+    // inspected surfaces in the shader instead of turning off the whole pass.
+    this.wakeMaterial.uniforms.uDebug.value = this.settings.wakeDebugEnabled ? 1 : 0;
+    this.boostGlassMaterial.uniforms.uDebug.value = this.settings.boostGlassDebug ? 1 : 0;
     this.wakeGroup.visible = this.sideGlassVisible;
     this.boostGlassGroup.visible = this.boostGlassVisible;
-    this.wakeMaterial.uniforms.uTime.value = this.flowTime;
+    this.wakeMaterial.uniforms.uFlowDistance.value = this.sideFlowDistance;
+    this.wakeMaterial.uniforms.uFlutterTime.value = this.sideFlutterTime;
+    this.wakeMaterial.uniforms.uLength.value = this.settings.wingWarpLength;
     this.wakeMaterial.uniforms.uPower.value = 0.6 + Math.min(1, this.speed / 120) * 0.3 + this.burst.intensity * 0.1;
     const flutterScale = 0.25 + 0.75 * Math.max(0, this.speed / 55);
     this.wakeMaterial.uniforms.uFlutter.value = this.settings.wingWarpFlutter * flutterScale;
@@ -356,7 +387,8 @@ export class FlightEffects {
     this.wakeMaterial.uniforms.uDispersion.value = this.settings.wingWarpDispersion;
     this.wakeMaterial.uniforms.uSheen.value = this.settings.wingWarpOpacity;
     this.exhaustMaterial.uniforms.uFlutter.value = this.settings.boostFlutter * flutterScale;
-    this.exhaustMaterial.uniforms.uFlowTime.value = this.flowTime * this.settings.boostFlutterRate;
+    this.exhaustMaterial.uniforms.uFlowDistance.value = this.boostFlowDistance;
+    this.exhaustMaterial.uniforms.uFlutterTime.value = this.boostFlutterTime;
     this.boostGlassMaterial.uniforms.uRefraction.value = this.settings.boostRefraction;
     this.boostGlassMaterial.uniforms.uDispersion.value = this.settings.boostDispersion;
     this.debugGroup.visible = this.settings.wakeDebugEnabled && this.settings.wingWarpEnabled && !this.cockpit;

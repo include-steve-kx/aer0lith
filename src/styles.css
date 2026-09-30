@@ -941,3 +941,10 @@ button:disabled { opacity: 0.45; cursor: default; }
 @media (max-width: 440px) {
   .roll-actions { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 98px); }
 }
+
+.settings-help {
+  margin: 0 0 12px;
+  font-size: 11px;
+  line-height: 1.45;
+  opacity: 0.7;
+}

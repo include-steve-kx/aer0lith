@@ -163,6 +163,7 @@
 
           <section class="settings-section" aria-labelledby="settings-boost-title">
             <h2 id="settings-boost-title">BOOST + WAKES</h2>
+            <p class="settings-help">Backward and flutter speeds scale with aircraft speed. Zero freezes that motion.</p>
             <label class="toggle-setting" for="boost-exhaust-enabled">
               <span>BOOST EXHAUST</span><input id="boost-exhaust-enabled" type="checkbox" checked />
             </label>
@@ -184,16 +185,20 @@
             <input id="boost-glass-width" type="range" min="0.1" max="2" step="0.05" value="0.55" />
             <label for="boost-glass-length"><span>GLASS LENGTH / FLAME</span><output id="boost-glass-length-value">65%</output></label>
             <input id="boost-glass-length" type="range" min="0.2" max="1.5" step="0.05" value="0.65" />
-            <button id="boost-glass-debug" type="button" aria-pressed="false">BOOSTER MESH / GLASS</button>
+            <div class="settings-actions">
+              <button id="boost-glass-debug" type="button" aria-pressed="false">BOOSTER MESH / GLASS</button>
+            </div>
             <label for="boost-refraction"><span>BOOSTER REFRACTION</span><output id="boost-refraction-value">1</output></label>
             <input id="boost-refraction" type="range" min="0" max="3" step="0.05" value="1" />
             <label for="boost-dispersion"><span>BOOSTER DISPERSION</span><output id="boost-dispersion-value">0.18</output></label>
             <input id="boost-dispersion" type="range" min="0" max="0.6" step="0.01" value="0.18" />
             <label for="boost-flutter"><span>FLAME FLUTTER</span><output id="boost-flutter-value">0.45 M</output></label>
             <input id="boost-flutter" type="range" min="0" max="2" step="0.05" value="0.45" />
-            <label for="boost-flutter-rate"><span>FLUTTER RATE</span><output id="boost-flutter-rate-value">1×</output></label>
+            <label for="boost-flutter-rate"><span>FLAME FLUTTER SPEED</span><output id="boost-flutter-rate-value">1×</output></label>
             <input id="boost-flutter-rate" type="range" min="0" max="3" step="0.05" value="1" />
-            <label for="boost-shake-strength"><span>CAMERA SHAKE</span><output id="boost-shake-strength-value">0.35</output></label>
+            <label for="boost-flow-rate"><span>FLAME BACKWARD SPEED</span><output id="boost-flow-rate-value">1.00×</output></label>
+            <input id="boost-flow-rate" type="range" min="0" max="3" step="0.05" value="1" />
+            <label for="boost-shake-strength"><span>CAMERA SHAKE</span><output id="boost-shake-strength-value">0.65</output></label>
             <input id="boost-shake-strength" type="range" min="0" max="2" step="0.05" value="0.65" />
             <label for="boost-shake-frequency"><span>SHAKE FREQUENCY</span><output id="boost-shake-frequency-value">14 HZ</output></label>
             <input id="boost-shake-frequency" type="range" min="4" max="30" step="1" value="14" />
@@ -209,6 +214,10 @@
             <input id="wing-warp-thickness" type="range" min="0.02" max="2" step="0.02" value="0.3" />
             <label for="wing-warp-flutter"><span>SIDE FLUTTER</span><output id="wing-warp-flutter-value">0.6 M</output></label>
             <input id="wing-warp-flutter" type="range" min="0" max="2" step="0.05" value="0.6" />
+            <label for="wing-warp-flow-rate"><span>SIDE BACKWARD SPEED</span><output id="wing-warp-flow-rate-value">1.00×</output></label>
+            <input id="wing-warp-flow-rate" type="range" min="0" max="3" step="0.05" value="1" />
+            <label for="wing-warp-flutter-rate"><span>SIDE FLUTTER SPEED</span><output id="wing-warp-flutter-rate-value">1.00×</output></label>
+            <input id="wing-warp-flutter-rate" type="range" min="0" max="3" step="0.05" value="1" />
             <h3>SIDE WAKE GLASS</h3>
             <label for="wing-warp-strength"><span>REFRACTION STRENGTH</span><output id="wing-warp-strength-value">1</output></label>
             <input id="wing-warp-strength" type="range" min="0" max="3" step="0.05" value="1" />
@@ -240,14 +249,19 @@
 
           <section class="settings-section" aria-labelledby="settings-wind-title">
             <h2 id="settings-wind-title">WIND STREAKS</h2>
+            <p class="settings-help">Speed response: 0 = constant, 1 = linear, 2 = stronger. Maximum 240 streaks.</p>
             <label for="wind-streak-count">
-              <span>STREAK COUNT</span><output id="wind-streak-count-value">120</output>
+              <span>COUNT AT 55 M/S</span><output id="wind-streak-count-value">120</output>
             </label>
             <input id="wind-streak-count" type="range" min="0" max="240" step="4" value="120" />
             <label for="wind-streak-length">
-              <span>STREAK LENGTH</span><output id="wind-streak-length-value">22 M</output>
+              <span>LENGTH AT 55 M/S</span><output id="wind-streak-length-value">22 M</output>
             </label>
             <input id="wind-streak-length" type="range" min="6" max="60" step="1" value="22" />
+            <label for="wind-count-speed-response"><span>COUNT SPEED RESPONSE</span><output id="wind-count-speed-response-value">1.00</output></label>
+            <input id="wind-count-speed-response" type="range" min="0" max="2" step="0.05" value="1" />
+            <label for="wind-length-speed-response"><span>LENGTH SPEED RESPONSE</span><output id="wind-length-speed-response-value">1.00</output></label>
+            <input id="wind-length-speed-response" type="range" min="0" max="2" step="0.05" value="1" />
             <label for="wind-speed-threshold">
               <span>SPEED THRESHOLD</span><output id="wind-speed-threshold-value">20 M/S</output>
             </label>

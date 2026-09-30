@@ -97,3 +97,48 @@ test('wind streak centers persist in world space and follow floating-origin reba
   assert.equal(wind.simulationSpace, 'world');
   assert.equal(wind.depthTestingEnabled, true);
 });
+
+test('wind count and length scale with speed, with independently configurable responses', () => {
+  const wind = new WindView(), plane = new Vector3(), q = new Quaternion();
+  wind.update(0, plane, q, 30, false); const slowCount = wind.segmentCount, slowLength = wind.effectiveLength;
+  wind.update(0, plane, q, 55, false);
+  assert.equal(wind.segmentCount, 120); assert.equal(wind.effectiveLength, 22);
+  wind.update(0, plane, q, 110, false);
+  assert.equal(wind.segmentCount, 240); assert.equal(wind.effectiveLength, 44);
+  assert.ok(slowCount < 120 && slowLength < 22);
+  const position = wind.getHeadPosition(0, new Vector3()).clone();
+  wind.update(0, plane, q, 110, false, true);
+  assert.ok(wind.getHeadPosition(0, new Vector3()).equals(position));
+  wind.applyVisualSettings({ windStreakCount: 100, windStreakLength: 20, windSpeedThreshold: 20,
+    windOpacity: .36, windColor: '#ffffff', windCountSpeedResponse: 0, windLengthSpeedResponse: 2 });
+  assert.equal(wind.segmentCount, 100); assert.equal(wind.effectiveLength, 80);
+  wind.applyVisualSettings({ windStreakCount: 100, windStreakLength: 20, windSpeedThreshold: 20,
+    windOpacity: .36, windColor: '#ffffff', windCountSpeedResponse: 1, windLengthSpeedResponse: 0 });
+  assert.equal(wind.segmentCount, 200); assert.equal(wind.effectiveLength, 20);
+});
+
+test('wind spawns across uniform elliptical area without a central hole', () => {
+  const wind = new WindView(); wind.update(0, new Vector3(), new Quaternion(), 55, false);
+  const point = new Vector3(), quadrants = [0, 0, 0, 0];
+  let meanArea = 0, inner = 0, minimumRadius = Infinity;
+  for (let i = 0; i < wind.capacity; i++) {
+    wind.getHeadPosition(i, point);
+    const area = (point.x / 150) ** 2 + (point.y / 92) ** 2;
+    assert.ok(area <= 1.000001); meanArea += area;
+    if (area < .25) inner++;
+    minimumRadius = Math.min(minimumRadius, Math.sqrt(area));
+    quadrants[(point.x >= 0 ? 1 : 0) + (point.y >= 0 ? 2 : 0)]++;
+  }
+  assert.ok(Math.abs(meanArea / wind.capacity - .5) < .06);
+  assert.ok(inner > 40 && inner < 80, 'quarter-area center receives about a quarter of samples');
+  // Check central coverage over multiple deterministic populations, not one small sample.
+  for (let cycle = 0; cycle < 10; cycle++) {
+    wind.reset(new Vector3(), new Quaternion());
+    for (let i = 0; i < wind.capacity; i++) {
+      wind.getHeadPosition(i, point);
+      minimumRadius = Math.min(minimumRadius, Math.hypot(point.x / 150, point.y / 92));
+    }
+  }
+  assert.ok(minimumRadius < .08, 'streaks may spawn within the former central exclusion zone');
+  quadrants.forEach(count => assert.ok(count > 40 && count < 80));
+});

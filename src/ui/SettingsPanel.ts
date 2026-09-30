@@ -65,6 +65,8 @@ export interface VisualSettings extends FlightEffectSettings {
   windSpeedThreshold: number;
   windOpacity: number;
   windColor: string;
+  windLengthSpeedResponse: number;
+  windCountSpeedResponse: number;
   flockEnabled: boolean;
   flockMinSize: number;
   flockMaxSize: number;
@@ -136,6 +138,16 @@ export class SettingsPanel {
   private readonly boostRefractionValue = element<HTMLOutputElement>('boost-refraction-value');
   private readonly boostDispersion = element<HTMLInputElement>('boost-dispersion');
   private readonly boostDispersionValue = element<HTMLOutputElement>('boost-dispersion-value');
+  private readonly boostFlowRate = element<HTMLInputElement>('boost-flow-rate');
+  private readonly boostFlowRateValue = element<HTMLOutputElement>('boost-flow-rate-value');
+  private readonly wingWarpFlowRate = element<HTMLInputElement>('wing-warp-flow-rate');
+  private readonly wingWarpFlowRateValue = element<HTMLOutputElement>('wing-warp-flow-rate-value');
+  private readonly wingWarpFlutterRate = element<HTMLInputElement>('wing-warp-flutter-rate');
+  private readonly wingWarpFlutterRateValue = element<HTMLOutputElement>('wing-warp-flutter-rate-value');
+  private readonly windCountSpeedResponse = element<HTMLInputElement>('wind-count-speed-response');
+  private readonly windCountSpeedResponseValue = element<HTMLOutputElement>('wind-count-speed-response-value');
+  private readonly windLengthSpeedResponse = element<HTMLInputElement>('wind-length-speed-response');
+  private readonly windLengthSpeedResponseValue = element<HTMLOutputElement>('wind-length-speed-response-value');
   private readonly boostFlutter = element<HTMLInputElement>('boost-flutter');
   private readonly boostFlutterValue = element<HTMLOutputElement>('boost-flutter-value');
   private readonly boostFlutterRate = element<HTMLInputElement>('boost-flutter-rate');
@@ -291,6 +303,11 @@ export class SettingsPanel {
       shipGhostEnabled: this.shipGhostEnabled.checked,
       boostRefraction: this.boostRefraction.valueAsNumber,
       boostDispersion: this.boostDispersion.valueAsNumber,
+      boostFlowRate: this.boostFlowRate.valueAsNumber,
+      wingWarpFlowRate: this.wingWarpFlowRate.valueAsNumber,
+      wingWarpFlutterRate: this.wingWarpFlutterRate.valueAsNumber,
+      windCountSpeedResponse: this.windCountSpeedResponse.valueAsNumber,
+      windLengthSpeedResponse: this.windLengthSpeedResponse.valueAsNumber,
       boostFlutter: this.boostFlutter.valueAsNumber,
       boostFlutterRate: this.boostFlutterRate.valueAsNumber,
       boostShakeStrength: this.boostShakeStrength.valueAsNumber,
@@ -437,6 +454,11 @@ export class SettingsPanel {
       this.restoreRange(this.boostGlassLength, saved.boostGlassLength);
       this.restoreRange(this.boostRefraction, saved.boostRefraction);
       this.restoreRange(this.boostDispersion, saved.boostDispersion);
+      this.restoreRange(this.boostFlowRate, saved.boostFlowRate);
+      this.restoreRange(this.wingWarpFlowRate, saved.wingWarpFlowRate);
+      this.restoreRange(this.wingWarpFlutterRate, saved.wingWarpFlutterRate);
+      this.restoreRange(this.windCountSpeedResponse, saved.windCountSpeedResponse);
+      this.restoreRange(this.windLengthSpeedResponse, saved.windLengthSpeedResponse);
       this.restoreRange(this.boostFlutter, saved.boostFlutter);
       this.restoreRange(this.boostFlutterRate, saved.boostFlutterRate);
       this.restoreRange(this.boostShakeStrength, saved.boostExhaustWidth === undefined && saved.boostShakeStrength === 0.35 ? 0.65 : saved.boostShakeStrength);
@@ -545,6 +567,11 @@ export class SettingsPanel {
     this.boostGlassDebugButton.setAttribute('aria-label', this.boostGlassDebug ? 'Hide opaque booster geometry' : 'Show opaque booster geometry');
     this.boostRefractionValue.textContent = this.boostRefraction.valueAsNumber.toFixed(2) + '';
     this.boostDispersionValue.textContent = this.boostDispersion.valueAsNumber.toFixed(2) + '';
+    this.boostFlowRateValue.textContent = this.boostFlowRate.valueAsNumber.toFixed(2) + '×';
+    this.wingWarpFlowRateValue.textContent = this.wingWarpFlowRate.valueAsNumber.toFixed(2) + '×';
+    this.wingWarpFlutterRateValue.textContent = this.wingWarpFlutterRate.valueAsNumber.toFixed(2) + '×';
+    this.windCountSpeedResponseValue.textContent = this.windCountSpeedResponse.valueAsNumber.toFixed(2);
+    this.windLengthSpeedResponseValue.textContent = this.windLengthSpeedResponse.valueAsNumber.toFixed(2);
     this.boostFlutterValue.textContent = this.boostFlutter.valueAsNumber.toFixed(2) + ' M';
     this.boostFlutterRateValue.textContent = this.boostFlutterRate.valueAsNumber.toFixed(2) + '×';
     this.boostShakeStrengthValue.textContent = this.boostShakeStrength.valueAsNumber.toFixed(2) + '';
