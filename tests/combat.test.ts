@@ -420,7 +420,7 @@ test('invalid target retires guidance without reacquiring; terrain releases rese
   assert.ok(target.retry > 0);
 });
 
-test('fragments begin in parent shape, use true alpha, retain templates, and are bounded cosmetic state', () => {
+test('fragments begin in parent shape, shrink near expiry, retain templates, and are bounded cosmetic state', () => {
   const { meteors, impacts } = systems();
   const m = rock(meteors, 30);
   impacts.spawn(m, m.position, new Vector3(0, 0, 1));
@@ -444,9 +444,11 @@ test('fragments begin in parent shape, use true alpha, retain templates, and are
   }
   const color = fragments[0].color.clone();
   impacts.update(0.3, zero);
-  assert.equal(fragments[0].alpha, 1);
+  assert.equal(fragments[0].lifeScale, 1);
   impacts.update(1, zero);
-  assert.ok(fragments[0].alpha > 0 && fragments[0].alpha < 1);
+  assert.equal(fragments[0].lifeScale, 1);
+  impacts.update(0.6, zero);
+  assert.ok(fragments[0].lifeScale > 0 && fragments[0].lifeScale < 1);
   assert.ok(fragments[0].color.equals(color));
   for (let i = 0; i < 50; i++) impacts.spawn(m, m.position, zero);
   assert.equal(impacts.fragments.filter((f) => f.active).length, 192);

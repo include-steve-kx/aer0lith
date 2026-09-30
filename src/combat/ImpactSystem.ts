@@ -12,7 +12,7 @@ export class FragmentState {
   age = 0;
   life = 1;
   scale = 1;
-  alpha = 1;
+  lifeScale = 1;
   spin = 0;
   template: ShardTemplate | undefined;
   readonly position = new Vector3();
@@ -116,7 +116,7 @@ export class ImpactSystem {
       f.age = 0;
       f.life = this.settings.fragmentLife;
       f.scale = rock.diameter;
-      f.alpha = 1;
+      f.lifeScale = 1;
       f.template = template;
       f.orientation.copy(rock.orientation);
       f.position
@@ -158,8 +158,8 @@ export class ImpactSystem {
       f.orientation
         .multiply(this.rotation.setFromAxisAngle(f.axis, f.spin * dt))
         .normalize();
-      const t = Math.max(0, (f.age / f.life - 0.2) / 0.8);
-      f.alpha = 1 - t * t * (3 - 2 * t);
+      const t = Math.min(1, Math.max(0, (f.age / f.life - 0.7) / 0.3));
+      f.lifeScale = 1 - t * t * (3 - 2 * t);
     }
     for (const e of this.explosions)
       if (e.active) {

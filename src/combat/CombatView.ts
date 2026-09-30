@@ -80,9 +80,12 @@ export class RibbonBatch {
   readonly mesh: Mesh<BufferGeometry, ShaderMaterial>;
   readonly positions: BufferAttribute;
   readonly colors: BufferAttribute;
-  readonly alphas: BufferAttribute;
+  readonly alphas?: BufferAttribute;
   count = 0;
-  constructor(capacity: number, lit = false) {
+  constructor(
+    capacity: number,
+    { lit = false, opaque = false }: { lit?: boolean; opaque?: boolean } = {},
+  ) {
     this.positions = new BufferAttribute(
       new Float32Array(capacity * 3),
       3,
@@ -91,36 +94,43 @@ export class RibbonBatch {
       new Float32Array(capacity * 3),
       3,
     ).setUsage(DynamicDrawUsage);
-    this.alphas = new BufferAttribute(new Float32Array(capacity), 1).setUsage(
-      DynamicDrawUsage,
-    );
     this.geometry.setAttribute('position', this.positions);
     this.geometry.setAttribute('color', this.colors);
-    this.geometry.setAttribute('alpha', this.alphas);
+    if (!opaque) {
+      this.alphas = new BufferAttribute(new Float32Array(capacity), 1).setUsage(
+        DynamicDrawUsage,
+      );
+      this.geometry.setAttribute('alpha', this.alphas);
+    }
     this.geometry.setDrawRange(0, 0);
     this.mesh = new Mesh(
       this.geometry,
       new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
+        transparent: !opaque,
+        depthWrite: opaque,
         side: DoubleSide,
-        vertexShader: `attribute vec3 color;attribute float alpha;varying vec3 vColor;varying float vAlpha;void main(){vColor=color;vAlpha=alpha;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-        fragmentShader: `varying vec3 vColor;varying float vAlpha;void main(){if(vAlpha<.001)discard;gl_FragColor=vec4(vColor${lit ? '' : ' '},vAlpha);}`,
+        vertexShader: opaque
+          ? `attribute vec3 color;varying vec3 vColor;void main(){vColor=color;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`
+          : `attribute vec3 color;attribute float alpha;varying vec3 vColor;varying float vAlpha;void main(){vColor=color;vAlpha=alpha;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+        fragmentShader: opaque
+          ? `varying vec3 vColor;void main(){gl_FragColor=vec4(vColor,1.0);}`
+          : `varying vec3 vColor;varying float vAlpha;void main(){if(vAlpha<.001)discard;gl_FragColor=vec4(vColor${lit ? '' : ' '},vAlpha);}`,
       }),
     );
     this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = lit ? 7 : 4;
+    this.mesh.renderOrder = opaque ? 2 : lit ? 7 : 4;
   }
   vertex(p: Vector3, color: Color, alpha: number): void {
     const i = this.count++;
     this.positions.setXYZ(i, p.x, p.y, p.z);
     this.colors.setXYZ(i, color.r, color.g, color.b);
-    this.alphas.setX(i, alpha);
+    this.alphas?.setX(i, alpha);
   }
   finish(): void {
     this.geometry.setDrawRange(0, this.count);
     // Upload only the live prefix, not the entire worst-case pool every frame.
     for (const attribute of [this.positions, this.colors, this.alphas]) {
+      if (!attribute) continue;
       attribute.clearUpdateRanges();
       if (this.count > 0) {
         attribute.addUpdateRange(0, this.count * attribute.itemSize);
@@ -177,10 +187,6 @@ export class CombatView implements RefractionContributor {
   private readonly rockColor = new Color();
   private readonly dangerColor = new Color();
   private readonly color = new Color();
-  private readonly fragmentOrder = Array.from(
-    { length: COMBAT_LIMITS.fragments },
-    (_, i) => i,
-  );
   private readonly p = new Vector3();
   private readonly b = new Vector3();
   private readonly c = new Vector3();
@@ -281,7 +287,10 @@ export class CombatView implements RefractionContributor {
       for (const pieces of v.shards.values())
         for (const s of pieces)
           maxShard = Math.max(maxShard, s.positions.length / 3);
-    this.fragments = new RibbonBatch(COMBAT_LIMITS.fragments * maxShard, true);
+    this.fragments = new RibbonBatch(COMBAT_LIMITS.fragments * maxShard, {
+      lit: true,
+      opaque: true,
+    });
     const sphere = new SphereGeometry(1, 20, 12);
     sphere.setAttribute('aAlpha', this.explosionAlpha);
     sphere.setAttribute('aAge', this.explosionAge);
@@ -536,21 +545,14 @@ export class CombatView implements RefractionContributor {
     }
     this.trails.finish();
     this.fragments.count = 0;
-    this.b.copy(this.cameraWorld).add(origin);
-    this.fragmentOrder.sort(
-      (a, b) =>
-        this.impacts.fragments[b].position.distanceToSquared(this.b) -
-        this.impacts.fragments[a].position.distanceToSquared(this.b),
-    );
-    for (const index of this.fragmentOrder) {
-      const f = this.impacts.fragments[index];
+    for (const f of this.impacts.fragments) {
       if (!f.active || !f.template) continue;
       const t = f.template;
       for (let v = 0; v < t.shades.length; v++) {
         this.p
           .fromArray(t.positions, v * 3)
           .sub(t.center)
-          .multiplyScalar(f.scale)
+          .multiplyScalar(f.scale * f.lifeScale)
           .applyQuaternion(f.orientation)
           .add(f.position)
           .sub(origin);
@@ -560,7 +562,7 @@ export class CombatView implements RefractionContributor {
           0.45 *
             Math.max(0, this.normal.dot(this.lightDirection));
         this.color.copy(f.color).multiplyScalar(t.shades[v] * light);
-        this.fragments.vertex(this.p, this.color, f.alpha);
+        this.fragments.vertex(this.p, this.color, 1);
       }
     }
     this.fragments.finish();
