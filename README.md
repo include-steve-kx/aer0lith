@@ -40,7 +40,7 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 | --- | --- |
 | `W` / `S` | Pitch nose up / down |
 | `A` / `D` | Coordinated roll and yaw left / right |
-| `Shift` / `Ctrl` | Increase / decrease throttle |
+| `Shift` / `Ctrl` | Boost / brake without disengaging autopilot. Hold boost for 5 seconds + 2 seconds of fill to lock; tap again to unlock. |
 | `Space` | Toggle autopilot |
 | `C` or `1`–`3` | Cycle or select camera |
 | Mouse in camera `2` / `3` | Orbit, pan, and zoom; camera returns after release |
@@ -64,13 +64,15 @@ The spacecraft uses just 22 triangles: a pointed diamond-section hull and four t
 
 Settings > Motion Blur controls subtle speed-dependent scenery blur: enable, strength, start speed, and maximum streak length. The default strength is 0.45, starting at 20 m/s with a 12-pixel cap at 1080p. The ship and HUD stay sharp, and the paused scene retains a stable exposure. See [motion-blur behavior and implementation](docs/motion-blur.md).
 
+Double-tap A/D (or repeat a strong left/right joystick stroke after recentering) for a 720° lateral dodge; collision remains active. Boost flames persist while held, flutter faster at higher speed, and have adjustable glass/dispersion, release fade, and subtle camera shake. Four wing-tip trails and two side wake sheets follow the aircraft; the separate rear wake has been removed. **Boost + Wakes** contains effect controls and opaque wake inspection; **Scan Glass** adjusts a separate expanding spherical glass shell, with refraction, dispersion, and fade controls. The same mesh is recycled for every scan. **Flight Visuals** controls the faint silhouette/outline visible through obstacles. Pause freezes motion/effects while camera and appearance controls remain live. See [flight effects](docs/flight-effects.md) for behavior and rendering details.
+
 The world convention is one Three.js unit per meter. `ALT` is absolute world altitude relative to the procedural world's zero-meter datum, speed is shown in meters per second, and distances in the sensor settings are meters. In Analysis mode, a fixed-world thin gold line previews the autopilot route; it fades away when manual control begins. Terrain points close to the aircraft warm toward the configurable danger color as a proximity cue.
 
 The top-right settings panel adjusts terrain rendering, fog, dots, plane and route colors, wind, flock behavior and scan targets, CRT processing, final glow, render resolution, and the UI typeface in real time. Every adjustment is stored locally in the browser and restored on the next visit. Terrain defaults to RGB `200, 200, 200`, the aircraft to RGB `230, 230, 230`, and the route guide to a warm yellow. The default 96-meter danger field enlarges nearby terrain dots toward 3× and pure red using the same three-dimensional rule for floor and wall samples. Scan targets default to white with `0.16 M` corner thickness. Final glow defaults to strength 3 and radius 3. Full-resolution rendering is the default; balanced 80% and adaptive modes remain available for slower devices.
 
-The autopilot guide is fixed in world space and fades away before reaching the aircraft. Its route bends vertically and horizontally through spaces that vary from tight covered passages to broad open chambers. Both wing trails are distance-bounded: they fade toward their oldest section and discard history beyond 360 meters. The collision overlay button reveals the aircraft collision hull and probes as yellow wireframes, switching to red during contact. Collision evaluates the same volumetric density field used to build the visible mesh, so ceilings, walls, floating structures, and floors all collide consistently.
+The autopilot guide is fixed in world space and fades away before reaching the aircraft. Its route bends vertically and horizontally through spaces that vary from tight covered passages to broad open chambers. All four wing trails are distance-bounded: they fade toward their oldest section and discard history beyond 360 meters. The collision overlay button reveals the aircraft collision hull and probes as yellow wireframes, switching to red during contact. Collision evaluates the same volumetric density field used to build the visible mesh, so ceilings, walls, floating structures, and floors all collide consistently.
 
-Every 10–30 seconds, the aircraft emits a fast light-blue terrain probe from the ground region directly beneath its position. The terrain shader renders its continuous ring, recolors scanned dots with a lingering afterglow, and temporarily lifts the surface before returning it to its generated height. Pressing `B` emits a probe immediately and restarts the automatic interval.
+Every 10–30 seconds, the aircraft emits a fast light-blue terrain probe outward from its position when triggered. The terrain shader renders its continuous ring, recolors scanned dots with a lingering afterglow, and temporarily lifts the surface before returning it to its generated height. Pressing `B` emits a probe immediately and restarts the automatic interval.
 
 ## Run on an iPhone with Capacitor
 
