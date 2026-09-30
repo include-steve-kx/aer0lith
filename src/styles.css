@@ -944,3 +944,16 @@ button:disabled { opacity: 0.45; cursor: default; }
 #fire-button { min-width: 44px; min-height: 44px; font: inherit; font-size: 11px; touch-action: none; }
 #fire-button.is-active { color: var(--background, #050708); background: var(--ui-tone); }
 .bullet-aim { position: absolute; width: 8px; height: 8px; border: 1px solid var(--ui-tone); border-radius: 50%; left: -4px; top: -4px; pointer-events: none; }
+.app #settings-panel .reset-settings {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 12px 8px;
+  background: #c62d35;
+  border: 1px solid #c62d35;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.app #settings-panel .reset-settings:hover, .app #settings-panel .reset-settings:focus-visible { background: #a51f27; color: #fff; }

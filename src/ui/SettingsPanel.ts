@@ -245,10 +245,24 @@ export class SettingsPanel {
   private readonly glowStrengthValue = element<HTMLOutputElement>('glow-strength-value');
   private readonly glowRadiusValue = element<HTMLOutputElement>('glow-radius-value');
   onChange: ((settings: VisualSettings) => void) | undefined;
+  onReset: (() => void) | undefined;
+  private readonly resetButton = document.createElement('button');
+  private readonly resetEvents = new AbortController();
+  private readonly defaults: Array<{ input: HTMLInputElement | HTMLSelectElement; value: string; checked: boolean }>;
 
   private readonly combatControls = new CombatSettingsControls();
 
   constructor() {
+    // Capture the shipped HTML and combat defaults before loading personal edits.
+    this.defaults = Array.from(this.panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'), input => ({
+      input, value: input.value, checked: input instanceof HTMLInputElement && input.checked,
+    }));
+    this.resetButton.id = 'reset-settings';
+    this.resetButton.type = 'button';
+    this.resetButton.className = 'reset-settings';
+    this.resetButton.textContent = 'RESET ALL SETTINGS TO DEFAULT';
+    this.panel.append(this.resetButton);
+    bindButtonAction(this.resetButton, () => this.resetToDefaults(), this.resetEvents.signal);
     this.restore();
     this.flockMinSize.addEventListener('input', () => {
       if (this.flockMinSize.valueAsNumber > this.flockMaxSize.valueAsNumber) {
@@ -386,6 +400,17 @@ export class SettingsPanel {
     this.onChange?.(settings);
   }
 
+  resetToDefaults(): void {
+    for (const { input, value, checked } of this.defaults) {
+      input.value = value;
+      if (input instanceof HTMLInputElement) input.checked = checked;
+    }
+    this.wakeDebugEnabled = false;
+    this.boostGlassDebug = false;
+    this.onReset?.();
+    this.emit();
+  }
+
   private restore(): void {
     try {
       const currentRaw = localStorage.getItem(STORAGE_KEY);
@@ -500,7 +525,7 @@ export class SettingsPanel {
     }
   }
 
-  disposeCombatControls(): void { this.combatControls.dispose(); }
+  disposeCombatControls(): void { this.resetEvents.abort(); this.resetButton.remove(); this.combatControls.dispose(); }
 
   private persist(settings: VisualSettings): void {
     try {

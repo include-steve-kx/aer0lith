@@ -251,6 +251,11 @@ export class App {
       this.post.setGlowSettings(settings.glowEnabled, settings.glowStrength, settings.glowRadius);
       document.documentElement.dataset.font = settings.fontChoice;
     };
+    this.settings.onReset = () => {
+      this.collisionDebugEnabled = false;
+      this.collisionDebug.group.visible = false;
+      this.hud.setCollisionVisible(false);
+    };
     this.settings.apply();
 
     window.addEventListener('resize', this.resize);

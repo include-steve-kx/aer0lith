@@ -122,13 +122,15 @@ export class CombatSettingsControls {
       void min;
     }
     if (this.sizeRange) {
+      const min = this.inputs.get('meteorMinDiameter')!, max = this.inputs.get('meteorMaxDiameter')!;
+      const percent = (input: HTMLInputElement) => ((input.valueAsNumber - Number(input.min)) / (Number(input.max) - Number(input.min))) * 100;
       this.sizeRange.style.setProperty(
         '--range-min',
-        `${((this.inputs.get('meteorMinDiameter')!.valueAsNumber - 2) / 34) * 100}%`,
+        `${percent(min)}%`,
       );
       this.sizeRange.style.setProperty(
         '--range-max',
-        `${((this.inputs.get('meteorMaxDiameter')!.valueAsNumber - 2) / 34) * 100}%`,
+        `${percent(max)}%`,
       );
     }
   }

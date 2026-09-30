@@ -60,7 +60,7 @@ test('combat settings restore finite defaults, bounds, min/max and nonpersisted 
     true,
   );
   assert.ok(s.meteorMinDiameter <= s.meteorMaxDiameter);
-  assert.equal(s.missileSpeed, 220);
+  assert.equal(s.missileSpeed, DEFAULT_COMBAT.missileSpeed);
   assert.equal(s.missileCapacity, 8);
   assert.equal(s.meteorColor, '#8b8f92');
   assert.equal(s.explosionDebug, false);
@@ -113,7 +113,7 @@ test('encounters are deterministic, bounded, leave a bypass, and reject terrain'
   a.rocks.forEach((m, i) => {
     if (!m.active) return;
     assert.deepEqual(m.position, b.rocks[i].position);
-    assert.ok(m.diameter >= 6 && m.diameter <= 18);
+    assert.ok(m.diameter >= DEFAULT_COMBAT.meteorMinDiameter && m.diameter <= DEFAULT_COMBAT.meteorMaxDiameter);
     assert.ok(m.position.z > 290 && m.position.z < 560);
     assert.ok(Math.hypot(m.position.x, m.position.y) > m.radius + 14);
     assert.ok(m.speedFactor >= 0.5 && m.speedFactor <= 1.5);
@@ -385,7 +385,7 @@ test('wing tip transforms include rolls and guided hits destroy exactly once wit
   assert.equal(impacts.explosions.filter((e) => e.active).length, 1);
   assert.equal(missiles.launches, 1);
   assert.ok(missiles.trails.some((t) => t.active && !t.attached));
-  missiles.update(2, zero, identity);
+  missiles.update(DEFAULT_COMBAT.missileTrailLife + 1, zero, identity);
   assert.equal(
     missiles.trails.some((t) => t.active),
     false,
@@ -469,7 +469,7 @@ test('explosion shake depends on ship proximity, freezes, expires exactly, and c
   const { meteors, impacts } = systems();
   const m = rock(meteors, 0, 0, 12);
   impacts.spawn(m, zero, zero);
-  impacts.update(0.05, new Vector3(0, 0, 200));
+  impacts.update(0.05, new Vector3(0, 0, DEFAULT_COMBAT.explosionShakeRadius + 1));
   assert.equal(impacts.shakeTranslation.length(), 0);
   impacts.update(0.01, new Vector3(0, 0, 5));
   assert.ok(impacts.shakeTranslation.length() > 0);

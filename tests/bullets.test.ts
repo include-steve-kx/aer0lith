@@ -116,7 +116,7 @@ test("four transformed muzzles and randomized cadence do not depend on spread", 
   assert.deepEqual(sequenceA, sequenceB);
   assert.equal(new Set(sequenceA).size, 4);
   assert.ok(sequenceA.some((v, i) => i && v === sequenceA[i - 1]));
-  assert.ok(a.shots > 160 && a.shots < 200);
+  assert.ok(Math.abs(a.shots - DEFAULT_COMBAT.bulletRate * 10) < DEFAULT_COMBAT.bulletRate);
   assert.ok(
     new Set(times.slice(1).map((t, i) => Math.round((t - times[i]) * 10000)))
       .size > 10,
@@ -162,6 +162,7 @@ test("straight bullet birth properties stay fixed, no paused shots or cooldown b
 });
 test("health scales at birth, hits are exactly once, snapshot is independent of recycled slot", () => {
   const { meteors } = setup();
+  meteors.configure({ ...DEFAULT_COMBAT, meteorBulletHits: 5 });
   const rock = meteors.spawnAt(new Vector3(0, 0, 100), 18, 0)!;
   assert.equal(rock.health, 8);
   const handle = {
@@ -391,4 +392,15 @@ test('explosion push uses ship distance, shared radius and outward direction ind
   explosionImpulse(out,zero,zero,forward,12,12,120); assert.equal(out.z,-12); assert.equal(Math.hypot(out.x,out.y),0);
   explosionImpulse(out,new Vector3(0,0,-60),zero,forward,36,12,120); assert.equal(out.z,-9);
   explosionImpulse(out,new Vector3(60,0,0),zero,forward,12,0,120); assert.equal(out.length(),0);
+});
+
+
+test("tuned explosion push scales with size without clipping and settles in two seconds", () => {
+  const flight = new FlightController(air as unknown as ProceduralTerrain);
+  flight.applyExternalImpulse(new Vector3(DEFAULT_COMBAT.explosionPush * 1.5, 0, 0), DEFAULT_COMBAT.explosionPushLife);
+  flight.update(0.01, neutral);
+  assert.ok(Math.abs(flight.externalVelocity.x - 44.775) < 1e-8);
+  assert.equal(flight.mode, "autopilot");
+  for (let i = 1; i < 200; i++) flight.update(0.01, neutral);
+  assert.equal(flight.externalVelocity.length(), 0);
 });
