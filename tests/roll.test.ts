@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { RollGesture } from '../src/flight/RollGesture.ts';
 import { FlightController } from '../src/flight/FlightController.ts';
 import { FLIGHT } from '../src/core/config.ts';
 import type { ProceduralTerrain } from '../src/world/TerrainModel.ts';
@@ -11,32 +10,8 @@ function terrain(collision = (_x: number, _y: number, _z: number) => -100) {
     densityAt: () => -100, collisionDensityAt: collision } as unknown as ProceduralTerrain;
 }
 
-test('double taps require the same direction within the window and reset after firing', () => {
-  const gesture = new RollGesture();
-  assert.equal(gesture.tap(-1, 0), 0);
-  assert.equal(gesture.tap(-1, 200), -1);
-  assert.equal(gesture.tap(-1, 240), 0);
-  assert.equal(gesture.tap(1, 280), 0);
-  assert.equal(gesture.tap(-1, 300), 0, 'opposite stroke breaks the pair');
-  assert.equal(gesture.tap(-1, 700), 0, 'expired taps do not trigger');
-  gesture.reset();
-  assert.equal(gesture.tap(-1, 800), 0);
-});
-
-test('joystick needs two deliberate strokes with recentering; holding/jitter never retriggers', () => {
-  const gesture = new RollGesture();
-  assert.equal(gesture.stick(0.5, 0), 0);
-  assert.equal(gesture.stick(0.8, 20), 0);
-  assert.equal(gesture.stick(0.7, 80), 0);
-  assert.equal(gesture.stick(0.5, 100), 0);
-  assert.equal(gesture.stick(0.9, 120), 0);
-  gesture.stick(0.1, 150);
-  assert.equal(gesture.stick(0.8, 240), 1);
-  assert.equal(gesture.stick(1, 300), 0);
-});
-
 for (const direction of [-1, 1] as const) {
-  test(`roll ${direction} completes two turns and a lateral dodge with collision checks on every step`, () => {
+  test(`roll ${direction} completes one turn and a lateral dodge with collision checks on every step`, () => {
     let collisionSamples = 0;
     const flight = new FlightController(terrain(() => { collisionSamples++; return -100; }));
     const initial = flight.orientation.clone();
@@ -52,8 +27,8 @@ for (const direction of [-1, 1] as const) {
       maximum = Math.max(maximum, Math.abs(flight.maneuverRollAngle));
       assert.ok(flight.cameraOrientation.angleTo(initial) < 1e-8);
     }
-    assert.ok(Math.abs(traveledAngle - Math.PI * 4) < 1e-7, `actual rotation was ${traveledAngle * 180 / Math.PI} degrees`);
-    assert.ok(maximum > Math.PI * 4 - 0.01);
+    assert.ok(Math.abs(traveledAngle - Math.PI * 2) < 1e-7, `actual rotation was ${traveledAngle * 180 / Math.PI} degrees`);
+    assert.ok(maximum > Math.PI * 2 - 0.01);
     assert.equal(flight.isRolling, false);
     assert.ok(Math.abs(flight.position.x + direction * flight.rollDistance) < 1e-7);
     assert.ok(flight.orientation.angleTo(initial) < 1e-8);

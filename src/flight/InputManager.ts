@@ -1,5 +1,5 @@
 import { BoostLatch } from './BoostLatch.ts';
-import { RollGesture } from './RollGesture.ts';
+import { bindButtonAction } from '../ui/bindButtonAction.ts';
 import type { FlightInput } from '../core/types.ts';
 
 export interface InputActions {
@@ -21,6 +21,8 @@ export interface PointerFlightControls {
   joystick: HTMLElement;
   joystickThumb: HTMLElement;
   throttleButton: HTMLButtonElement;
+  rollLeftButton: HTMLButtonElement;
+  rollRightButton: HTMLButtonElement;
 }
 
 export interface JoystickInput {
@@ -35,7 +37,7 @@ const CAPTURED = new Set([
   'KeyW', 'KeyS', 'KeyA', 'KeyD', 'ShiftLeft', 'ShiftRight',
   'ControlLeft', 'ControlRight', 'Space', 'KeyC', 'Digit1', 'Digit2', 'Digit3',
   'KeyM', 'KeyR', 'KeyP', 'Escape', 'KeyN', 'KeyB',
-  'KeyV',
+  'KeyV', 'KeyQ', 'KeyE',
 ]);
 
 const DIRECTION_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD']);
@@ -73,7 +75,6 @@ export function joystickInputFromOffset(deltaX: number, deltaY: number, radius: 
 
 export class InputManager {
   readonly boost = new BoostLatch();
-  private readonly rollGesture = new RollGesture();
   private readonly pressed = new Set<string>();
   private readonly root: HTMLElement;
   private readonly actions: InputActions;
@@ -113,6 +114,8 @@ export class InputManager {
   }
 
   private bindPointerControls(controls: PointerFlightControls): void {
+    bindButtonAction(controls.rollLeftButton, () => this.actions.onRoll(-1));
+    bindButtonAction(controls.rollRightButton, () => this.actions.onRoll(1));
     controls.joystick.addEventListener('pointerdown', this.onJoystickPointerDown);
     controls.joystick.addEventListener('pointermove', this.onJoystickPointerMove);
     controls.joystick.addEventListener('pointerup', this.onJoystickPointerUp);
@@ -145,8 +148,6 @@ export class InputManager {
     if (this.pointerControls?.joystick.hasPointerCapture(event.pointerId)) {
       this.pointerControls.joystick.releasePointerCapture(event.pointerId);
     }
-    if (event.type === 'pointercancel') this.rollGesture.reset();
-    else this.rollGesture.releaseStick();
     this.pointerPitch = 0;
     this.pointerRoll = 0;
     this.pointerYaw = 0;
@@ -168,8 +169,6 @@ export class InputManager {
     );
     this.pointerPitch = input.pitch;
     this.pointerRoll = input.roll;
-    const roll = this.rollGesture.stick(input.roll, performance.now());
-    if (roll) this.actions.onRoll(roll);
     this.pointerYaw = input.yaw;
     this.pointerControls.joystickThumb.style.transform = `translate(calc(-50% + ${input.offsetX}px), calc(-50% + ${input.offsetY}px))`;
     if (input.pitch !== 0 || input.roll !== 0) this.actions.onManualInput();
@@ -232,6 +231,15 @@ export class InputManager {
     if (event.target === this.pointerControls?.throttleButton && ['Space', 'Enter'].includes(event.code)) {
       event.preventDefault(); this.boost.setHeld(event.code, true); return;
     }
+    if (['Space', 'Enter'].includes(event.code)
+      && (event.target === this.pointerControls?.rollLeftButton || event.target === this.pointerControls?.rollRightButton)) {
+      event.preventDefault();
+      if (!event.repeat && !this.pressed.has(event.code)) {
+        this.pressed.add(event.code);
+        this.actions.onRoll(event.target === this.pointerControls?.rollLeftButton ? -1 : 1);
+      }
+      return;
+    }
     if (event.code === 'Escape' && document.fullscreenElement) return;
     const fullscreenShortcut = event.code === 'KeyF' && (event.ctrlKey || event.metaKey);
     if (CAPTURED.has(event.code) || fullscreenShortcut) event.preventDefault();
@@ -244,11 +252,9 @@ export class InputManager {
     if (DIRECTION_KEYS.has(event.code)) this.actions.onManualInput();
     if (event.repeat || alreadyPressed) return;
     if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') this.boost.setHeld(event.code, true);
-    if (event.code === 'KeyA' || event.code === 'KeyD') {
-      const roll = this.rollGesture.tap(event.code === 'KeyA' ? -1 : 1, performance.now());
-      if (roll) this.actions.onRoll(roll);
-    }
     switch (event.code) {
+      case 'KeyQ': this.actions.onRoll(-1); break;
+      case 'KeyE': this.actions.onRoll(1); break;
       case 'Space': this.actions.onToggleAutopilot(); break;
       case 'KeyC': this.actions.onCycleCamera(); break;
       case 'Digit1': this.actions.onSelectCamera(0); break;
@@ -269,10 +275,7 @@ export class InputManager {
     this.boost.setHeld(event.code, false);
   };
 
-  resetGestures(): void { this.rollGesture.reset(); }
-
   private clear = (): void => {
-    this.resetGestures();
     this.pressed.clear();
     this.boost.releaseAll();
     if (this.joystickPointerId !== undefined && this.pointerControls?.joystick.hasPointerCapture(this.joystickPointerId)) {
@@ -283,7 +286,6 @@ export class InputManager {
     }
     this.joystickPointerId = undefined;
     this.throttlePointerId = undefined;
-    this.rollGesture.releaseStick();
     this.pointerPitch = 0;
     this.pointerRoll = 0;
     this.pointerYaw = 0;

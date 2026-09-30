@@ -36,7 +36,7 @@ export class FlightController {
   private rollCooldown = 0;
   private rollAngle = 0;
   readonly rollDuration = 1.2;
-  readonly rollTurns = 2;
+  readonly rollTurns = 1;
   readonly rollDistance = 44;
   speed: number = FLIGHT.nominalSpeed;
   throttle: number = (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
@@ -135,7 +135,7 @@ export class FlightController {
     this.rollAngle = this.rollDirection * Math.PI * 2 * this.rollTurns * after;
     if (this.rollElapsed >= this.rollDuration) {
       this.rollDirection = 0;
-      this.rollAngle = 0; // Exactly two turns returns to the original attitude.
+      this.rollAngle = 0; // Exactly one turn returns to the original attitude.
       this.rollCooldown = 0.25;
     }
   }

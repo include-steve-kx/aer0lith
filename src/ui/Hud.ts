@@ -47,6 +47,8 @@ export class Hud {
   readonly collisionButton = element<HTMLButtonElement>('collision-button');
   readonly modeButton = element<HTMLButtonElement>('mode-button');
   readonly probeButton = element<HTMLButtonElement>('probe-button');
+  readonly rollLeftButton = element<HTMLButtonElement>('roll-left-button');
+  readonly rollRightButton = element<HTMLButtonElement>('roll-right-button');
   readonly throttleButton = element<HTMLButtonElement>('throttle-button');
   readonly touchJoystick = element<HTMLElement>('touch-joystick');
   readonly touchJoystickThumb = element<HTMLElement>('touch-joystick-thumb');
@@ -135,6 +137,8 @@ export class Hud {
     this.modeButton.disabled = paused;
     this.probeButton.disabled = paused;
     this.throttleButton.disabled = paused;
+    this.rollLeftButton.disabled = paused;
+    this.rollRightButton.disabled = paused;
   }
 
   setBoostState(active: boolean, locked: boolean, progress: number): void {

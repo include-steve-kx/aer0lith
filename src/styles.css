@@ -925,3 +925,19 @@ button:disabled { opacity: 0.45; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   #throttle-button.is-locked::after { animation: none; opacity: 0; }
 }
+
+.roll-actions {
+  position: absolute;
+  left: max(8px, env(safe-area-inset-left));
+  bottom: calc(max(8px, env(safe-area-inset-bottom)) + 120px);
+  display: none;
+  gap: 6px;
+  pointer-events: auto;
+}
+.app.is-touch-device .roll-actions { display: flex; }
+@media (max-width: 820px) {
+  .roll-actions { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 106px); }
+}
+@media (max-width: 440px) {
+  .roll-actions { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 98px); }
+}

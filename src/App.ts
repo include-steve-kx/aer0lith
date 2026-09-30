@@ -149,6 +149,8 @@ export class App {
       joystick: this.hud.touchJoystick,
       joystickThumb: this.hud.touchJoystickThumb,
       throttleButton: this.hud.throttleButton,
+      rollLeftButton: this.hud.rollLeftButton,
+      rollRightButton: this.hud.rollRightButton,
     });
 
     bindButtonAction(this.hud.cameraButton, () => this.setCamera(this.cameraRig.cycle()));
@@ -379,7 +381,6 @@ export class App {
   }
 
   private togglePause(): void {
-    this.input.resetGestures();
     this.paused = !this.paused;
     // Never accumulate paused wall time or run a catch-up step on resume.
     this.lastTime = performance.now();

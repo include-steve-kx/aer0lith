@@ -8,7 +8,7 @@ import { FLIGHT } from '../src/core/config.ts';
 import type { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 
 for (const direction of [-1, 1] as const) {
-  test(`cockpit follows exactly two full rolls (${direction}) with no camera smoothing or pose drift`, () => {
+  test(`cockpit follows exactly one full roll (${direction}) with no camera smoothing or pose drift`, () => {
     const terrain = {
       sample: () => ({ x: 0, y: 40, tangentX: .2, tangentY: .1, width: 150, height: 100, openness: 1 }),
       densityAt: () => -100, collisionDensityAt: () => -100,
@@ -36,6 +36,6 @@ for (const direction of [-1, 1] as const) {
       roll.restore(camera);
     }
     assert.equal(flight.isRolling, false);
-    assert.ok(Math.abs(total - Math.PI * 4) < 1e-6, `camera turned ${total * 180 / Math.PI} degrees`);
+    assert.ok(Math.abs(total - Math.PI * 2) < 1e-6, `camera turned ${total * 180 / Math.PI} degrees`);
   });
 }
