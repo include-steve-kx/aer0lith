@@ -58,8 +58,17 @@ export function terrainHit(
     if (
       (terrain.collisionDensityAt?.(a.x, a.y, a.z) ??
         terrain.densityAt(a.x, a.y, a.z)) > -radius
-    )
-      return i / steps;
+    ) {
+      if (i === 0) return 0;
+      let lo = (i - 1) / steps, hi = i / steps;
+      for (let j = 0; j < 6; j++) {
+        const mid = (lo + hi) * 0.5;
+        a.lerpVectors(from, to, mid);
+        if ((terrain.collisionDensityAt?.(a.x, a.y, a.z) ?? terrain.densityAt(a.x, a.y, a.z)) > -radius) hi = mid;
+        else lo = mid;
+      }
+      return hi;
+    }
   }
   return Infinity;
 }

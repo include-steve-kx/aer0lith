@@ -18,6 +18,7 @@ export function inverseCrtPoint(
 }
 export class CombatHud {
   readonly element = document.createElement('div');
+  private readonly aimIndicator = document.createElement('span');
   private readonly counts: HTMLSpanElement[] = [];
   private readonly fills: HTMLSpanElement[] = [];
   private readonly labels: HTMLDivElement[] = [];
@@ -33,6 +34,7 @@ export class CombatHud {
   private readonly ys = new Float64Array(4);
   constructor() {
     this.element.className = 'combat-hud';
+    this.aimIndicator.className = 'bullet-aim'; this.aimIndicator.hidden = true; this.element.append(this.aimIndicator);
     this.element.setAttribute('aria-hidden', 'true');
     document.querySelector('#app')!.append(this.element);
     for (let i = 0; i < 4; i++) {
@@ -70,6 +72,7 @@ export class CombatHud {
     visible: boolean,
     curvature: number,
     aircraftOrientation: Quaternion,
+    aimPoint?: Vector3,
   ): void {
     this.element.hidden = !visible;
     if (!visible) return;
@@ -113,6 +116,9 @@ export class CombatHud {
         this.p.y <= maxY
       );
     };
+    this.aimIndicator.hidden = !aimPoint || !project(aimPoint) || Math.hypot(this.p.x - width / 2, this.p.y - height / 2) < 8;
+    if (!this.aimIndicator.hidden) this.aimIndicator.style.transform = `translate(${this.p.x}px,${this.p.y}px)`;
+
     // The real wing tips sit behind the cockpit eye. Project a point 18 m
     // ahead of each tip along the ship's forward axis instead. Keep world-space
     // anchors so camera roll, shake, FOV and floating-origin shifts apply once.

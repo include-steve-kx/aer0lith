@@ -1,5 +1,5 @@
 import {
-  DEFAULT_COMBAT,
+  DEFAULT_COMBAT, BULLET_CONTROLS, DESTRUCTION_CONTROLS,
   METEOR_CONTROLS,
   MISSILE_CONTROLS,
   sanitizeCombatSettings,
@@ -9,7 +9,7 @@ import {
 export class CombatSettingsControls {
   private readonly inputs = new Map<keyof CombatSettings, HTMLInputElement>();
   private readonly outputs = new Map<keyof CombatSettings, HTMLOutputElement>();
-  private readonly specs = [...METEOR_CONTROLS, ...MISSILE_CONTROLS];
+  private readonly specs = [...METEOR_CONTROLS, ...MISSILE_CONTROLS, ...DESTRUCTION_CONTROLS, ...BULLET_CONTROLS];
   private readonly events = new AbortController();
   private readonly sections: HTMLElement[] = [];
   private readonly sizeLabel = document.createElement('output');
@@ -18,7 +18,9 @@ export class CombatSettingsControls {
     const panel = document.querySelector('#settings-panel')!;
     for (const [name, specs] of [
       ['METEORS', METEOR_CONTROLS],
+      ['METEORS / DESTRUCTION', DESTRUCTION_CONTROLS],
       ['MISSILES', MISSILE_CONTROLS],
+      ['BULLETS', BULLET_CONTROLS],
     ] as const) {
       const section = document.createElement('section');
       section.className = 'settings-section';

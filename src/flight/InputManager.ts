@@ -23,6 +23,7 @@ export interface PointerFlightControls {
   throttleButton: HTMLButtonElement;
   rollLeftButton: HTMLButtonElement;
   rollRightButton: HTMLButtonElement;
+  fireButton?: HTMLButtonElement;
 }
 
 export interface JoystickInput {
@@ -37,7 +38,7 @@ const CAPTURED = new Set([
   'KeyW', 'KeyS', 'KeyA', 'KeyD', 'ShiftLeft', 'ShiftRight',
   'ControlLeft', 'ControlRight', 'KeyT', 'KeyC', 'Digit1', 'Digit2', 'Digit3',
   'KeyM', 'KeyI', 'KeyP', 'Escape', 'KeyN', 'KeyB',
-  'KeyV', 'KeyQ', 'KeyE',
+  'KeyV', 'KeyQ', 'KeyE', 'Space',
 ]);
 
 const DIRECTION_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD']);
@@ -75,6 +76,55 @@ export function joystickInputFromOffset(deltaX: number, deltaY: number, radius: 
 
 export class InputManager {
   readonly boost = new BoostLatch();
+  private readonly events = new AbortController();
+  private firePointer: number | undefined;
+  private fireKeyboard = false;
+  private fireTapPending = false;
+
+  consumeFire(): boolean {
+    const active = this.firing || this.fireTapPending;
+    this.fireTapPending = false;
+    return active;
+  }
+
+  get firing(): boolean { return this.fireKeyboard || this.firePointer !== undefined; }
+
+  private releaseFirePointer(): void {
+    const id = this.firePointer;
+    this.firePointer = undefined;
+    const button = this.pointerControls?.fireButton;
+    if (id !== undefined && button?.hasPointerCapture(id)) button.releasePointerCapture(id);
+    button?.classList.remove('is-active');
+  }
+
+  clearFire = (): void => {
+    this.fireKeyboard = false;
+    this.fireTapPending = false;
+    this.releaseFirePointer();
+  };
+
+  private fireDown = (event: PointerEvent): void => {
+    if (this.firePointer !== undefined || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    this.fireTapPending = true;
+    this.firePointer = event.pointerId;
+    this.pointerControls?.fireButton?.setPointerCapture(event.pointerId);
+    this.pointerControls?.fireButton?.classList.add('is-active');
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  private fireUp = (event: PointerEvent): void => {
+    if (event.pointerId === this.firePointer) {
+      if (event.type !== 'pointerup') this.fireTapPending = false;
+      this.releaseFirePointer();
+    }
+    event.stopPropagation();
+  };
+  private fireVisibility = (): void => { if (document.hidden) this.clearFire(); };
+  dispose(): void {
+    this.clear(); this.events.abort();
+
+  }
   private readonly pressed = new Set<string>();
   private readonly root: HTMLElement;
   private readonly actions: InputActions;
@@ -89,42 +139,47 @@ export class InputManager {
     this.root = root;
     this.actions = actions;
     this.pointerControls = pointerControls;
+    const signal = this.events.signal;
     root.addEventListener('pointerdown', (event) => {
       const target = event.target;
       if (!(target instanceof Element && target.closest('button'))) root.focus({ preventScroll: true });
-    });
-    root.addEventListener('pointerup', this.clearTouchButtonFocus, true);
-    root.addEventListener('pointercancel', this.clearTouchButtonFocus, true);
-    root.addEventListener('contextmenu', this.preventBrowserGesture);
-    root.addEventListener('selectstart', this.preventBrowserGesture);
-    root.addEventListener('dragstart', this.preventBrowserGesture);
-    root.addEventListener('gesturestart', this.preventBrowserGesture, { passive: false });
-    root.addEventListener('gesturechange', this.preventBrowserGesture, { passive: false });
-    root.addEventListener('gestureend', this.preventBrowserGesture, { passive: false });
+    }, { signal });
+    root.addEventListener('pointerup', this.clearTouchButtonFocus, { capture: true, signal });
+    root.addEventListener('pointercancel', this.clearTouchButtonFocus, { capture: true, signal });
+    root.addEventListener('contextmenu', this.preventBrowserGesture, { signal });
+    root.addEventListener('selectstart', this.preventBrowserGesture, { signal });
+    root.addEventListener('dragstart', this.preventBrowserGesture, { signal });
+    root.addEventListener('gesturestart', this.preventBrowserGesture, { passive: false, signal });
+    root.addEventListener('gesturechange', this.preventBrowserGesture, { passive: false, signal });
+    root.addEventListener('gestureend', this.preventBrowserGesture, { passive: false, signal });
     for (const control of root.querySelectorAll('button, input, select')) {
-      control.addEventListener('pointerdown', this.isolateUiPointer);
-      control.addEventListener('pointermove', this.isolateUiPointer);
-      control.addEventListener('pointerup', this.isolateUiPointer);
-      control.addEventListener('pointercancel', this.isolateUiPointer);
+      control.addEventListener('pointerdown', this.isolateUiPointer, { signal });
+      control.addEventListener('pointermove', this.isolateUiPointer, { signal });
+      control.addEventListener('pointerup', this.isolateUiPointer, { signal });
+      control.addEventListener('pointercancel', this.isolateUiPointer, { signal });
     }
-    window.addEventListener('keydown', this.onKeyDown);
-    window.addEventListener('keyup', this.onKeyUp);
-    window.addEventListener('blur', this.clear);
+    window.addEventListener('keydown', this.onKeyDown, { signal });
+    window.addEventListener('keyup', this.onKeyUp, { signal });
+    window.addEventListener('blur', this.clear, { signal });
     if (pointerControls) this.bindPointerControls(pointerControls);
+    pointerControls?.fireButton?.addEventListener('pointerdown', this.fireDown, { signal });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) pointerControls?.fireButton?.addEventListener(type, this.fireUp as EventListener, { signal });
+    document.addEventListener('visibilitychange', this.fireVisibility, { signal });
   }
 
   private bindPointerControls(controls: PointerFlightControls): void {
-    bindButtonAction(controls.rollLeftButton, () => this.actions.onRoll(-1));
-    bindButtonAction(controls.rollRightButton, () => this.actions.onRoll(1));
-    controls.joystick.addEventListener('pointerdown', this.onJoystickPointerDown);
-    controls.joystick.addEventListener('pointermove', this.onJoystickPointerMove);
-    controls.joystick.addEventListener('pointerup', this.onJoystickPointerUp);
-    controls.joystick.addEventListener('pointercancel', this.onJoystickPointerUp);
-    controls.joystick.addEventListener('lostpointercapture', this.onJoystickPointerUp);
-    controls.throttleButton.addEventListener('pointerdown', this.onThrottlePointerDown);
-    controls.throttleButton.addEventListener('pointerup', this.onThrottlePointerUp);
-    controls.throttleButton.addEventListener('pointercancel', this.onThrottlePointerUp);
-    controls.throttleButton.addEventListener('lostpointercapture', this.onThrottlePointerUp);
+    const signal = this.events.signal;
+    bindButtonAction(controls.rollLeftButton, () => this.actions.onRoll(-1), signal);
+    bindButtonAction(controls.rollRightButton, () => this.actions.onRoll(1), signal);
+    controls.joystick.addEventListener('pointerdown', this.onJoystickPointerDown, { signal });
+    controls.joystick.addEventListener('pointermove', this.onJoystickPointerMove, { signal });
+    controls.joystick.addEventListener('pointerup', this.onJoystickPointerUp, { signal });
+    controls.joystick.addEventListener('pointercancel', this.onJoystickPointerUp, { signal });
+    controls.joystick.addEventListener('lostpointercapture', this.onJoystickPointerUp, { signal });
+    controls.throttleButton.addEventListener('pointerdown', this.onThrottlePointerDown, { signal });
+    controls.throttleButton.addEventListener('pointerup', this.onThrottlePointerUp, { signal });
+    controls.throttleButton.addEventListener('pointercancel', this.onThrottlePointerUp, { signal });
+    controls.throttleButton.addEventListener('lostpointercapture', this.onThrottlePointerUp, { signal });
   }
 
   private onJoystickPointerDown = (event: PointerEvent): void => {
@@ -240,6 +295,12 @@ export class InputManager {
       }
       return;
     }
+    if (event.code === 'Space' || (event.code === 'Enter' && event.target === this.pointerControls?.fireButton)) {
+      if (event.target instanceof Element && event.target.closest('button') && event.target !== this.pointerControls?.fireButton) return;
+      event.preventDefault();
+      if (!event.repeat) { this.fireKeyboard = true; this.fireTapPending = true; }
+      return;
+    }
     if (event.code === 'Escape' && document.fullscreenElement) return;
     const fullscreenShortcut = event.code === 'KeyF' && (event.ctrlKey || event.metaKey);
     if (CAPTURED.has(event.code) || fullscreenShortcut) event.preventDefault();
@@ -271,11 +332,13 @@ export class InputManager {
   };
 
   private onKeyUp = (event: KeyboardEvent): void => {
+    if (event.code === 'Space' || event.code === 'Enter') this.fireKeyboard = false;
     this.pressed.delete(event.code);
     this.boost.setHeld(event.code, false);
   };
 
   private clear = (): void => {
+    this.clearFire();
     this.pressed.clear();
     this.boost.releaseAll();
     if (this.joystickPointerId !== undefined && this.pointerControls?.joystick.hasPointerCapture(this.joystickPointerId)) {

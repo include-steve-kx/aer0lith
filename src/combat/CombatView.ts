@@ -74,7 +74,7 @@ function cornerGeometry(): BufferGeometry {
 }
 const alphaVertex = `attribute float aAlpha; varying float vAlpha; void main(){vAlpha=aAlpha;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.0);}`;
 const alphaFragment = `uniform vec3 uColor;varying float vAlpha;void main(){if(vAlpha<.001)discard;gl_FragColor=vec4(uColor,vAlpha);}`;
-class RibbonBatch {
+export class RibbonBatch {
   readonly geometry = new BufferGeometry();
   readonly mesh: Mesh<BufferGeometry, ShaderMaterial>;
   readonly positions: BufferAttribute;
@@ -418,7 +418,7 @@ export class CombatView implements RefractionContributor {
       const mesh = this.rockMeshes[m.variant],
         i = mesh.count++;
       mesh.setMatrixAt(i, this.dummy.matrix);
-      mesh.setColorAt(i, this.tint.setScalar(m.brightness));
+      mesh.setColorAt(i, this.tint.setScalar(m.brightness + m.hitFlash * 5));
       if (debug) {
         const d = this.debugMeshes[m.variant];
         d.setMatrixAt(d.count++, this.dummy.matrix);

@@ -38,7 +38,8 @@ const neutral = { pitch: 0, roll: 0, yaw: 0, throttle: 0 };
 function systems(seed = 'test', terrain = air) {
   const meteors = new MeteorSystem(terrain, library, seed),
     impacts = new ImpactSystem(library, seed),
-    missiles = new MissileSystem(meteors, impacts, seed);
+    missiles = new MissileSystem(meteors, seed);
+  meteors.onDestroyed = (rock, point, direction) => impacts.spawn(rock, point, direction);
   return { meteors, impacts, missiles };
 }
 function rock(meteors: MeteorSystem, x = 0, z = 100, size = 10) {

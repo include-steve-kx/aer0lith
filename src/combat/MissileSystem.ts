@@ -7,7 +7,7 @@ import {
 } from './settings.ts';
 import type { MeteorHandle } from './types.ts';
 import { MeteorSystem } from './MeteorSystem.ts';
-import { ImpactSystem } from './ImpactSystem.ts';
+import { ProjectileResolver, type ProjectileOwner } from './ProjectileResolver.ts';
 import { CombatRandom } from './random.ts';
 import { terrainHit } from './collision.ts';
 export class MissileState {
@@ -42,7 +42,7 @@ export class MissileTrail {
     this.lastSample = time;
   }
 }
-export class MissileSystem {
+export class MissileSystem implements ProjectileOwner {
   settings: CombatSettings = { ...DEFAULT_COMBAT };
   time = 0;
   launches = 0;
@@ -65,15 +65,14 @@ export class MissileSystem {
   private readonly aim = new Vector3();
   private readonly forward = new Vector3();
   private readonly end = new Vector3();
-  private readonly impact = new Vector3();
+  readonly resolver: ProjectileResolver;
   private readonly desiredQ = new Quaternion();
   private readonly hit: MeteorHandle = { slot: -1, generation: 0 };
   private readonly z = new Vector3(0, 0, 1);
   readonly meteors: MeteorSystem;
-  readonly impacts: ImpactSystem;
-  constructor(meteors: MeteorSystem, impacts: ImpactSystem, seed: string) {
+  constructor(meteors: MeteorSystem, seed: string) {
     this.meteors = meteors;
-    this.impacts = impacts;
+    this.resolver = new ProjectileResolver(meteors);
     this.launcher = new CombatRandom(`${seed}:launchers`);
     this.random = new CombatRandom(`${seed}:missiles`);
   }
@@ -190,8 +189,10 @@ export class MissileSystem {
     this.cooldown = this.settings.missileInterval;
     this.launches++;
   }
-  update(dt: number, ship: Vector3, q: Quaternion): void {
+  update(dt: number, ship: Vector3, q: Quaternion, shared?: ProjectileResolver): void {
     if (dt <= 0) return;
+    const resolver = shared ?? this.resolver;
+    if (!shared) resolver.begin();
     this.time += dt;
     this.syncMuzzles(ship, q);
     for (const t of this.trails)
@@ -250,35 +251,18 @@ export class MissileSystem {
       }
       m.position.addScaledVector(m.direction, speed * dt);
       m.distance += speed * dt;
-      const meteorT = this.meteors.sweepMissile(
-          m.previous,
-          m.position,
-          this.hit,
-        ),
-        terrainT = terrainHit(
-          this.meteors.terrain,
-          m.previous,
-          m.position,
-          0.12,
-        );
-      if (meteorT <= 1 && meteorT <= terrainT) {
-        const hit = this.meteors.resolve(this.hit);
-        if (hit) {
-          this.impact.lerpVectors(m.previous, m.position, meteorT);
-          m.position.copy(this.impact);
-          this.impacts.spawn(hit, this.impact, m.direction);
-          hit.active = false;
-          hit.generation++;
-          hit.reserved = -1;
-        }
-        this.trails[m.trail].append(m.position, this.time, true);
-        this.retire(m);
-      } else if (terrainT <= 1 || m.age >= 8 || m.distance >= 1800) {
-        if (terrainT <= 1) m.position.lerpVectors(m.previous, m.position, terrainT);
-        this.trails[m.trail].append(m.position, this.time, true);
-        this.retire(m);
-      } else this.trails[m.trail].append(m.position, this.time);
+      resolver.submit(this, this.missiles.indexOf(m), 0, m.previous, m.position, m.direction, 0.12);
     }
+    if (!shared) resolver.resolve();
+  }
+  valid(slot: number): boolean { return this.missiles[slot].active && !!this.meteors.resolve(this.missiles[slot].target); }
+  contact(slot: number, fraction: number, result: 'invalid' | 'damaged' | 'destroyed' | 'terrain' | 'clear'): void {
+    const m = this.missiles[slot];
+    // A missile that caused destruction has already invalidated its own target.
+    if (result === 'invalid') { this.retire(m); return; }
+    if (result !== 'clear') m.position.lerpVectors(m.previous, m.position, fraction);
+    this.trails[m.trail].append(m.position, this.time, result !== 'clear');
+    if (result !== 'clear' || m.age >= 8 || m.distance >= 1800) this.retire(m);
   }
   clearFlights(): void {
     for (const m of this.missiles) if (m.active) this.retire(m);

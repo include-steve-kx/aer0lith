@@ -6,6 +6,7 @@
 export function bindButtonAction(
   button: HTMLButtonElement,
   action: () => void,
+  signal?: AbortSignal,
 ): void {
   let suppressSyntheticClickUntil = 0;
 
@@ -14,7 +15,7 @@ export function bindButtonAction(
     event.preventDefault();
     suppressSyntheticClickUntil = performance.now() + 800;
     action();
-  });
+  }, { signal });
 
   button.addEventListener('click', (event) => {
     const keyboardActivation = event.detail === 0;
@@ -23,5 +24,5 @@ export function bindButtonAction(
       return;
     }
     action();
-  });
+  }, { signal });
 }

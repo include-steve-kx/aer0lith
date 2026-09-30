@@ -969,3 +969,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 .meteor-cross::before,.meteor-cross::after { content: ''; position: absolute; background: currentColor; }
 .meteor-cross::before { width: 7px; height: 1px; left: -3px; }
 .meteor-cross::after { height: 7px; width: 1px; top: -3px; }
+
+#fire-button { min-width: 44px; min-height: 44px; font: inherit; font-size: 11px; touch-action: none; }
+#fire-button.is-active { color: var(--background, #050708); background: var(--ui-tone); }
+.bullet-aim { position: absolute; width: 8px; height: 8px; border: 1px solid var(--ui-tone); border-radius: 50%; left: -4px; top: -4px; pointer-events: none; }

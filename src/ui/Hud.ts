@@ -46,6 +46,7 @@ export class Hud {
   readonly fullscreenButton = element<HTMLButtonElement>('fullscreen-button');
   readonly collisionButton = element<HTMLButtonElement>('collision-button');
   readonly modeButton = element<HTMLButtonElement>('mode-button');
+  readonly fireButton = element<HTMLButtonElement>('fire-button');
   readonly probeButton = element<HTMLButtonElement>('probe-button');
   readonly rollLeftButton = element<HTMLButtonElement>('roll-left-button');
   readonly rollRightButton = element<HTMLButtonElement>('roll-right-button');

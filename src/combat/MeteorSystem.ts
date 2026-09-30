@@ -24,6 +24,9 @@ import type {
   ScanSnapshot,
 } from './types.ts';
 export class MeteorState {
+  health = 1;
+  maxHealth = 1;
+  hitFlash = 0;
   active = false;
   generation = 0;
   variant = 0;
@@ -46,6 +49,23 @@ export class MeteorState {
   spinFactor = 1;
 }
 export class MeteorSystem implements DynamicObstacleProvider {
+  onDestroyed?: (rock: MeteorState, point: Vector3, direction: Vector3) => void;
+  private readonly destroyed = new MeteorState();
+  applyHit(handle: MeteorHandle, point: Vector3, direction: Vector3, lethal = false): 'invalid' | 'damaged' | 'destroyed' {
+    const rock = this.resolve(handle);
+    if (!rock) return 'invalid';
+    rock.health = lethal ? 0 : rock.health - 1;
+    rock.hitFlash = 0.1;
+    if (rock.health > 0) return 'damaged';
+    const snapshot = this.destroyed;
+    snapshot.position.copy(rock.position); snapshot.orientation.copy(rock.orientation);
+    snapshot.velocity.copy(rock.velocity); snapshot.diameter = rock.diameter;
+    snapshot.variant = rock.variant; snapshot.brightness = rock.brightness;
+    rock.active = false; rock.generation++; rock.reserved = -1; rock.detected = 0;
+    // Synchronous consumers copy into their own fixed pools before this snapshot is reused.
+    this.onDestroyed?.(snapshot, point, direction);
+    return 'destroyed';
+  }
   readonly rocks = Array.from(
     { length: COMBAT_LIMITS.meteors },
     () => new MeteorState(),
@@ -124,6 +144,8 @@ export class MeteorSystem implements DynamicObstacleProvider {
   ): MeteorState | undefined {
     const m = this.rocks.find((r) => !r.active);
     if (!m) return;
+    m.health = m.maxHealth = Math.max(1, Math.round(this.settings.meteorBulletHits * diameter / 12));
+    m.hitFlash = 0;
     m.active = true;
     m.generation++;
     m.position.copy(position);
@@ -210,6 +232,7 @@ export class MeteorSystem implements DynamicObstacleProvider {
       if (!m.active) continue;
       m.previous.copy(m.position);
       m.previousQ.copy(m.orientation);
+      m.hitFlash = Math.max(0, m.hitFlash - dt);
       m.age += dt;
       m.detected = Math.max(0, m.detected - dt);
       m.retry = Math.max(0, m.retry - dt);
@@ -282,29 +305,35 @@ export class MeteorSystem implements DynamicObstacleProvider {
     return true;
   }
   sweepMissile(from: Vector3, to: Vector3, out: MeteorHandle): number {
+    return this.sweepProjectile(from, to, out, 0.15);
+  }
+  sweepProjectile(from: Vector3, to: Vector3, out: MeteorHandle, radius = 0.15, startFraction = 0, endFraction = 1): number {
     let best = Infinity;
     for (let i = 0; i < this.rocks.length; i++) {
       const m = this.rocks[i];
       if (!m.active) continue;
-      const rotationalMargin = m.previousQ.angleTo(m.orientation) * m.radius;
-      this.delta.copy(from).sub(m.previous).add(m.position);
+      const rotationalMargin = m.previousQ.angleTo(m.orientation) * m.radius * (endFraction - startFraction);
+      this.rockP.lerpVectors(m.previous, m.position, endFraction);
+      this.rockQ.slerpQuaternions(m.previousQ, m.orientation, endFraction);
+      this.relativeStart.lerpVectors(m.previous, m.position, startFraction);
+      this.delta.copy(from).sub(this.relativeStart).add(this.rockP);
       if (
         !segmentSphere(
           this.delta,
           to,
-          m.position,
-          m.radius + 0.15 + rotationalMargin,
+          this.rockP,
+          m.radius + radius + rotationalMargin,
         )
       )
         continue;
       const t = segmentConvex(
         this.delta,
         to,
-        m.position,
-        m.orientation,
+        this.rockP,
+        this.rockQ,
         m.diameter,
         this.library.variants[m.variant].shape,
-        0.15 + rotationalMargin,
+        radius + rotationalMargin,
       );
       if (t < best) {
         best = t;

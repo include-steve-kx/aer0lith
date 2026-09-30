@@ -39,6 +39,43 @@ export class FlightController {
   readonly rollDuration = 1.2;
   readonly rollTurns = 1;
   readonly rollDistance = 44;
+  readonly externalVelocity = new Vector3();
+  private readonly pendingImpulse = new Vector3();
+  private externalRemaining = 0;
+  private externalSettle = 0.8;
+  private readonly blastPose = new Quaternion();
+  private readonly blastPosition = new Vector3();
+  applyExternalImpulse(impulse: Vector3, settle = 0.8): void {
+    if (this.mode === 'crashed' || this.mode === 'loading') return;
+    this.pendingImpulse.add(impulse); this.externalSettle = settle;
+  }
+  clearExternalImpulse(): void { this.externalVelocity.set(0, 0, 0); this.pendingImpulse.set(0, 0, 0); this.externalRemaining = 0; }
+  private advanceExternal(dt: number): boolean {
+    if (this.pendingImpulse.lengthSq() > 0) {
+      this.externalVelocity.add(this.pendingImpulse).clampLength(0, 30);
+      this.pendingImpulse.set(0, 0, 0); this.externalRemaining = this.externalSettle;
+    }
+    if (this.externalRemaining <= 0 || this.externalVelocity.lengthSq() === 0) { this.clearExternalImpulse(); return false; }
+    const elapsed = Math.min(dt, this.externalRemaining), ratio = Math.max(0, 1 - elapsed / this.externalRemaining);
+    this.position.addScaledVector(this.externalVelocity, elapsed * (1 + ratio) * .5);
+    this.externalVelocity.multiplyScalar(ratio); this.externalRemaining = Math.max(0, this.externalRemaining - dt);
+    if (this.externalRemaining < 1e-9) this.clearExternalImpulse();
+    return true;
+  }
+  private checkBlastTerrain(): void {
+    const probes = this.cockpitCollision ? COCKPIT_COLLISION_PROBES : COLLISION_PROBES;
+    const travel = this.previousPosition.distanceTo(this.position) + this.previousOrientation.angleTo(this.orientation) * 7;
+    const steps = Math.max(1, Math.ceil(travel));
+    if (steps > 16) { this.beginCrash(); return; }
+    for (let i = 0; i <= steps; i++) {
+      this.blastPose.slerpQuaternions(this.previousOrientation, this.orientation, i / steps);
+      this.blastPosition.lerpVectors(this.previousPosition, this.position, i / steps);
+      for (const p of probes) {
+        this.samplePoint.set(...p).applyQuaternion(this.blastPose).add(this.blastPosition);
+        if (this.terrain.collisionDensityAt(this.samplePoint.x, this.samplePoint.y, this.samplePoint.z) > 0) { this.beginCrash(); return; }
+      }
+    }
+  }
   speed: number = FLIGHT.nominalSpeed;
   throttle: number = (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
   mode: FlightMode = 'loading';
@@ -95,6 +132,8 @@ export class FlightController {
     this.syncOrientation();
     this.forward.set(0, 0, 1).applyQuaternion(this.orientation).normalize();
     this.position.addScaledVector(this.forward, this.speed * dt);
+    const blastMoved = this.advanceExternal(dt);
+    if (blastMoved) this.checkBlastTerrain();
     if (this.obstacles?.sweepShip(this.previousPosition, this.position, this.previousOrientation, this.orientation, this.cockpitCollision)) this.beginCrash();
     if (this.mode !== 'autopilot' && this.crashIntensity === 0) this.checkCollision(dt);
     this.updateCheckpoint(dt);
@@ -256,7 +295,7 @@ export class FlightController {
   }
 
   private updateCheckpoint(dt: number): void {
-    if (this.mode === 'crashed' || this.isRolling) return;
+    if (this.mode === 'crashed' || this.isRolling || this.externalRemaining > 0 || this.pendingImpulse.lengthSq() > 0) return;
     this.checkpointTimer += dt;
     if (this.checkpointTimer < FLIGHT.checkpointInterval) return;
     this.checkpointTimer = 0;
@@ -274,6 +313,7 @@ export class FlightController {
   private beginCrash(): void {
     if (this.mode === 'crashed') return;
     this.crashElapsed = 0;
+    this.clearExternalImpulse();
     this.cancelRoll();
     this.setMode('crashed');
     this.onCrash?.();
@@ -291,6 +331,7 @@ export class FlightController {
   }
 
   private applyCheckpoint(checkpoint: SafeCheckpoint): void {
+    this.clearExternalImpulse();
     this.onRecovery?.();
     this.avoidanceTarget.set(0, 0, 0);
     this.avoidanceOffset.set(0, 0, 0);

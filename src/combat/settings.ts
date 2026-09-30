@@ -1,4 +1,5 @@
 export const COMBAT_LIMITS = {
+  bullets: 256, bulletTrails: 512, sparks: 64, contacts: 320,
   meteors: 48,
   missiles: 64,
   trails: 96,
@@ -8,6 +9,7 @@ export const COMBAT_LIMITS = {
   shakes: 16,
 } as const;
 export const DEFAULT_METEORS = {
+  meteorBulletHits: 5,
   meteorEnabled: true,
   meteorMinDiameter: 6,
   meteorMaxDiameter: 18,
@@ -36,6 +38,10 @@ export const DEFAULT_MISSILES = {
   missileTrailLife: 1.2,
   missileTrailWidth: 0.05,
   missileTrailOpacity: 0.55,
+  missileHud: true,
+};
+export const DEFAULT_IMPACTS = {
+  explosionPush: 12, explosionPushLife: 0.8,
   explosionSize: 1.5,
   explosionLife: 0.9,
   explosionRefraction: 0.8,
@@ -50,14 +56,25 @@ export const DEFAULT_MISSILES = {
   explosionShakeRadius: 120,
   explosionShakeLife: 0.6,
   explosionShakeFrequency: 18,
-  missileHud: true,
   explosionDebug: false,
 };
-export type MeteorSettings = typeof DEFAULT_METEORS;
+export const DEFAULT_BULLETS = {
+  bulletEnabled: true, bulletRate: 18, bulletVariation: 0.3, bulletSpread: 0.35,
+  bulletSpeed: 520, bulletDiameter: 0.12, bulletLength: 1.2, bulletRange: 900,
+  bulletConvergence: 400, bulletCone: 20, bulletColor: '#fff2c2', bulletTrailColor: '#ffe1a0',
+  bulletTrailLength: 24, bulletTrailLife: 0.25, bulletTrailWidth: 0.04, bulletTrailOpacity: 0.55,
+  muzzleColor: '#ffd68a', muzzleLength: 0.65, muzzleWidth: 0.18, muzzleLife: 0.06,
+  muzzleRefraction: 0.3, muzzleDispersion: 0.06, muzzleDebug: false,
+};
+export type BulletSettings = typeof DEFAULT_BULLETS;
+export type ImpactSettings = typeof DEFAULT_IMPACTS;
+export type MeteorSettings = typeof DEFAULT_METEORS & ImpactSettings;
 export type MissileSettings = typeof DEFAULT_MISSILES;
-export type CombatSettings = MeteorSettings & MissileSettings;
+export type CombatSettings = MeteorSettings & MissileSettings & BulletSettings;
 export const DEFAULT_COMBAT: CombatSettings = {
+  ...DEFAULT_BULLETS,
   ...DEFAULT_METEORS,
+  ...DEFAULT_IMPACTS,
   ...DEFAULT_MISSILES,
 };
 export type ControlSpec = readonly [
@@ -69,6 +86,7 @@ export type ControlSpec = readonly [
   string?,
 ];
 export const METEOR_CONTROLS: readonly ControlSpec[] = [
+  ['meteorBulletHits', 'BULLET HITS AT 12 M', 1, 20, 1],
   ['meteorEnabled', 'METEORS ENABLED'],
   ['meteorMinDiameter', 'MIN DIAMETER', 2, 36, 1, ' M'],
   ['meteorMaxDiameter', 'MAX DIAMETER', 2, 36, 1, ' M'],
@@ -97,6 +115,11 @@ export const MISSILE_CONTROLS: readonly ControlSpec[] = [
   ['missileTrailLife', 'TRAIL PERSISTENCE', 0.2, 6, 0.1, ' S'],
   ['missileTrailWidth', 'TRAIL WIDTH', 0.02, 0.15, 0.01, ' M'],
   ['missileTrailOpacity', 'TRAIL OPACITY', 0, 1, 0.05],
+  ['missileHud', 'AMMUNITION HUD'],
+];
+export const DESTRUCTION_CONTROLS: readonly ControlSpec[] = [
+  ['explosionPush', 'EXPLOSION PUSH', 0, 30, 1, ' M/S'],
+  ['explosionPushLife', 'PUSH SETTLING TIME', 0.2, 2, 0.1, ' S'],
   ['explosionSize', 'EXPLOSION SIZE', 0.5, 3, 0.1, '×'],
   ['explosionLife', 'EXPLOSION DURATION', 0.3, 2, 0.1, ' S'],
   ['explosionRefraction', 'EXPLOSION REFRACTION', 0, 3, 0.05],
@@ -108,11 +131,34 @@ export const MISSILE_CONTROLS: readonly ControlSpec[] = [
   ['fragmentSpeed', 'FRAGMENT SCATTER', 2, 30, 1, ' M/S'],
   ['fragmentSpin', 'FRAGMENT SPIN', 0, 180, 5, ' °/S'],
   ['explosionShakeStrength', 'EXPLOSION SHAKE', 0, 1, 0.05],
-  ['explosionShakeRadius', 'SHAKE RADIUS', 20, 250, 5, ' M'],
+  ['explosionShakeRadius', 'SHAKE + PUSH RADIUS', 20, 250, 5, ' M'],
   ['explosionShakeLife', 'SHAKE DURATION', 0.15, 1.5, 0.05, ' S'],
   ['explosionShakeFrequency', 'SHAKE FREQUENCY', 4, 30, 1, ' HZ'],
-  ['missileHud', 'AMMUNITION HUD'],
   ['explosionDebug', 'OPAQUE EXPLOSION MESH'],
+];
+export const BULLET_CONTROLS: readonly ControlSpec[] = [
+  ['bulletEnabled', 'BULLETS ENABLED'],
+  ['bulletRate', 'TOTAL FIRING FREQUENCY', 2, 48, 1, ' /S'],
+  ['bulletVariation', 'INTERVAL VARIATION', 0, 0.6, 0.01],
+  ['bulletSpread', 'AIM SPREAD HALF-ANGLE', 0, 2, 0.05, ' °'],
+  ['bulletSpeed', 'BULLET SPEED', 250, 1200, 10, ' M/S'],
+  ['bulletDiameter', 'BULLET DIAMETER', 0.04, 0.4, 0.01, ' M'],
+  ['bulletLength', 'BOLT LENGTH', 0.3, 4, 0.1, ' M'],
+  ['bulletRange', 'MAXIMUM TRAVEL', 200, 1600, 50, ' M'],
+  ['bulletConvergence', 'CONVERGENCE DISTANCE', 100, 1000, 10, ' M'],
+  ['bulletCone', 'AIM CONE HALF-ANGLE', 0, 35, 1, ' °'],
+  ['bulletColor', 'BULLET COLOR'], ['bulletTrailColor', 'TRAIL COLOR'],
+  ['bulletTrailLength', 'TRAIL LENGTH', 2, 100, 1, ' M'],
+  ['bulletTrailLife', 'TRAIL PERSISTENCE', 0.05, 1, 0.01, ' S'],
+  ['bulletTrailWidth', 'TRAIL WIDTH', 0.01, 0.15, 0.01, ' M'],
+  ['bulletTrailOpacity', 'TRAIL OPACITY', 0, 1, 0.05],
+  ['muzzleColor', 'MUZZLE COLOR'],
+  ['muzzleLength', 'MUZZLE LENGTH', 0.1, 2, 0.05, ' M'],
+  ['muzzleWidth', 'MUZZLE WIDTH', 0.04, 0.5, 0.01, ' M'],
+  ['muzzleLife', 'MUZZLE DURATION', 0.02, 0.15, 0.01, ' S'],
+  ['muzzleRefraction', 'MUZZLE REFRACTION', 0, 1.5, 0.05],
+  ['muzzleDispersion', 'MUZZLE DISPERSION', 0, 0.3, 0.01],
+  ['muzzleDebug', 'OPAQUE MUZZLE GLASS'],
 ];
 export function sanitizeCombatSettings(
   input: Partial<Record<keyof CombatSettings, unknown>>,
@@ -121,7 +167,7 @@ export function sanitizeCombatSettings(
   const result = { ...DEFAULT_COMBAT };
   for (const [key, , min, max, step] of [
     ...METEOR_CONTROLS,
-    ...MISSILE_CONTROLS,
+    ...MISSILE_CONTROLS, ...DESTRUCTION_CONTROLS, ...BULLET_CONTROLS,
   ]) {
     const fallback = DEFAULT_COMBAT[key],
       value = input[key];
@@ -149,6 +195,6 @@ export function sanitizeCombatSettings(
     result.meteorMinDiameter,
     result.meteorMaxDiameter,
   );
-  if (restore) result.explosionDebug = false;
+  if (restore) { result.explosionDebug = false; result.muzzleDebug = false; }
   return result;
 }

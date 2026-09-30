@@ -1,3 +1,6 @@
+import { explosionImpulse } from './combat/ExplosionForce.ts';
+import { BulletSystem } from './combat/BulletSystem.ts';
+import { BulletView } from './combat/BulletView.ts';
 import { RockLibrary } from './combat/geometry.ts';
 import { MeteorSystem } from './combat/MeteorSystem.ts';
 import { MissileSystem } from './combat/MissileSystem.ts';
@@ -49,6 +52,9 @@ export class App {
   private readonly rocks: RockLibrary;
   private readonly meteors: MeteorSystem;
   private readonly missiles: MissileSystem;
+  private readonly bullets: BulletSystem;
+  private readonly bulletView: BulletView;
+  private readonly explosionImpulse = new Vector3();
   private readonly impacts: ImpactSystem;
   private readonly combatView: CombatView;
   private readonly combatHud = new CombatHud();
@@ -123,9 +129,18 @@ export class App {
     this.rocks = new RockLibrary(seed);
     this.meteors = new MeteorSystem(this.terrainModel, this.rocks, seed);
     this.impacts = new ImpactSystem(this.rocks, seed);
-    this.missiles = new MissileSystem(this.meteors, this.impacts, seed);
+    this.missiles = new MissileSystem(this.meteors, seed);
     this.combatView = new CombatView(this.meteors, this.missiles, this.impacts);
-    this.refractionContributors = [this.combatView];
+    this.bullets = new BulletSystem(this.meteors, seed);
+    this.bulletView = new BulletView(this.bullets);
+    this.meteors.onDestroyed = (rock, point, direction) => {
+      this.impacts.spawn(rock, point, direction);
+      const settings = this.impacts.settings;
+      explosionImpulse(this.explosionImpulse, this.flight.position, point, direction,
+        rock.diameter, settings.explosionPush, settings.explosionShakeRadius);
+      this.flight.applyExternalImpulse(this.explosionImpulse, settings.explosionPushLife);
+    };
+    this.refractionContributors = [this.combatView, this.bulletView];
     this.flight.obstacles = this.meteors;
     this.flight.onRecovery = () => this.resetCombat();
     this.route = new RouteGuide(this.terrainModel);
@@ -134,7 +149,7 @@ export class App {
 
     this.scene.add(this.cameraRig.camera);
     this.scene.add(
-      this.combatView.group,
+      this.combatView.group, this.bulletView.group,
       this.aircraft.group,
       this.flightEffects.group,
       this.flightEffects.debugGroup,
@@ -172,6 +187,7 @@ export class App {
       onToggleFullscreen: () => void this.toggleFullscreen(),
       onTriggerProbe: () => this.triggerProbe(),
     }, {
+      fireButton: this.hud.fireButton,
       joystick: this.hud.touchJoystick,
       joystickThumb: this.hud.touchJoystickThumb,
       throttleButton: this.hud.throttleButton,
@@ -189,10 +205,12 @@ export class App {
     bindButtonAction(this.hud.collisionButton, () => this.toggleCollisionDebug());
     bindButtonAction(this.hud.probeButton, () => this.triggerProbe());
     this.settings.onChange = (settings) => {
-      if ((!settings.meteorEnabled && this.meteors.settings.meteorEnabled)
-        || (!settings.missileEnabled && this.missiles.settings.missileEnabled)) {
-        this.missiles.reset(); this.impacts.reset();
+      if (!settings.meteorEnabled && this.meteors.settings.meteorEnabled) {
+        this.missiles.reset(); this.impacts.reset(); this.flight.clearExternalImpulse();
       }
+      if (!settings.bulletEnabled) this.input.clearFire();
+      if (settings.explosionPush === 0) this.flight.clearExternalImpulse();
+      this.bullets.configure(settings);
       this.meteors.configure(settings);
       this.missiles.configure(settings);
       this.impacts.configure(settings);
@@ -237,10 +255,11 @@ export class App {
 
     window.addEventListener('resize', this.resize);
     window.addEventListener('pagehide', event => {
+      this.input.clearFire();
       if (event.persisted) return; // A back/forward-cache restore reuses this app.
       this.running = false;
       this.resetCombat();
-      this.combatView.dispose();
+      this.combatView.dispose(); this.bulletView.dispose(); this.bullets.dispose(); this.input.dispose();
       this.rocks.dispose();
       this.combatHud.dispose();
       this.settings.disposeCombatControls();
@@ -292,7 +311,11 @@ export class App {
         this.flight.update(dt, frameInput);
         if (this.flight.mode !== 'crashed') {
           this.meteors.scan(this.scan);
-          this.missiles.update(dt, this.flight.position, this.flight.orientation);
+          const resolver = this.bullets.resolver;
+          resolver.begin();
+          this.missiles.update(dt, this.flight.position, this.flight.orientation, resolver);
+          this.bullets.update(dt, this.input.consumeFire(), this.flight.position, this.flight.orientation, resolver);
+          resolver.resolve();
           this.impacts.update(dt, this.flight.position);
         }
         this.accumulator -= FLIGHT.fixedStep;
@@ -341,6 +364,7 @@ export class App {
         this.terrain.isProbeExpanding,
       );
     } else {
+      this.input.clearFire();
       // Rebuild only presentation data, so color/thickness controls stay live.
       this.flocks.update(0, this.flight.position, this.flight.orientation,
         this.flight.speed, this.renderOrigin, true);
@@ -367,11 +391,14 @@ export class App {
     this.boostShake.update(this.paused ? 0 : rawDelta, this.flightEffects.burst.shakeIntensity);
     this.cockpitRoll.apply(this.cameraRig.camera, this.flight.cameraOrientation,
       this.cameraRig.mode === 'cockpit' ? this.flight.maneuverRollAngle : 0);
+    this.bullets.setCamera(this.cameraRig.camera, this.renderOrigin, this.flight.position);
+    this.bullets.sync(this.flight.position, this.flight.orientation);
     this.boostShake.apply(this.cameraRig.camera, this.flight.speed, this.impacts.shakeTranslation, this.impacts.shakeRotation);
     try {
       this.missiles.syncMuzzles(this.flight.position, this.flight.orientation);
       this.combatHud.update(this.cameraRig.camera, this.renderOrigin, this.meteors, this.missiles,
-        this.missiles.settings, this.cameraRig.mode === 'cockpit', this.experienceMode === 'analysis', this.crtCurvature, this.flight.orientation);
+        this.missiles.settings, this.cameraRig.mode === 'cockpit', this.experienceMode === 'analysis', this.crtCurvature, this.flight.orientation, this.bullets.settings.bulletEnabled ? this.bullets.aim.point : undefined);
+      this.bulletView.sync(this.renderOrigin, this.cameraRig.camera, this.flight.orientation);
       this.combatView.sync(this.renderOrigin, this.cameraRig.camera,
         this.experienceMode === 'analysis', this.collisionDebugEnabled && this.experienceMode === 'analysis');
       this.post.render(
@@ -446,6 +473,7 @@ export class App {
 
   private togglePause(): void {
     this.paused = !this.paused;
+    this.input.clearFire();
     // Never accumulate paused wall time or run a catch-up step on resume.
     this.lastTime = performance.now();
     this.terrain.setPaused(this.paused);
@@ -467,6 +495,7 @@ export class App {
   }
 
   private resetCombat(): void {
+    this.bullets.reset(); this.input?.clearFire(); this.flight.clearExternalImpulse();
     this.missiles.reset();
     this.impacts.reset();
     this.meteors.reset();
