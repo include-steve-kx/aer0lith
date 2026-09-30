@@ -36,7 +36,7 @@ export interface JoystickInput {
 const CAPTURED = new Set([
   'KeyW', 'KeyS', 'KeyA', 'KeyD', 'ShiftLeft', 'ShiftRight',
   'ControlLeft', 'ControlRight', 'Space', 'KeyC', 'Digit1', 'Digit2', 'Digit3',
-  'KeyM', 'KeyR', 'KeyP', 'Escape', 'KeyN', 'KeyB',
+  'KeyM', 'KeyI', 'KeyP', 'Escape', 'KeyN', 'KeyB',
   'KeyV', 'KeyQ', 'KeyE',
 ]);
 
@@ -261,7 +261,7 @@ export class InputManager {
       case 'Digit2': this.actions.onSelectCamera(1); break;
       case 'Digit3': this.actions.onSelectCamera(2); break;
       case 'KeyM': this.actions.onToggleAudio(); break;
-      case 'KeyR': this.actions.onReset(); break;
+      case 'KeyI': this.actions.onReset(); break;
       case 'KeyP':
       case 'Escape': this.actions.onPause(); break;
       case 'KeyN': this.actions.onNewSeed(); break;

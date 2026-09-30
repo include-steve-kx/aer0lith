@@ -47,7 +47,7 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 | Mouse in camera `2` / `3` | Left-drag orbit, right-drag pan, wheel zoom; Shift does not change drag actions. Camera returns after release. |
 | `V` | Toggle Analysis / Ambient presentation mode |
 | `M` | Toggle audio |
-| `R` | Recover at the latest safe checkpoint |
+| `I` | Recover at the latest safe checkpoint |
 | `B` | Trigger a terrain probe wave |
 | Pause button / `P` / `Escape` | Pause / resume simulation |
 | `N` | Generate a new seeded world |
