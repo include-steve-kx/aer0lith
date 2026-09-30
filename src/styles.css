@@ -84,6 +84,8 @@ select {
 
 .hud {
   --ui-scale: 1;
+  --telemetry-font-size: calc(10px * var(--ui-scale));
+  --telemetry-letter-spacing: 0.08em;
   position: absolute;
   inset: max(calc(18px * var(--ui-scale)), env(safe-area-inset-top))
     max(calc(18px * var(--ui-scale)), env(safe-area-inset-right))
@@ -142,12 +144,13 @@ select {
   left: calc(18px * var(--ui-scale));
   min-width: calc(210px * var(--ui-scale));
   padding: calc(10px * var(--ui-scale)) calc(12px * var(--ui-scale)) calc(11px * var(--ui-scale));
-  border-left: 1px solid var(--ui-tone);
-  background: linear-gradient(90deg, rgb(5 7 8 / 78%), transparent);
+
 }
 
-.telemetry::before {
-  content: none;
+.telemetry,
+.coordinates {
+  font-size: var(--telemetry-font-size);
+  letter-spacing: var(--telemetry-letter-spacing);
 }
 
 .eyebrow {
@@ -176,7 +179,6 @@ select {
   min-width: calc(60px * var(--ui-scale));
   transform: translateY(-50%);
   text-align: center;
-  background: rgb(5 7 8 / 52%);
 }
 
 .tape--speed { left: calc(18px * var(--ui-scale)); }
@@ -190,7 +192,6 @@ select {
 
 .tape strong {
   padding: calc(5px * var(--ui-scale)) calc(8px * var(--ui-scale));
-  border: 1px solid var(--line);
   color: var(--ui-tone);
   font-size: calc(14px * var(--ui-scale));
   font-weight: 500;
@@ -619,6 +620,8 @@ kbd {
   padding: calc(8px * var(--ui-scale));
 }
 
+#probe-button svg { transform: scaleY(-1); }
+
 .flight-action svg {
   display: block;
   width: 100%;
@@ -836,6 +839,8 @@ kbd {
 @media (max-width: 820px) {
   .hud {
     --ui-scale: 0.64;
+    --telemetry-font-size: 8px;
+    --telemetry-letter-spacing: 0.04em;
     inset: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
       max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
   }
@@ -849,8 +854,6 @@ kbd {
     gap: 11px;
     width: max-content;
     max-width: calc(100vw - 20px);
-    font-size: 8px;
-    letter-spacing: 0.04em;
   }
   .tape { top: 50%; }
   .tape--speed { left: 8px; }
@@ -867,13 +870,13 @@ kbd {
 }
 
 @media (max-width: 440px) {
-  .hud { --ui-scale: 0.54; }
+  .hud { --ui-scale: 0.54; --telemetry-font-size: 7px; }
   .system-controls button { min-width: 66px; padding: 5px 3px; font-size: 7px; }
   .touch-joystick { width: 90px; height: 90px; }
   .touch-joystick-axis--horizontal { width: 68px; }
   .touch-joystick-axis--vertical { height: 68px; }
   .mode-button { min-width: 126px; }
-  .coordinates { gap: 8px; font-size: 7px; }
+  .coordinates { gap: 8px; }
 }
 
 #pause-button { grid-column: 1 / -1; }
@@ -886,9 +889,6 @@ button:disabled { opacity: 0.45; cursor: default; }
   --boost-fill: 0%;
   position: relative;
   isolation: isolate;
-  background: #050708;
-  border-color: #fff;
-  color: #fff;
   grid-template-rows: 1fr auto;
   gap: 1px;
   padding: 5px;
@@ -903,8 +903,6 @@ button:disabled { opacity: 0.45; cursor: default; }
   z-index: -1;
 }
 #throttle-button svg, #throttle-button .boost-label {
-  color: #fff;
-  mix-blend-mode: difference;
   pointer-events: none;
 }
 #throttle-button svg { height: 18px; }
@@ -926,6 +924,10 @@ button:disabled { opacity: 0.45; cursor: default; }
   #throttle-button.is-locked::after { animation: none; opacity: 0; }
 }
 
+#throttle-button.is-filling svg, #throttle-button.is-filling .boost-label {
+  color: #fff;
+  mix-blend-mode: difference;
+}
 .roll-actions {
   position: absolute;
   left: max(8px, env(safe-area-inset-left));

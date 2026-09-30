@@ -145,6 +145,7 @@ export class Hud {
     this.throttleButton.style.setProperty('--boost-fill', `${progress * 100}%`);
     this.throttleButton.classList.toggle('is-active', active);
     this.throttleButton.classList.toggle('is-locked', locked);
+    this.throttleButton.classList.toggle('is-filling', progress > 0);
     this.throttleButton.setAttribute('aria-pressed', String(active));
     this.throttleButton.setAttribute('aria-label', locked ? 'Unlock boost' : 'Hold boost for 7 seconds to lock');
     const label = this.throttleButton.querySelector('.boost-label');
