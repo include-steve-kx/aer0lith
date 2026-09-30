@@ -22,9 +22,9 @@ Four independent controls set **Side Backward Speed**, **Side Flutter Speed**, *
 
 ## Boost lock
 
-Hold Shift or the boost button for five simulation seconds, then keep holding through a two-second bottom-up fill. The label counts down those final two seconds. At seven seconds the button is white with black contents, a small expanding ripple marks completion, and boost stays on after release. A fresh press of either boost control unlocks and turns it off; that unlocking press cannot start charging again until released. This works in autopilot and manual flight.
+Hold Shift or the boost button for momentary boost. Three presses with at most 0.4 simulation seconds between presses lock boost immediately. The button shows LOCKED, without filling or a countdown. A fresh press unlocks and turns boost off until released. Autopilot remains engaged.
 
-Releasing before completion cancels the charge. Keyboard repeats and overlapping keyboard/touch holds do not restart the timer. Pausing freezes the timer and CSS animation; focus loss cancels an incomplete hold but preserves an intentional lock. Crash/checkpoint reset clears the lock. Ctrl temporarily overrides boost to brake. Reduced-motion preferences suppress the ripple.
+Keyboard repeats and overlapping keyboard/touch holds count as one press. Long holds never lock. Focus loss clears an incomplete tap sequence but preserves an intentional lock; crash/checkpoint reset clears it. Ctrl temporarily overrides boost to brake.
 
 ## Controls
 

@@ -370,7 +370,7 @@ export class App {
         this.flight.speed, this.renderOrigin, true);
       this.syncViews();
     }
-    this.hud.setBoostState(this.input.boost.active, this.input.boost.locked, this.input.boost.progress);
+    this.hud.setBoostState(this.input.boost.active, this.input.boost.locked);
     this.cameraRig.update(rawDelta, this.renderPlanePosition, this.flight.cameraOrientation,
       this.flight.crashIntensity, this.throttleActive, this.paused);
     this.terrain.updateBoostLight(this.flightEffects.lightPosition,

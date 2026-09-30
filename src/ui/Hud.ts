@@ -142,15 +142,13 @@ export class Hud {
     this.rollRightButton.disabled = paused;
   }
 
-  setBoostState(active: boolean, locked: boolean, progress: number): void {
-    this.throttleButton.style.setProperty('--boost-fill', `${progress * 100}%`);
+  setBoostState(active: boolean, locked: boolean): void {
     this.throttleButton.classList.toggle('is-active', active);
     this.throttleButton.classList.toggle('is-locked', locked);
-    this.throttleButton.classList.toggle('is-filling', progress > 0);
     this.throttleButton.setAttribute('aria-pressed', String(active));
-    this.throttleButton.setAttribute('aria-label', locked ? 'Unlock boost' : 'Hold boost for 7 seconds to lock');
+    this.throttleButton.setAttribute('aria-label', locked ? 'Unlock boost' : 'Hold to boost; triple-tap to lock');
     const label = this.throttleButton.querySelector('.boost-label');
-    if (label) label.textContent = locked ? 'LOCKED' : progress > 0 ? `${(2 * (1 - progress)).toFixed(1)}s` : 'BOOST';
+    if (label) label.textContent = locked ? 'LOCKED' : 'BOOST';
   }
 
   setProbeActive(active: boolean): void {

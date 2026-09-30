@@ -41,7 +41,7 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 | `W` / `S` | Pitch nose up / down |
 | `A` / `D` | Coordinated roll and yaw left / right |
 | `Q` / `E` | One 360° dodge roll left / right; also available above the joystick |
-| `Shift` / `Ctrl` | Boost / brake without disengaging autopilot. Hold boost for 5 seconds + 2 seconds of fill to lock; tap again to unlock. |
+| `Shift` / `Ctrl` | Boost / brake without disengaging autopilot. Triple-tap boost to lock (up to 0.4 s between presses); tap again to unlock. |
 | `T` | Toggle autopilot |
 | Hold `Space` / FIRE | Shoot bullets from randomized wing tips; release to stop |
 | `C` or `1`–`3` | Cycle or select camera |

@@ -1,38 +1,37 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BoostLatch } from '../src/flight/BoostLatch.ts';
+const tap = (b: BoostLatch, source = 'pointer') => { b.setHeld(source, true); b.setHeld(source, false); };
 
-test('boost holds for five seconds, fills for two, and remains locked after release', () => {
-  const boost = new BoostLatch();
-  boost.setHeld('ShiftLeft', true);
-  boost.update(5);
-  assert.equal(boost.active, true); assert.equal(boost.progress, 0); assert.equal(boost.locked, false);
-  boost.update(1);
-  assert.equal(boost.progress, 0.5);
-  boost.update(0);
-  assert.equal(boost.progress, 0.5, 'pause cannot advance charge');
-  boost.update(1);
-  assert.equal(boost.progress, 1); assert.equal(boost.locked, true);
-  boost.setHeld('ShiftLeft', false);
-  assert.equal(boost.active, true);
-  boost.update(20);
-  boost.setHeld('pointer', true);
-  assert.equal(boost.active, false); assert.equal(boost.locked, false);
-  boost.update(10);
-  assert.equal(boost.active, false, 'unlocking hold stays off until released');
-  boost.setHeld('pointer', false); boost.setHeld('pointer', true);
-  assert.equal(boost.active, true);
+test('three quick presses lock across keyboard/touch; the next press unlocks until released', () => {
+  const b = new BoostLatch();
+  tap(b); b.update(.15); tap(b, 'ShiftLeft'); b.update(.15); tap(b);
+  assert.equal(b.locked, true); assert.equal(b.active, true);
+  b.update(20); b.setHeld('ShiftLeft', true);
+  assert.equal(b.locked, false); assert.equal(b.active, false);
+  b.update(20); assert.equal(b.active, false);
+  b.setHeld('ShiftLeft', false); b.setHeld('ShiftLeft', true);
+  assert.equal(b.active, true); assert.equal(b.locked, false);
 });
-
-test('release cancels incomplete charge; repeat and overlapping sources do not unlock accidentally', () => {
-  const boost = new BoostLatch();
-  boost.setHeld('pointer', true); boost.update(6); boost.setHeld('pointer', false);
-  assert.equal(boost.progress, 0); assert.equal(boost.active, false);
-  boost.setHeld('ShiftLeft', true); boost.update(6);
-  boost.setHeld('pointer', true); boost.setHeld('ShiftLeft', false); boost.update(1);
-  assert.equal(boost.locked, true);
-  boost.setHeld('pointer', true);
-  assert.equal(boost.locked, true, 'repeated keydown does not count as another tap');
-  boost.releaseAll(); assert.equal(boost.locked, true, 'intentional lock survives focus loss');
-  boost.reset(); assert.equal(boost.active, false); assert.equal(boost.progress, 0);
+test('long holds never lock, spaced taps expire, repeats and overlapping sources count once', () => {
+  const b = new BoostLatch();
+  b.setHeld('ShiftLeft', true); b.update(20);
+  assert.equal(b.active, true); assert.equal(b.locked, false);
+  b.setHeld('ShiftLeft', false);
+  tap(b); b.update(.41); tap(b); assert.equal(b.locked, false);
+  b.reset(); b.setHeld('ShiftLeft', true);
+  for (let i=0;i<10;i++) b.setHeld('ShiftLeft', true);
+  b.setHeld('pointer', true); b.setHeld('ShiftRight', true);
+  assert.equal(b.locked, false);
+  b.releaseAll(); tap(b); tap(b); assert.equal(b.locked, false);
+  tap(b); assert.equal(b.locked, true);
+});
+test('pause cannot age tap window, focus clearing cancels partial taps, reset clears lock', () => {
+  const b = new BoostLatch();
+  tap(b); b.update(.3); tap(b); b.update(0); tap(b);
+  assert.equal(b.locked, true);
+  b.releaseAll(); assert.equal(b.locked, true);
+  b.reset(); tap(b); tap(b); b.releaseAll(); tap(b);
+  assert.equal(b.locked, false);
+  b.reset(); assert.equal(b.active, false);
 });
