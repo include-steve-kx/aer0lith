@@ -36,7 +36,7 @@ export interface JoystickInput {
 
 const CAPTURED = new Set([
   'KeyW', 'KeyS', 'KeyA', 'KeyD', 'ShiftLeft', 'ShiftRight',
-  'ControlLeft', 'ControlRight', 'KeyT', 'KeyC', 'Digit1', 'Digit2', 'Digit3',
+  'KeyT', 'KeyC', 'Digit1', 'Digit2', 'Digit3',
   'KeyM', 'KeyI', 'KeyP', 'Escape', 'KeyN', 'KeyB',
   'KeyV', 'KeyQ', 'KeyE', 'Space',
 ]);
@@ -49,7 +49,7 @@ export function flightInputFromKeys(pressed: ReadonlySet<string>): FlightInput {
     pitch: (has('KeyW') ? -1 : 0) + (has('KeyS') ? 1 : 0),
     roll: (has('KeyD') ? 1 : 0) + (has('KeyA') ? -1 : 0),
     yaw: (has('KeyA') ? 1 : 0) + (has('KeyD') ? -1 : 0),
-    throttle: (has('ShiftLeft', 'ShiftRight') ? 1 : 0) + (has('ControlLeft', 'ControlRight') ? -1 : 0),
+    throttle: has('ShiftLeft', 'ShiftRight') ? 1 : 0,
   };
 }
 
@@ -366,7 +366,7 @@ export class InputManager {
       pitch: Math.max(-1, Math.min(1, keyboard.pitch + this.pointerPitch)),
       roll: Math.max(-1, Math.min(1, keyboard.roll + this.pointerRoll)),
       yaw: Math.max(-1, Math.min(1, keyboard.yaw + this.pointerYaw)),
-      throttle: (this.pressed.has('ControlLeft') || this.pressed.has('ControlRight')) ? -1 : (this.boost.active ? 1 : 0),
+      throttle: this.boost.active ? 1 : 0,
     };
   }
 }

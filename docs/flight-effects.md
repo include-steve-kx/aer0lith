@@ -10,7 +10,7 @@ The normal collision samples run on every fixed simulation step during the maneu
 
 ## Boost and side wakes
 
-A throttle press (Shift or the touch boost button) ignites twin colored plumes. Boost and brake preserve autopilot; W/S/A/D or a joystick direction takes manual control. They rise in about 65 ms, settle to a steady 42% flame while boost is held, then fade after release. Release fade defaults to 2.8 seconds and is adjustable from 0.3 to 8 seconds. Plumes default to a 54-meter maximum length and cast matching colored light onto nearby objects. A brief tap also leaves a fading flame. Disabling exhaust or setting brightness to zero explicitly hides it.
+A throttle press (Shift or the touch boost button) ignites twin colored plumes. Boost preserves autopilot; W/S/A/D or a joystick direction takes manual control. They rise in about 65 ms, settle to a steady 42% flame while boost is held, then fade after release. Release fade defaults to 2.8 seconds and is adjustable from 0.3 to 8 seconds. Plumes default to a 54-meter maximum length and cast matching colored light onto nearby objects. A brief tap also leaves a fading flame. Disabling exhaust or setting brightness to zero explicitly hides it.
 
 The flame has a straight centerline, broad tapered body, a bright core, and irregular fluttering tongues. Surface detail travels backward from the nozzles while the tongues flutter independently. Both motions integrate aircraft speed; neither uses a fixed-speed wall clock.
 
@@ -22,9 +22,9 @@ Four independent controls set **Side Backward Speed**, **Side Flutter Speed**, *
 
 ## Boost lock
 
-Hold Shift or the boost button for momentary boost. Three presses with at most 0.4 simulation seconds between presses lock boost immediately. The button shows LOCKED, without filling or a countdown. A fresh press unlocks and turns boost off until released. Autopilot remains engaged.
+Hold Shift or the boost button for momentary boost. Three presses with at most 0.4 simulation seconds between presses lock boost immediately. The icon button switches to its filled locked state, without a countdown. A fresh press unlocks and turns boost off until released. Autopilot remains engaged.
 
-Keyboard repeats and overlapping keyboard/touch holds count as one press. Long holds never lock. Focus loss clears an incomplete tap sequence but preserves an intentional lock; crash/checkpoint reset clears it. Ctrl temporarily overrides boost to brake.
+Keyboard repeats and overlapping keyboard/touch holds count as one press. Long holds never lock. Focus loss clears an incomplete tap sequence but preserves an intentional lock; crash/checkpoint reset clears it.
 
 ## Controls
 

@@ -41,9 +41,9 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 | `W` / `S` | Pitch nose up / down |
 | `A` / `D` | Coordinated roll and yaw left / right |
 | `Q` / `E` | One 360° dodge roll left / right; also available above the joystick |
-| `Shift` / `Ctrl` | Boost / brake without disengaging autopilot. Triple-tap boost to lock (up to 0.4 s between presses); tap again to unlock. |
+| `Shift` | Boost without disengaging autopilot. Triple-tap boost to lock (up to 0.4 s between presses); tap again to unlock. |
 | `T` | Toggle autopilot |
-| Hold `Space` / FIRE | Shoot bullets from randomized wing tips; release to stop |
+| Hold `Space` / fire icon | Shoot bullets from randomized wing tips; release to stop |
 | `C` or `1`–`3` | Cycle or select camera |
 | Mouse in camera `2` / `3` | Left-drag orbit, right-drag pan, wheel zoom; Shift does not change drag actions. Camera returns after release. |
 | `V` | Toggle Analysis / Ambient presentation mode |
@@ -78,7 +78,7 @@ Every 10–30 seconds, the aircraft emits a fast light-blue terrain probe outwar
 
 ## Bullets and meteor impacts
 
-Hold **Space** or the **FIRE** button to shoot. Each shot chooses a wing and has independent timing and aim variation. The four guns aim around a point 400 m ahead of the cross by default, within a 20° forward cone. When orbiting beyond that cone, a small hollow indicator shows the actual aim center when it is on screen. Bullets travel straight after launch; they do not track targets. Default spread is 0.35° (about a 2.4 m radius at 400 m), adjustable down to exact convergence.
+Hold **Space** or the fire crosshair button to shoot. Each shot chooses a wing and has independent timing and aim variation. The four guns aim around a point 400 m ahead of the cross by default, within a 20° forward cone. When orbiting beyond that cone, a small hollow indicator shows the actual aim center when it is on screen. Bullets travel straight after launch; they do not track targets. Default spread is 0.35° (about a 2.4 m radius at 400 m), adjustable down to exact convergence.
 
 Bullets damage meteors without scanning. At default durability, 6 / 12 / 18 m meteors take approximately 2 / 4 / 6 hits. Missiles remain instantly lethal. Destroyed meteors produce the same fragments, glass pulse, and shake regardless of the weapon. Nearby explosions also push the aircraft away, with a short settling period; autopilot and boost remain engaged, and collision stays active.
 

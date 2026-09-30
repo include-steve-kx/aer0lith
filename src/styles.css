@@ -569,15 +569,9 @@ kbd {
 .toggle-setting { min-height: 25px; }
 
 .fullscreen-button {
-  position: absolute;
-  right: calc(18px * var(--ui-scale));
-  bottom: calc(18px * var(--ui-scale));
-  width: calc(42px * var(--ui-scale));
-  height: calc(42px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale));
+  flex: 0 0 auto;
   border: 1px solid var(--ui-tone);
   background: transparent;
-  pointer-events: auto;
 }
 
 .fullscreen-button svg {
@@ -605,7 +599,7 @@ kbd {
 
 .flight-actions {
   position: absolute;
-  right: calc(66px * var(--ui-scale));
+  right: calc(18px * var(--ui-scale));
   bottom: calc(18px * var(--ui-scale));
   display: flex;
   gap: calc(6px * var(--ui-scale));
@@ -862,7 +856,6 @@ kbd {
   .system-controls button { min-width: 72px; padding: 6px 4px; font-size: 8px; }
   .settings-panel { right: 8px; top: 104px; width: min(300px, calc(100vw - 16px)); max-height: calc(100vh - 120px); }
   .flight-actions { right: 8px; bottom: 8px; }
-  .fullscreen-button { right: 8px; bottom: 8px; }
   .mode-button { left: 50%; bottom: 8px; min-width: 142px; transform: translateX(-50%); }
   .touch-joystick { width: 98px; height: 98px; }
   .touch-joystick-axis--horizontal { width: 74px; }
@@ -888,15 +881,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 #throttle-button {
   position: relative;
   isolation: isolate;
-  grid-template-rows: 1fr auto;
-  gap: 1px;
-  padding: 5px;
 }
-#throttle-button svg, #throttle-button .boost-label {
-  pointer-events: none;
-}
-#throttle-button svg { height: 18px; }
-.boost-label { font-size: 7px; line-height: 1; letter-spacing: 0; }
+#throttle-button svg { pointer-events: none; }
 #throttle-button.is-locked { background: var(--ui-tone); color: #050708; }
 
 .roll-actions {
@@ -941,7 +927,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 .meteor-cross::before { width: 7px; height: 1px; left: -3px; }
 .meteor-cross::after { height: 7px; width: 1px; top: -3px; }
 
-#fire-button { min-width: 44px; min-height: 44px; font: inherit; font-size: 11px; touch-action: none; }
+#fire-button { touch-action: none; }
 #fire-button.is-active { color: var(--background, #050708); background: var(--ui-tone); }
 .bullet-aim { position: absolute; width: 8px; height: 8px; border: 1px solid var(--ui-tone); border-radius: 50%; left: -4px; top: -4px; pointer-events: none; }
 .app #settings-panel .reset-settings {

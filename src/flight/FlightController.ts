@@ -155,7 +155,7 @@ export class FlightController {
   private updateThrottle(dt: number, throttleInput: number): void {
     const cruiseThrottle = (FLIGHT.nominalSpeed - FLIGHT.minSpeed)
       / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
-    if (Math.abs(throttleInput) > 0.01) {
+    if (throttleInput > 0.01) {
       this.throttle = clamp(this.throttle + throttleInput * 0.28 * dt, 0, 1);
     } else {
       this.throttle = approach(this.throttle, cruiseThrottle, 0.32 * dt);
@@ -242,7 +242,7 @@ export class FlightController {
       0,
       0.42,
     );
-    if (Math.abs(throttleInput) > 0.01) {
+    if (throttleInput > 0.01) {
       const previousSpeed = this.speed;
       this.updateThrottle(dt, throttleInput);
       if (blocked) this.speed = approach(previousSpeed, 8, 45 * dt);

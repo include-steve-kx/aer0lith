@@ -136,6 +136,7 @@ export class Hud {
     this.pauseButton.setAttribute('aria-label', paused ? 'Resume game' : 'Pause game');
     this.pauseButton.setAttribute('aria-pressed', String(paused));
     this.modeButton.disabled = paused;
+    this.fireButton.disabled = paused;
     this.probeButton.disabled = paused;
     this.throttleButton.disabled = paused;
     this.rollLeftButton.disabled = paused;
@@ -147,8 +148,6 @@ export class Hud {
     this.throttleButton.classList.toggle('is-locked', locked);
     this.throttleButton.setAttribute('aria-pressed', String(active));
     this.throttleButton.setAttribute('aria-label', locked ? 'Unlock boost' : 'Hold to boost; triple-tap to lock');
-    const label = this.throttleButton.querySelector('.boost-label');
-    if (label) label.textContent = locked ? 'LOCKED' : 'BOOST';
   }
 
   setProbeActive(active: boolean): void {

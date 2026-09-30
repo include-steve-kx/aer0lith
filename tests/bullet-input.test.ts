@@ -49,6 +49,7 @@ test('fire input queues quick taps, isolates focused controls and simultaneous p
     key('Space'); pointer(fire,'pointerdown',3); input.consumeFire(); pointer(fire,'pointerup',3); assert.equal(input.firing,true,'pointer release preserves keyboard fire'); key('Space','keyup'); assert.equal(input.firing,false);
     pointer(joystick,'pointerdown',1); pointer(throttle,'pointerdown',2); pointer(fire,'pointerdown',3);
     assert.equal(input.firing,true); assert.ok(input.read().roll>0); assert.equal(input.read().throttle,1);
+    key('ControlLeft'); assert.equal(input.read().throttle,1,'Control no longer overrides boost'); key('ControlLeft','keyup');
     pointer(fire,'pointercancel',3); assert.equal(input.consumeFire(),false); assert.equal(input.read().throttle,1,'fire cancellation preserves boost');
     pointer(joystick,'pointerup',1); pointer(throttle,'pointerup',2);
     pointer(fire,'pointerdown',4); pointer(fire,'pointerup',4); assert.equal(input.consumeFire(),true); assert.equal(input.consumeFire(),false);

@@ -17,6 +17,7 @@ test('keyboard directions map to the intended flight axes', () => {
   assert.equal(right.roll, 1);
   assert.equal(right.yaw, -1);
   assert.equal(flightInputFromKeys(new Set(['KeyQ', 'KeyE'])).yaw, 0);
+  assert.equal(flightInputFromKeys(new Set(['ControlLeft', 'ControlRight'])).throttle, 0);
 });
 
 test('touch joystick maps vertical motion to pitch and horizontal motion to roll', () => {
@@ -177,16 +178,20 @@ test('a single shallow collision sample does not trigger recovery', () => {
   assert.equal(flight.mode, 'manual');
 });
 
-test('boost changes speed without disengaging autopilot; steering takes over', () => {
+test('boost changes speed without disengaging autopilot; negative throttle is neutral and steering takes over', () => {
   const terrain = {
     sample: () => ({ x: 0, y: 50, tangentX: 0, tangentY: 0, width: 200, height: 200, openness: 1 }),
     densityAt: () => -100, collisionDensityAt: () => -100,
   } as unknown as ProceduralTerrain;
   const flight = new FlightController(terrain);
+  const coast = new FlightController(terrain);
   for (let i = 0; i < 8 * 120; i++) flight.update(FLIGHT.fixedStep, { ...neutral, throttle: 1 });
+  for (let i = 0; i < 8 * 120; i++) coast.update(FLIGHT.fixedStep, { ...neutral, throttle: 1 });
   assert.equal(flight.mode, 'autopilot'); assert.ok(flight.speed > 115);
   flight.update(FLIGHT.fixedStep, { ...neutral, throttle: -1 });
-  assert.equal(flight.mode, 'autopilot', 'braking also preserves steering assistance');
+  coast.update(FLIGHT.fixedStep, neutral);
+  assert.equal(flight.speed, coast.speed, 'negative throttle no longer applies braking');
+  assert.equal(flight.throttle, coast.throttle);
   flight.update(FLIGHT.fixedStep, { ...neutral, roll: 0.1, throttle: 1 });
   assert.equal(flight.mode, 'manual');
 });
