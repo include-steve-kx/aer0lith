@@ -146,3 +146,37 @@ test('a paused orbit does not return to chase after the normal delay', () => {
   for (let i = 0; i < 600; i++) rig.update(1 / 60, plane, orientation, 0, false, true);
   assert.ok(rig.camera.position.distanceTo(position) < 1e-7);
 });
+
+test('Shift leaves left-drag orbit and right-drag pan unchanged', () => {
+  type Listener = (event: PointerEvent) => void;
+  const listeners: { type: string; fn: Listener; capture: boolean }[] = [];
+  const documentListeners = new Map<string, Listener>();
+  const doc = {
+    addEventListener: (type: string, fn: Listener) => documentListeners.set(type, fn),
+    removeEventListener: (type: string) => documentListeners.delete(type),
+  };
+  const element = {
+    style: {}, clientWidth: 1280, clientHeight: 720, ownerDocument: doc,
+    setPointerCapture: () => {}, releasePointerCapture: () => {},
+    getRootNode: () => doc,
+    addEventListener: (type: string, fn: Listener, options?: {capture?: boolean}) => listeners.push({type, fn, capture: !!options?.capture}),
+    removeEventListener: () => {},
+  } as unknown as HTMLElement;
+  const rig = new CameraRig(16 / 9, element);
+  rig.controls.enableDamping = false;
+  const down = (button: number, shiftKey: boolean) => {
+    const event = { button, shiftKey, ctrlKey: false, metaKey: false, pointerId: 1,
+      pointerType: 'mouse', clientX: 400, clientY: 300, preventDefault: () => {} } as PointerEvent;
+    for (const listener of listeners.filter(l => l.type === 'pointerdown').sort((a, b) => Number(b.capture) - Number(a.capture))) listener.fn(event);
+    const target = rig.controls.target.clone(), orientation = rig.camera.quaternion.clone();
+    documentListeners.get('pointermove')!({ ...event, clientX: 460, clientY: 325 });
+    const result = { pan: target.distanceTo(rig.controls.target), turn: orientation.angleTo(rig.camera.quaternion) };
+    documentListeners.get('pointerup')!(event);
+    return result;
+  };
+  for (const shift of [false, true, false]) {
+    const orbit = down(0, shift), pan = down(2, shift);
+    assert.ok(orbit.pan < 1e-8 && orbit.turn > 0.01, 'left-drag orbits, including while boosting');
+    assert.ok(pan.pan > 0.1 && pan.turn < 1e-7, 'right-drag pans, including while boosting');
+  }
+});

@@ -1,4 +1,4 @@
-import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three';
+import { MOUSE, Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { COCKPIT_EYE } from '../core/aircraftGeometry.ts';
 import { CAMERA } from '../core/config.ts';
@@ -34,6 +34,13 @@ export class CameraRig {
     this.camera = new PerspectiveCamera(CAMERA.chaseFov, aspect, 0.1, 1700);
     this.camera.position.set(0, 8, -22);
     this.controls = new OrbitControls(this.camera, domElement);
+    // OrbitControls swaps rotate/pan on Shift. Compensate at pointer-down via
+    // its public mapping so Shift remains boost, including during right-drag.
+    domElement.addEventListener('pointerdown', event => {
+      const shiftOnly = event.shiftKey && !event.ctrlKey && !event.metaKey;
+      this.controls.mouseButtons.LEFT = shiftOnly ? MOUSE.PAN : MOUSE.ROTATE;
+      this.controls.mouseButtons.RIGHT = shiftOnly ? MOUSE.ROTATE : MOUSE.PAN;
+    }, { capture: true });
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.enablePan = true;
