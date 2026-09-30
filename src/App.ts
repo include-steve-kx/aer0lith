@@ -307,10 +307,10 @@ export class App {
       .applyQuaternion(this.flight.orientation);
     this.post.setScanWave(this.terrain.currentProbeWorldCenter, this.renderOrigin,
       this.terrain.currentProbeRadius, this.terrain.isProbeExpanding);
-    this.boostShake.update(this.paused ? 0 : rawDelta, this.throttleActive);
+    this.boostShake.update(this.paused ? 0 : rawDelta, this.flightEffects.burst.shakeIntensity);
     this.cockpitRoll.apply(this.cameraRig.camera, this.flight.cameraOrientation,
       this.cameraRig.mode === 'cockpit' ? this.flight.maneuverRollAngle : 0);
-    this.boostShake.apply(this.cameraRig.camera, this.elapsed, this.flight.speed);
+    this.boostShake.apply(this.cameraRig.camera, this.flight.speed);
     try {
       this.post.render(
         this.scene,
