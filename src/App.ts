@@ -207,6 +207,7 @@ export class App {
     if (!this.paused) {
       this.elapsed += rawDelta;
       this.accumulator += rawDelta;
+      this.flight.setCockpitCollision(this.cameraRig.mode === 'cockpit');
       const frameInput = this.input.read();
       let substeps = 0;
       while (this.accumulator >= FLIGHT.fixedStep && substeps < FLIGHT.maxSubsteps) {
@@ -290,10 +291,12 @@ export class App {
     this.aircraft.group.position.copy(this.renderPlanePosition);
     this.aircraft.group.quaternion.copy(this.flight.orientation);
     this.collisionDebug.group.position.copy(this.renderPlanePosition);
+    const cockpit = this.cameraRig.mode === 'cockpit';
+    this.flight.setCockpitCollision(cockpit);
+    this.collisionDebug.setCockpitMode(cockpit);
     this.collisionDebug.group.quaternion.copy(this.flight.orientation);
     this.collisionDebug.setColliding(this.flight.hasTerrainContact);
     this.collisionDebug.group.visible = this.collisionDebugEnabled && this.experienceMode === 'analysis';
-    const cockpit = this.cameraRig.mode === 'cockpit';
     this.aircraft.setCockpitMode(cockpit);
     this.route.setPresentationVisible(true);
   }

@@ -1,7 +1,6 @@
 import {
-  BufferGeometry,
-  Float32BufferAttribute,
   Group,
+  Vector3,
   IcosahedronGeometry,
   LineBasicMaterial,
   LineSegments,
@@ -9,6 +8,9 @@ import {
   MeshBasicMaterial,
   WireframeGeometry,
 } from 'three';
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
+import { COCKPIT_COLLISION_POINTS, COCKPIT_COLLISION_PROBES } from '../core/aircraftGeometry.ts';
+import { createAircraftGeometry } from './createAircraftGeometry.ts';
 import { COLLISION_PROBES, PALETTE } from '../core/config.ts';
 
 export class CollisionDebugView {
@@ -29,31 +31,35 @@ export class CollisionDebugView {
     depthWrite: false,
   });
   private colliding = false;
+  private readonly aircraft = new Group();
+  private readonly cockpit = new Group();
 
   constructor() {
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(COLLISION_PROBES.flat(), 3));
-    geometry.setIndex([
-      0, 1, 2,
-      0, 3, 1,
-      0, 2, 3,
-      1, 3, 2,
-    ]);
-    const hull = new LineSegments(
-      new WireframeGeometry(geometry),
-      this.hullMaterial,
-    );
-    hull.renderOrder = 20;
-    this.group.add(hull);
+    this.addShape(this.aircraft, createAircraftGeometry(), COLLISION_PROBES);
+    this.addShape(this.cockpit, new ConvexGeometry(COCKPIT_COLLISION_POINTS.map(p => new Vector3(...p))),
+      COCKPIT_COLLISION_PROBES);
+    this.group.add(this.aircraft, this.cockpit);
+    this.setCockpitMode(false);
+    this.group.visible = false;
+  }
 
-    const markerGeometry = new IcosahedronGeometry(0.24, 0);
-    for (const probe of COLLISION_PROBES) {
+  private addShape(group: Group, geometry: ReturnType<typeof createAircraftGeometry>, probes: number[][]): void {
+    const hull = new LineSegments(new WireframeGeometry(geometry), this.hullMaterial);
+    geometry.dispose();
+    hull.renderOrder = 20;
+    group.add(hull);
+    const markerGeometry = new IcosahedronGeometry(0.045, 0);
+    for (const probe of probes) {
       const marker = new Mesh(markerGeometry, this.markerMaterial);
       marker.position.set(probe[0], probe[1], probe[2]);
       marker.renderOrder = 21;
-      this.group.add(marker);
+      group.add(marker);
     }
-    this.group.visible = false;
+  }
+
+  setCockpitMode(active: boolean): void {
+    this.aircraft.visible = !active;
+    this.cockpit.visible = active;
   }
 
   setColliding(active: boolean): void {

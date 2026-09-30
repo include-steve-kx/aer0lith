@@ -1,3 +1,5 @@
+import { AIRCRAFT_COLLISION_PROBES } from './aircraftGeometry.ts';
+
 export const PALETTE = {
   background: 0x050708,
   sky: 0x101314,
@@ -51,12 +53,7 @@ export const FLIGHT = {
   checkpointInterval: 0.5,
 } as const;
 
-export const COLLISION_PROBES = [
-  [0, -0.28, -0.4],
-  [0, 0.1, 5.7],
-  [-5.5, -0.08, -0.65],
-  [5.5, -0.08, -0.65],
-] as const;
+export const COLLISION_PROBES = AIRCRAFT_COLLISION_PROBES;
 
 // Small visual penetrations are tolerated because the terrain is presented as
 // discrete samples rather than an opaque surface.

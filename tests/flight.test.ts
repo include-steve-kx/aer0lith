@@ -153,11 +153,11 @@ test('collision probes remain inside the visible aircraft silhouette', () => {
   } as unknown as ProceduralTerrain;
   const flight = new FlightController(flatTerrain);
   flight.takeManualControl();
-  flight.position.y = 0.45;
+  flight.position.y = 2.05;
   flight.update(FLIGHT.fixedStep, neutral);
   assert.equal(flight.mode, 'manual', 'aircraft should not collide while its visible underside is clear');
 
-  flight.position.y = 0.15;
+  flight.position.y = 1.65;
   for (let step = 0; step < 8; step += 1) flight.update(FLIGHT.fixedStep, neutral);
   assert.equal(flight.mode, 'crashed', 'aircraft should collide once its visible underside reaches terrain');
 });
@@ -175,4 +175,23 @@ test('a single shallow collision sample does not trigger recovery', () => {
   collisionDensity = -10;
   flight.update(FLIGHT.fixedStep, neutral);
   assert.equal(flight.mode, 'manual');
+});
+
+test('cockpit uses compact bounds, still collides head-on, and camera switching restores full wings', () => {
+  const terrain = {
+    sample: () => ({ x: 0, y: 0, tangentX: 0, tangentY: 0, width: 200, height: 200, openness: 1 }),
+    densityAt: () => -100,
+    collisionDensityAt: (x: number) => Math.abs(x) - 3,
+  } as unknown as ProceduralTerrain;
+  const flight = new FlightController(terrain);
+  flight.takeManualControl(); flight.setCockpitCollision(true);
+  for (let i = 0; i < 12; i++) flight.update(FLIGHT.fixedStep, neutral);
+  assert.equal(flight.mode, 'manual', 'compact cockpit fits a six metre passage');
+  flight.setCockpitCollision(false); flight.update(FLIGHT.fixedStep, neutral);
+  assert.equal(flight.mode, 'crashed', 'full wings hit the same narrow passage');
+  const wall = { ...terrain, collisionDensityAt: (_x: number, _y: number, z: number) => z - 6 } as ProceduralTerrain;
+  const headOn = new FlightController(wall);
+  headOn.takeManualControl(); headOn.setCockpitCollision(true);
+  for (let i = 0; i < 12 && headOn.mode !== 'crashed'; i++) headOn.update(FLIGHT.fixedStep, neutral);
+  assert.equal(headOn.mode, 'crashed', 'cockpit assistance never disables collision');
 });

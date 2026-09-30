@@ -6,6 +6,7 @@ import {
   COLLISION_TOLERANCE,
   FLIGHT,
 } from '../core/config.ts';
+import { COCKPIT_COLLISION_PROBES } from '../core/aircraftGeometry.ts';
 import type { FlightInput, FlightMode, SafeCheckpoint } from '../core/types.ts';
 import type { ProceduralTerrain } from '../world/TerrainModel.ts';
 
@@ -25,6 +26,7 @@ function wrapAngle(value: number): number {
 export class FlightController {
   readonly position = new Vector3();
   readonly orientation = new Quaternion();
+  private cockpitCollision = false;
   speed: number = FLIGHT.nominalSpeed;
   throttle: number = (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
   mode: FlightMode = 'loading';
@@ -149,9 +151,16 @@ export class FlightController {
     this.orientation.setFromEuler(this.euler).normalize();
   }
 
+  setCockpitCollision(active: boolean): void {
+    if (active === this.cockpitCollision) return;
+    this.cockpitCollision = active;
+    this.collisionContactTime = 0;
+  }
+
   private checkCollision(dt: number): void {
     let deepestPenetration = 0;
-    for (const offset of COLLISION_PROBES) {
+    const probes = this.cockpitCollision ? COCKPIT_COLLISION_PROBES : COLLISION_PROBES;
+    for (const offset of probes) {
       this.samplePoint.set(offset[0], offset[1], offset[2]).applyQuaternion(this.orientation).add(this.position);
       const collisionDensity = this.terrain.collisionDensityAt?.(
         this.samplePoint.x,

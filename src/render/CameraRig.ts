@@ -1,5 +1,6 @@
 import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { COCKPIT_EYE } from '../core/aircraftGeometry.ts';
 import { CAMERA } from '../core/config.ts';
 import type { CameraMode } from '../core/types.ts';
 
@@ -96,7 +97,7 @@ export class CameraRig {
       this.lookMatrix.lookAt(this.desiredPosition, this.desiredTarget, this.up);
       this.desiredQuaternion.setFromRotationMatrix(this.lookMatrix);
     } else if (this.mode === 'cockpit') {
-      this.offset.set(0, 0.72, 2.4).applyQuaternion(planeOrientation);
+      this.offset.set(...COCKPIT_EYE).applyQuaternion(planeOrientation);
       this.desiredPosition.copy(planePosition).add(this.offset);
       this.desiredTarget.copy(this.desiredPosition).addScaledVector(this.forward, 60);
       this.aircraftUp.copy(this.up).applyQuaternion(planeOrientation);
