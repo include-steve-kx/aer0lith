@@ -153,6 +153,66 @@
             </label>
           </section>
 
+          <section class="settings-section" aria-labelledby="settings-boost-title">
+            <h2 id="settings-boost-title">BOOST + WAKES</h2>
+            <label class="toggle-setting" for="boost-exhaust-enabled">
+              <span>BOOST EXHAUST</span><input id="boost-exhaust-enabled" type="checkbox" checked />
+            </label>
+            <label for="boost-exhaust-strength"><span>EXHAUST + LIGHT</span><output id="boost-exhaust-strength-value">1</output></label>
+            <input id="boost-exhaust-strength" type="range" min="0" max="2" step="0.05" value="1" />
+            <label for="boost-exhaust-length"><span>EXHAUST LENGTH</span><output id="boost-exhaust-length-value">54 M</output></label>
+            <input id="boost-exhaust-length" type="range" min="5" max="120" step="1" value="54" />
+            <label for="boost-exhaust-width"><span>EXHAUST WIDTH</span><output id="boost-exhaust-width-value">0.45×</output></label>
+            <input id="boost-exhaust-width" type="range" min="0.15" max="1.5" step="0.05" value="0.45" />
+            <label for="boost-fade-duration"><span>RELEASE FADE TIME</span><output id="boost-fade-duration-value">2.8 S</output></label>
+            <input id="boost-fade-duration" type="range" min="0.3" max="8" step="0.1" value="2.8" />
+            <label class="color-setting" for="boost-exhaust-color">
+              <span>EXHAUST COLOR</span><input id="boost-exhaust-color" type="color" value="#8cffe0" />
+            </label>
+            <label class="toggle-setting" for="boost-glass-enabled">
+              <span>BOOSTER GLASS</span><input id="boost-glass-enabled" type="checkbox" checked />
+            </label>
+            <label for="boost-glass-width"><span>GLASS WIDTH</span><output id="boost-glass-width-value">0.55×</output></label>
+            <input id="boost-glass-width" type="range" min="0.1" max="2" step="0.05" value="0.55" />
+            <label for="boost-glass-length"><span>GLASS LENGTH / FLAME</span><output id="boost-glass-length-value">65%</output></label>
+            <input id="boost-glass-length" type="range" min="0.2" max="1.5" step="0.05" value="0.65" />
+            <button id="boost-glass-debug" type="button" aria-pressed="false">BOOSTER MESH / GLASS</button>
+            <label for="boost-refraction"><span>BOOSTER REFRACTION</span><output id="boost-refraction-value">1</output></label>
+            <input id="boost-refraction" type="range" min="0" max="3" step="0.05" value="1" />
+            <label for="boost-dispersion"><span>BOOSTER DISPERSION</span><output id="boost-dispersion-value">0.18</output></label>
+            <input id="boost-dispersion" type="range" min="0" max="0.6" step="0.01" value="0.18" />
+            <label for="boost-flutter"><span>FLAME FLUTTER</span><output id="boost-flutter-value">0.45 M</output></label>
+            <input id="boost-flutter" type="range" min="0" max="2" step="0.05" value="0.45" />
+            <label for="boost-flutter-rate"><span>FLUTTER RATE</span><output id="boost-flutter-rate-value">1×</output></label>
+            <input id="boost-flutter-rate" type="range" min="0" max="3" step="0.05" value="1" />
+            <label for="boost-shake-strength"><span>CAMERA SHAKE</span><output id="boost-shake-strength-value">0.35</output></label>
+            <input id="boost-shake-strength" type="range" min="0" max="2" step="0.05" value="0.65" />
+            <label for="boost-shake-frequency"><span>SHAKE FREQUENCY</span><output id="boost-shake-frequency-value">14 HZ</output></label>
+            <input id="boost-shake-frequency" type="range" min="4" max="30" step="1" value="14" />
+            <h3>SIDE WAKES</h3>
+            <label class="toggle-setting" for="wing-warp-enabled">
+              <span>SIDE WAKE SHEETS</span><input id="wing-warp-enabled" type="checkbox" checked />
+            </label>
+            <label for="wing-warp-length"><span>SIDE LENGTH</span><output id="wing-warp-length-value">120 M</output></label>
+            <input id="wing-warp-length" type="range" min="20" max="240" step="5" value="120" />
+            <label for="wing-warp-height"><span>SIDE HEIGHT</span><output id="wing-warp-height-value">14 M</output></label>
+            <input id="wing-warp-height" type="range" min="2" max="32" step="0.5" value="14" />
+            <label for="wing-warp-thickness"><span>SIDE THICKNESS</span><output id="wing-warp-thickness-value">0.3 M</output></label>
+            <input id="wing-warp-thickness" type="range" min="0.02" max="2" step="0.02" value="0.3" />
+            <label for="wing-warp-flutter"><span>SIDE FLUTTER</span><output id="wing-warp-flutter-value">0.6 M</output></label>
+            <input id="wing-warp-flutter" type="range" min="0" max="2" step="0.05" value="0.6" />
+            <h3>SIDE WAKE GLASS</h3>
+            <label for="wing-warp-strength"><span>REFRACTION STRENGTH</span><output id="wing-warp-strength-value">1</output></label>
+            <input id="wing-warp-strength" type="range" min="0" max="3" step="0.05" value="1" />
+            <label for="wing-warp-opacity"><span>SURFACE SHEEN</span><output id="wing-warp-opacity-value">0.045</output></label>
+            <input id="wing-warp-opacity" type="range" min="0" max="0.2" step="0.005" value="0.045" />
+            <label for="wing-warp-dispersion"><span>DISPERSION</span><output id="wing-warp-dispersion-value">0.12</output></label>
+            <input id="wing-warp-dispersion" type="range" min="0" max="0.4" step="0.01" value="0.12" />
+            <div class="settings-actions">
+              <button id="wake-debug" type="button" aria-label="Show opaque wake geometry" aria-pressed="false">WAKE GEOMETRY / GLASS</button>
+            </div>
+          </section>
+
           <section class="settings-section" aria-labelledby="settings-wind-title">
             <h2 id="settings-wind-title">WIND STREAKS</h2>
             <label for="wind-streak-count">

@@ -103,6 +103,9 @@ function createTerrainMaterial(): ShaderMaterial {
   return new ShaderMaterial({
     uniforms: {
       uAircraftPosition: { value: new Vector3() },
+      uBoostPosition: { value: new Vector3() },
+      uBoostColor: { value: new Color() },
+      uBoostPower: { value: 0 },
       uMeshColor: { value: new Color(0x363d3e) },
       uDotColor: { value: new Color(PALETTE.terrainPoints) },
       uAlertColor: { value: new Color(PALETTE.alertRed) },
@@ -185,6 +188,8 @@ function createTerrainMaterial(): ShaderMaterial {
     fragmentShader: `
       #include <common>
       #include <fog_pars_fragment>
+      uniform vec3 uBoostPosition, uBoostColor;
+      uniform float uBoostPower;
       uniform vec3 uMeshColor;
       uniform vec3 uDotColor;
       uniform vec3 uAlertColor;
@@ -315,6 +320,11 @@ function createTerrainMaterial(): ShaderMaterial {
           color = mix(meshColor, dotColor, clamp(dotMask * dotReveal, 0.0, 1.0));
           color = mix(color, uProbeColor * 1.08, ringMask);
         #endif
+        vec3 toBoost = uBoostPosition - vTerrainWorldPosition;
+        float boostDistance = length(toBoost);
+        float boostFalloff = pow(max(0.0, 1.0 - boostDistance / 46.0), 2.0);
+        float boostDiffuse = max(0.0, dot(faceNormal, toBoost / max(boostDistance, 0.001)));
+        color += uBoostColor * uBoostPower * boostFalloff * (0.2 + boostDiffuse * 1.4);
         gl_FragColor = vec4(color, 1.0);
         #include <fog_fragment>
       }
@@ -548,6 +558,12 @@ export class TerrainManager {
   updateRenderOrigin(origin: Vector3): void {
     this.currentRenderOrigin.copy(origin);
     for (const chunk of this.active.values()) chunk.updateRenderPosition(origin);
+  }
+
+  updateBoostLight(position: Vector3, color: Color, intensity: number): void {
+    this.terrainMaterial.uniforms.uBoostPosition.value.copy(position);
+    this.terrainMaterial.uniforms.uBoostColor.value.copy(color);
+    this.terrainMaterial.uniforms.uBoostPower.value = intensity;
   }
 
   updateAircraftPosition(renderPosition: Vector3): void {

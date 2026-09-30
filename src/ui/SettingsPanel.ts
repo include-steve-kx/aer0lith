@@ -1,3 +1,4 @@
+import type { FlightEffectSettings } from '../render/FlightEffects.ts';
 import { bindButtonAction } from './bindButtonAction.ts';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -32,7 +33,9 @@ export function migrateVisualSettingsV1(saved: Record<string, unknown>): Record<
   };
 }
 
-export interface VisualSettings {
+export interface VisualSettings extends FlightEffectSettings {
+  boostShakeStrength: number;
+  boostShakeFrequency: number;
   renderResolutionMode: 'full' | 'balanced' | 'adaptive';
   terrainRenderingMode: 'dot' | 'mesh';
   backgroundColor: string;
@@ -96,6 +99,52 @@ export class SettingsPanel {
   private readonly terrainDotRadiusM = element<HTMLInputElement>('terrain-dot-radius');
   private readonly terrainDotDensity = element<HTMLInputElement>('terrain-dot-density');
   private readonly terrainColor = element<HTMLInputElement>('terrain-color');
+  private readonly wakeDebugButton = element<HTMLButtonElement>('wake-debug');
+  private wakeDebugEnabled = false;
+  private readonly boostFadeDuration = element<HTMLInputElement>('boost-fade-duration');
+  private readonly boostFadeDurationValue = element<HTMLOutputElement>('boost-fade-duration-value');
+  private readonly boostGlassDebugButton = element<HTMLButtonElement>('boost-glass-debug');
+  private boostGlassDebug = false;
+  private readonly boostExhaustWidth = element<HTMLInputElement>('boost-exhaust-width');
+  private readonly boostExhaustWidthValue = element<HTMLOutputElement>('boost-exhaust-width-value');
+  private readonly boostGlassWidth = element<HTMLInputElement>('boost-glass-width');
+  private readonly boostGlassWidthValue = element<HTMLOutputElement>('boost-glass-width-value');
+  private readonly boostGlassLength = element<HTMLInputElement>('boost-glass-length');
+  private readonly boostGlassLengthValue = element<HTMLOutputElement>('boost-glass-length-value');
+  private readonly boostGlassEnabled = element<HTMLInputElement>('boost-glass-enabled');
+  private readonly boostRefraction = element<HTMLInputElement>('boost-refraction');
+  private readonly boostRefractionValue = element<HTMLOutputElement>('boost-refraction-value');
+  private readonly boostDispersion = element<HTMLInputElement>('boost-dispersion');
+  private readonly boostDispersionValue = element<HTMLOutputElement>('boost-dispersion-value');
+  private readonly boostFlutter = element<HTMLInputElement>('boost-flutter');
+  private readonly boostFlutterValue = element<HTMLOutputElement>('boost-flutter-value');
+  private readonly boostFlutterRate = element<HTMLInputElement>('boost-flutter-rate');
+  private readonly boostFlutterRateValue = element<HTMLOutputElement>('boost-flutter-rate-value');
+  private readonly boostShakeStrength = element<HTMLInputElement>('boost-shake-strength');
+  private readonly boostShakeStrengthValue = element<HTMLOutputElement>('boost-shake-strength-value');
+  private readonly boostShakeFrequency = element<HTMLInputElement>('boost-shake-frequency');
+  private readonly boostShakeFrequencyValue = element<HTMLOutputElement>('boost-shake-frequency-value');
+  private readonly boostExhaustColor = element<HTMLInputElement>('boost-exhaust-color');
+  private readonly boostExhaustLength = element<HTMLInputElement>('boost-exhaust-length');
+  private readonly boostExhaustLengthValue = element<HTMLOutputElement>('boost-exhaust-length-value');
+  private readonly wingWarpLength = element<HTMLInputElement>('wing-warp-length');
+  private readonly wingWarpLengthValue = element<HTMLOutputElement>('wing-warp-length-value');
+  private readonly wingWarpHeight = element<HTMLInputElement>('wing-warp-height');
+  private readonly wingWarpHeightValue = element<HTMLOutputElement>('wing-warp-height-value');
+  private readonly wingWarpThickness = element<HTMLInputElement>('wing-warp-thickness');
+  private readonly wingWarpThicknessValue = element<HTMLOutputElement>('wing-warp-thickness-value');
+  private readonly wingWarpFlutter = element<HTMLInputElement>('wing-warp-flutter');
+  private readonly wingWarpFlutterValue = element<HTMLOutputElement>('wing-warp-flutter-value');
+  private readonly wingWarpOpacity = element<HTMLInputElement>('wing-warp-opacity');
+  private readonly wingWarpOpacityValue = element<HTMLOutputElement>('wing-warp-opacity-value');
+  private readonly wingWarpDispersion = element<HTMLInputElement>('wing-warp-dispersion');
+  private readonly wingWarpDispersionValue = element<HTMLOutputElement>('wing-warp-dispersion-value');
+  private readonly boostExhaustEnabled = element<HTMLInputElement>('boost-exhaust-enabled');
+  private readonly boostExhaustStrength = element<HTMLInputElement>('boost-exhaust-strength');
+  private readonly wingWarpEnabled = element<HTMLInputElement>('wing-warp-enabled');
+  private readonly wingWarpStrength = element<HTMLInputElement>('wing-warp-strength');
+  private readonly boostExhaustStrengthValue = element<HTMLOutputElement>('boost-exhaust-strength-value');
+  private readonly wingWarpStrengthValue = element<HTMLOutputElement>('wing-warp-strength-value');
   private readonly planeColor = element<HTMLInputElement>('plane-color');
   private readonly autopilotGuideColor = element<HTMLInputElement>('autopilot-guide-color');
   private readonly windStreakLength = element<HTMLInputElement>('wind-streak-length');
@@ -171,6 +220,14 @@ export class SettingsPanel {
       }
     });
     bindButtonAction(this.button, () => this.toggle());
+    bindButtonAction(this.boostGlassDebugButton, () => {
+      this.boostGlassDebug = !this.boostGlassDebug;
+      this.emit();
+    });
+    bindButtonAction(this.wakeDebugButton, () => {
+      this.wakeDebugEnabled = !this.wakeDebugEnabled;
+      this.emit();
+    });
     for (const input of this.panel.querySelectorAll('input, select')) {
       input.addEventListener('input', () => this.emit());
       input.addEventListener('change', () => this.emit());
@@ -194,6 +251,31 @@ export class SettingsPanel {
       terrainDotDensityPer100M2: this.terrainDotDensity.valueAsNumber,
       terrainColor: this.terrainColor.value,
       planeColor: this.planeColor.value,
+      wakeDebugEnabled: this.wakeDebugEnabled,
+      boostFadeDuration: this.boostFadeDuration.valueAsNumber,
+      boostGlassEnabled: this.boostGlassEnabled.checked,
+      boostGlassDebug: this.boostGlassDebug,
+      boostExhaustWidth: this.boostExhaustWidth.valueAsNumber,
+      boostGlassWidth: this.boostGlassWidth.valueAsNumber,
+      boostGlassLength: this.boostGlassLength.valueAsNumber,
+      boostRefraction: this.boostRefraction.valueAsNumber,
+      boostDispersion: this.boostDispersion.valueAsNumber,
+      boostFlutter: this.boostFlutter.valueAsNumber,
+      boostFlutterRate: this.boostFlutterRate.valueAsNumber,
+      boostShakeStrength: this.boostShakeStrength.valueAsNumber,
+      boostShakeFrequency: this.boostShakeFrequency.valueAsNumber,
+      boostExhaustColor: this.boostExhaustColor.value,
+      boostExhaustLength: this.boostExhaustLength.valueAsNumber,
+      wingWarpLength: this.wingWarpLength.valueAsNumber,
+      wingWarpHeight: this.wingWarpHeight.valueAsNumber,
+      wingWarpThickness: this.wingWarpThickness.valueAsNumber,
+      wingWarpFlutter: this.wingWarpFlutter.valueAsNumber,
+      wingWarpOpacity: this.wingWarpOpacity.valueAsNumber,
+      wingWarpDispersion: this.wingWarpDispersion.valueAsNumber,
+      boostExhaustEnabled: this.boostExhaustEnabled.checked,
+      boostExhaustStrength: this.boostExhaustStrength.valueAsNumber,
+      wingWarpEnabled: this.wingWarpEnabled.checked,
+      wingWarpStrength: this.wingWarpStrength.valueAsNumber,
       autopilotGuideColor: this.autopilotGuideColor.value,
       windStreakCount: this.windStreakCount.valueAsNumber,
       windStreakLength: this.windStreakLength.valueAsNumber,
@@ -308,6 +390,29 @@ export class SettingsPanel {
       this.restoreRange(this.crtVignette, saved.crtVignette);
       this.restoreRange(this.crtChromatic, saved.crtChromatic);
       this.restoreRange(this.crtDither, saved.crtDither);
+      this.restoreRange(this.boostFadeDuration, saved.boostFadeDuration);
+      if (typeof saved.boostGlassEnabled === 'boolean') this.boostGlassEnabled.checked = saved.boostGlassEnabled;
+      this.restoreRange(this.boostExhaustWidth, saved.boostExhaustWidth);
+      this.restoreRange(this.boostGlassWidth, saved.boostGlassWidth);
+      this.restoreRange(this.boostGlassLength, saved.boostGlassLength);
+      this.restoreRange(this.boostRefraction, saved.boostRefraction);
+      this.restoreRange(this.boostDispersion, saved.boostDispersion);
+      this.restoreRange(this.boostFlutter, saved.boostFlutter);
+      this.restoreRange(this.boostFlutterRate, saved.boostFlutterRate);
+      this.restoreRange(this.boostShakeStrength, saved.boostExhaustWidth === undefined && saved.boostShakeStrength === 0.35 ? 0.65 : saved.boostShakeStrength);
+      this.restoreRange(this.boostShakeFrequency, saved.boostShakeFrequency);
+      this.restoreColor(this.boostExhaustColor, saved.boostExhaustColor);
+      this.restoreRange(this.boostExhaustLength, saved.boostExhaustWidth === undefined && saved.boostExhaustLength === 36 ? 54 : saved.boostExhaustLength);
+      this.restoreRange(this.wingWarpLength, saved.wingWarpLength);
+      this.restoreRange(this.wingWarpHeight, saved.wingWarpHeight);
+      this.restoreRange(this.wingWarpThickness, saved.wingWarpThickness);
+      this.restoreRange(this.wingWarpFlutter, saved.wingWarpFlutter);
+      this.restoreRange(this.wingWarpOpacity, saved.wingWarpOpacity);
+      this.restoreRange(this.wingWarpDispersion, saved.wingWarpDispersion);
+      if (typeof saved.boostExhaustEnabled === 'boolean') this.boostExhaustEnabled.checked = saved.boostExhaustEnabled;
+      if (typeof saved.wingWarpEnabled === 'boolean') this.wingWarpEnabled.checked = saved.wingWarpEnabled;
+      this.restoreRange(this.boostExhaustStrength, saved.boostExhaustStrength);
+      this.restoreRange(this.wingWarpStrength, saved.wingWarpStrength);
       if (typeof saved.motionBlurEnabled === 'boolean') this.motionBlurEnabled.checked = saved.motionBlurEnabled;
       this.restoreRange(this.motionBlurStrength, saved.motionBlurStrength);
       this.restoreRange(this.motionBlurStartSpeed, saved.motionBlurStartSpeed);
@@ -380,6 +485,31 @@ export class SettingsPanel {
     this.crtVignetteValue.textContent = this.crtVignette.valueAsNumber.toFixed(2);
     this.crtChromaticValue.textContent = this.crtChromatic.valueAsNumber.toFixed(2);
     this.crtDitherValue.textContent = this.crtDither.valueAsNumber.toFixed(2);
+    this.wakeDebugButton.textContent = this.wakeDebugEnabled ? 'WAKE GEOMETRY / OPAQUE' : 'WAKE GEOMETRY / GLASS';
+    this.wakeDebugButton.setAttribute('aria-pressed', String(this.wakeDebugEnabled));
+    this.wakeDebugButton.setAttribute('aria-label', this.wakeDebugEnabled ? 'Hide opaque wake geometry' : 'Show opaque wake geometry');
+    this.boostFadeDurationValue.textContent = this.boostFadeDuration.valueAsNumber.toFixed(2) + ' S';
+    this.boostExhaustWidthValue.textContent = this.boostExhaustWidth.valueAsNumber.toFixed(2) + '×';
+    this.boostGlassWidthValue.textContent = this.boostGlassWidth.valueAsNumber.toFixed(2) + '×';
+    this.boostGlassLengthValue.textContent = (this.boostGlassLength.valueAsNumber * 100).toFixed(0) + '%';
+    this.boostGlassDebugButton.textContent = this.boostGlassDebug ? 'BOOSTER MESH / OPAQUE' : 'BOOSTER MESH / GLASS';
+    this.boostGlassDebugButton.setAttribute('aria-pressed', String(this.boostGlassDebug));
+    this.boostGlassDebugButton.setAttribute('aria-label', this.boostGlassDebug ? 'Hide opaque booster geometry' : 'Show opaque booster geometry');
+    this.boostRefractionValue.textContent = this.boostRefraction.valueAsNumber.toFixed(2) + '';
+    this.boostDispersionValue.textContent = this.boostDispersion.valueAsNumber.toFixed(2) + '';
+    this.boostFlutterValue.textContent = this.boostFlutter.valueAsNumber.toFixed(2) + ' M';
+    this.boostFlutterRateValue.textContent = this.boostFlutterRate.valueAsNumber.toFixed(2) + '×';
+    this.boostShakeStrengthValue.textContent = this.boostShakeStrength.valueAsNumber.toFixed(2) + '';
+    this.boostShakeFrequencyValue.textContent = this.boostShakeFrequency.valueAsNumber.toFixed(0) + ' HZ';
+    this.boostExhaustLengthValue.textContent = this.boostExhaustLength.valueAsNumber.toFixed(0) + ' m';
+    this.wingWarpLengthValue.textContent = this.wingWarpLength.valueAsNumber.toFixed(0) + ' m';
+    this.wingWarpHeightValue.textContent = this.wingWarpHeight.valueAsNumber.toFixed(2) + ' m';
+    this.wingWarpThicknessValue.textContent = this.wingWarpThickness.valueAsNumber.toFixed(2) + ' m';
+    this.wingWarpFlutterValue.textContent = this.wingWarpFlutter.valueAsNumber.toFixed(2) + ' m';
+    this.wingWarpOpacityValue.textContent = this.wingWarpOpacity.valueAsNumber.toFixed(3);
+    this.wingWarpDispersionValue.textContent = this.wingWarpDispersion.valueAsNumber.toFixed(2);
+    this.boostExhaustStrengthValue.textContent = this.boostExhaustStrength.valueAsNumber.toFixed(2);
+    this.wingWarpStrengthValue.textContent = this.wingWarpStrength.valueAsNumber.toFixed(2);
     this.motionBlurStrengthValue.textContent = this.motionBlurStrength.valueAsNumber.toFixed(2);
     this.motionBlurStartSpeedValue.textContent = `${this.motionBlurStartSpeed.valueAsNumber.toFixed(0)} M/S`;
     this.motionBlurMaxPixelsValue.textContent = `${this.motionBlurMaxPixels.valueAsNumber.toFixed(0)} PX`;

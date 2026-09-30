@@ -1,4 +1,5 @@
 import {
+  Color,
   DepthTexture,
   Matrix4,
   Vector3,
@@ -13,6 +14,7 @@ import {
   WebGLRenderTarget,
 } from 'three';
 import { motionBlurExposure, motionBlurStreak } from './MotionBlur.ts';
+import type { FlightEffects } from './FlightEffects.ts';
 
 export class PostProcessor {
   private readonly renderer: WebGLRenderer;
@@ -23,6 +25,9 @@ export class PostProcessor {
   private readonly glowMaterial: ShaderMaterial;
   private target: WebGLRenderTarget;
   private processedTarget: WebGLRenderTarget;
+  private readonly wakeTarget: WebGLRenderTarget;
+  private readonly savedClearColor = new Color();
+  private readonly neutralRefraction = new Color(128 / 255, 128 / 255, 0);
   private width = 1;
   private height = 1;
   private scale = 1;
@@ -31,17 +36,23 @@ export class PostProcessor {
   private motionBlurEnabled = true;
   private motionBlurStrength = 0.45;
   private motionBlurStartSpeed = 20;
+  private disposed = false;
 
   constructor(renderer: WebGLRenderer) {
     this.renderer = renderer;
     this.target = this.createTarget(1, 1);
     this.processedTarget = this.createTarget(1, 1);
     this.target.depthTexture = new DepthTexture(1, 1);
+    this.wakeTarget = this.createTarget(1, 1);
+    this.wakeTarget.depthTexture = new DepthTexture(1, 1);
     this.material = new ShaderMaterial({
       uniforms: {
         tDiffuse: { value: this.target.texture },
         uResolution: { value: new Vector2(1, 1) },
         tDepth: { value: this.target.depthTexture },
+        tWake: { value: this.wakeTarget.texture },
+        tWakeDepth: { value: this.wakeTarget.depthTexture },
+        uWakeEnabled: { value: 0 },
         uProjection: { value: new Matrix4() },
         uProjectionInverse: { value: new Matrix4() },
         uTravelView: { value: new Vector3() },
@@ -70,6 +81,8 @@ export class PostProcessor {
         uniform sampler2D tDiffuse;
         uniform vec2 uResolution;
         uniform sampler2D tDepth;
+        uniform sampler2D tWake, tWakeDepth;
+        uniform float uWakeEnabled;
         uniform mat4 uProjection;
         uniform mat4 uProjectionInverse;
         uniform vec3 uTravelView;
@@ -135,6 +148,13 @@ export class PostProcessor {
           }
           return total / weight;
         }
+        vec2 refractedUv(vec2 uv, vec2 offset, float glassDepth) {
+          if (dot(offset, offset) < 0.000000000001) return uv;
+          vec2 candidate = clamp(uv + offset, 0.5 / uResolution, 1.0 - 0.5 / uResolution);
+          // Reject a displaced sample that would pull foreground geometry into
+          // the wake, especially the ship's sharp wing silhouette.
+          return texture2D(tDepth, candidate).r < glassDepth - 0.000001 ? uv : candidate;
+        }
         void main() {
           vec2 curved = vUv * 2.0 - 1.0;
           curved *= 1.0 + dot(curved, curved) * uCurvature * uCrtEnabled;
@@ -152,10 +172,31 @@ export class PostProcessor {
             texel.x * (0.58 * uChromaticStrength * uCrtEnabled + 3.2 * uCrash),
             0.0
           );
+          vec2 originalUv = uv;
+          vec2 wakeOffset = vec2(0.0);
+          float dispersion = 0.0;
+          float sheen = 0.0;
+          float glassDepth = 1.0;
+          if (uWakeEnabled > 0.5) {
+            vec4 wake = texture2D(tWake, uv);
+            if (wake.a > 0.001) {
+              wakeOffset = ((wake.rg * 255.0 - 128.0) / 127.0) * 84.0
+                * (uResolution.y / 1080.0) / uResolution;
+              dispersion = wake.b;
+              sheen = max(0.0, (wake.a * 255.0 - 1.0) / 254.0);
+              glassDepth = texture2D(tWakeDepth, originalUv).r;
+            }
+          }
+          uv = refractedUv(originalUv, wakeOffset, glassDepth);
           vec3 base = texture2D(tDiffuse, uv).rgb;
           vec3 color = motionSample(uv);
+          if (dispersion > 0.001) {
+            color.r += texture2D(tDiffuse, refractedUv(originalUv, wakeOffset * (1.0 + dispersion), glassDepth)).r - base.r;
+            color.b += texture2D(tDiffuse, refractedUv(originalUv, wakeOffset * (1.0 - dispersion), glassDepth)).b - base.b;
+          }
           color.r += texture2D(tDiffuse, uv + aberration).r - base.r;
           color.b += texture2D(tDiffuse, uv - aberration).b - base.b;
+          color = mix(color, vec3(0.8, 0.9, 1.0), sheen);
           float scanWave = sin(uv.y * uResolution.y * 3.14159);
           float scan = 1.0 - 0.12 * uScanlineStrength * uCrtEnabled * (1.0 - scanWave);
           float phosphorColumn = mod(floor(uv.x * uResolution.x), 3.0);
@@ -247,6 +288,7 @@ export class PostProcessor {
     const renderHeight = Math.max(1, Math.floor(height * pixelRatio * this.scale));
     this.target.setSize(renderWidth, renderHeight);
     this.processedTarget.setSize(renderWidth, renderHeight);
+    this.wakeTarget.setSize(renderWidth, renderHeight);
     this.material.uniforms.uResolution.value.set(renderWidth, renderHeight);
     this.glowMaterial.uniforms.uTexel.value.set(1 / renderWidth, 1 / renderHeight);
   }
@@ -293,7 +335,10 @@ export class PostProcessor {
   }
 
   render(scene: Scene, camera: OrthographicCamera | import('three').PerspectiveCamera, time: number, crash: number,
-    velocity = new Vector3(), shipPosition = new Vector3()): void {
+    velocity = new Vector3(), shipPosition = new Vector3(), flightEffects?: FlightEffects): void {
+    const wakeActive = flightEffects?.hasWake ?? false;
+    const refractionActive = wakeActive;
+    this.material.uniforms.uWakeEnabled.value = refractionActive ? 1 : 0;
     const exposure = this.motionBlurEnabled
       ? motionBlurExposure(velocity.length(), this.motionBlurStrength, this.motionBlurStartSpeed) : 0;
     this.material.uniforms.uBlurPixels.value = this.motionBlurEnabled
@@ -305,18 +350,49 @@ export class PostProcessor {
     this.material.uniforms.uShipView.value.copy(shipPosition).applyMatrix4(camera.matrixWorldInverse);
     this.material.uniforms.uTravelView.value.copy(velocity)
       .transformDirection(camera.matrixWorldInverse).multiplyScalar(velocity.length() * exposure);
-    if (exposure <= 0 && !this.crtEnabled && !this.glowEnabled && crash <= 0 && this.scale >= 0.999) {
-      this.renderer.setRenderTarget(null);
-      this.renderer.render(scene, camera);
-      return;
-    }
+    // Keep one linear scene/output path even when effects are disabled. Native
+    // rendering mixes fog in output color space, which otherwise changes the
+    // entire scene's brightness when the local refraction pass is toggled.
     this.material.uniforms.uTime.value = time;
     this.material.uniforms.uCrash.value = crash;
     this.renderer.setRenderTarget(this.target);
     this.renderer.render(scene, camera);
+    if (refractionActive) {
+      this.renderer.getClearColor(this.savedClearColor);
+      const clearAlpha = this.renderer.getClearAlpha();
+      const autoClear = this.renderer.autoClear;
+      try {
+        this.renderer.setClearColor(this.neutralRefraction, 0);
+        this.renderer.setRenderTarget(this.wakeTarget);
+        this.renderer.clear();
+        this.renderer.autoClear = false;
+        if (wakeActive && flightEffects) {
+          flightEffects.prepareWake(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height);
+          this.renderer.render(flightEffects.wakeScene, camera);
+        }
+      } finally {
+        this.renderer.autoClear = autoClear;
+        this.renderer.setClearColor(this.savedClearColor, clearAlpha);
+      }
+    }
     this.renderer.setRenderTarget(this.processedTarget);
     this.renderer.render(this.effectScene, this.camera);
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.glowScene, this.camera);
   }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const scene of [this.effectScene, this.glowScene]) {
+      for (const child of scene.children) if (child instanceof Mesh) child.geometry.dispose();
+      scene.clear();
+    }
+    this.material.dispose();
+    this.glowMaterial.dispose();
+    this.target.dispose();
+    this.processedTarget.dispose();
+    this.wakeTarget.dispose();
+  }
+
 }

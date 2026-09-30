@@ -1,4 +1,3 @@
-import { CockpitRoll } from './render/CockpitRoll.ts';
 import {
   AmbientLight,
   Color,
@@ -14,6 +13,9 @@ import { FLIGHT, PALETTE, TERRAIN } from './core/config.ts';
 import type { CameraMode, ExperienceMode, FlightSnapshot } from './core/types.ts';
 import { FlightController } from './flight/FlightController.ts';
 import { InputManager } from './flight/InputManager.ts';
+import { CockpitRoll } from './render/CockpitRoll.ts';
+import { BoostCameraShake } from './render/BoostCameraShake.ts';
+import { FlightEffects } from './render/FlightEffects.ts';
 import { AircraftView } from './render/AircraftView.ts';
 import { CameraRig } from './render/CameraRig.ts';
 import { CollisionDebugView } from './render/CollisionDebugView.ts';
@@ -40,7 +42,9 @@ export class App {
   private readonly flocks: FlockSystem;
   private readonly flight: FlightController;
   private readonly aircraft = new AircraftView();
+  private readonly flightEffects = new FlightEffects();
   private readonly cockpitRoll = new CockpitRoll();
+  private readonly boostShake = new BoostCameraShake();
   private readonly collisionDebug = new CollisionDebugView();
   private readonly trail = new TrailView();
   private readonly wind = new WindView();
@@ -107,6 +111,8 @@ export class App {
     this.scene.add(this.cameraRig.camera);
     this.scene.add(
       this.aircraft.group,
+      this.flightEffects.group,
+      this.flightEffects.debugGroup,
       this.collisionDebug.group,
       this.trail.group,
       this.route.line,
@@ -118,6 +124,7 @@ export class App {
 
     this.flight.onCrash = () => {
       this.audio.crash();
+      this.flightEffects.reset();
       this.input.boost.reset();
     };
     this.flight.onModeChange = () => {
@@ -164,6 +171,9 @@ export class App {
         this.scene.fog.density = settings.terrainFogDensity;
       }
       this.aircraft.setColor(settings.planeColor);
+      this.boostShake.strength = settings.boostShakeStrength;
+      this.boostShake.frequency = settings.boostShakeFrequency;
+      this.flightEffects.configure(settings);
       this.route.setColor(settings.autopilotGuideColor);
       this.wind.applyVisualSettings(settings);
       this.flocks.applyVisualSettings(settings);
@@ -186,6 +196,12 @@ export class App {
     this.settings.apply();
 
     window.addEventListener('resize', this.resize);
+    window.addEventListener('pagehide', event => {
+      if (event.persisted) return; // A back/forward-cache restore reuses this app.
+      this.running = false;
+      this.post.dispose();
+      this.flightEffects.dispose();
+    });
     document.addEventListener('visibilitychange', () => {
       this.lastTime = performance.now();
       this.accumulator = 0;
@@ -231,6 +247,7 @@ export class App {
         && this.flight.mode !== 'paused'
         && this.flight.mode !== 'crashed';
       this.throttleActive = throttleActive;
+      this.flightEffects.update(rawDelta, throttleActive, this.flight.speed, this.flight.mode === 'crashed');
       this.trail.update(rawDelta, throttleActive);
       if (this.elapsed - this.lastRouteUpdate > 0.25) {
         this.route.update(this.flight.position, this.renderOrigin);
@@ -270,6 +287,8 @@ export class App {
     this.hud.setBoostState(this.input.boost.active, this.input.boost.locked, this.input.boost.progress);
     this.cameraRig.update(rawDelta, this.renderPlanePosition, this.flight.cameraOrientation,
       this.flight.crashIntensity, this.throttleActive, this.paused);
+    this.terrain.updateBoostLight(this.flightEffects.lightPosition,
+      this.flightEffects.lightColor, this.flightEffects.lightIntensity);
     this.audio.update(this.flight.speed, this.flight.throttle, this.paused);
 
     const instantFps = rawDelta > 0 ? 1 / rawDelta : 60;
@@ -281,8 +300,10 @@ export class App {
     }
     this.blurVelocity.set(0, 0, this.flight.mode === 'crashed' ? 0 : this.flight.speed)
       .applyQuaternion(this.flight.orientation);
+    this.boostShake.update(this.paused ? 0 : rawDelta, this.throttleActive);
     this.cockpitRoll.apply(this.cameraRig.camera, this.flight.cameraOrientation,
       this.cameraRig.mode === 'cockpit' ? this.flight.maneuverRollAngle : 0);
+    this.boostShake.apply(this.cameraRig.camera, this.elapsed, this.flight.speed);
     try {
       this.post.render(
         this.scene,
@@ -291,8 +312,10 @@ export class App {
         this.flight.crashIntensity,
         this.blurVelocity,
         this.renderPlanePosition,
+        this.flightEffects,
       );
     } finally {
+      this.boostShake.restore(this.cameraRig.camera);
       this.cockpitRoll.restore(this.cameraRig.camera);
     }
   };
@@ -309,6 +332,8 @@ export class App {
     this.collisionDebug.setColliding(this.flight.hasTerrainContact);
     this.collisionDebug.group.visible = this.collisionDebugEnabled && this.experienceMode === 'analysis';
     this.aircraft.setCockpitMode(cockpit);
+    this.flightEffects.sync(this.renderPlanePosition, this.flight.orientation, cockpit);
+    this.flightEffects.syncWake(this.trail, this.renderOrigin);
     this.route.setPresentationVisible(true);
   }
 
@@ -375,6 +400,7 @@ export class App {
     if (this.paused) return;
     this.input.boost.reset();
     this.flight.reset();
+    this.flightEffects.reset();
     this.trail.clear();
     this.trail.add(this.flight.position, this.flight.orientation, this.renderOrigin, true);
     this.renderPlanePosition.copy(this.flight.position).sub(this.renderOrigin);
