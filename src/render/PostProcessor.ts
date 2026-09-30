@@ -13,6 +13,7 @@ import {
   WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
+import { ScanGlass } from './ScanGlass.ts';
 import { motionBlurExposure, motionBlurStreak } from './MotionBlur.ts';
 import type { FlightEffects } from './FlightEffects.ts';
 
@@ -36,6 +37,7 @@ export class PostProcessor {
   private motionBlurEnabled = true;
   private motionBlurStrength = 0.45;
   private motionBlurStartSpeed = 20;
+  private readonly scanGlass = new ScanGlass();
   private disposed = false;
 
   constructor(renderer: WebGLRenderer) {
@@ -334,10 +336,18 @@ export class PostProcessor {
     this.material.uniforms.uDitherStrength.value = dither;
   }
 
+  setScanSettings(enabled: boolean, strength: number, dispersion: number, fadeDuration = 0.8, flutter = 0.04, flutterRate = 1): void {
+    this.scanGlass.configure(enabled, strength, dispersion, fadeDuration, flutter, flutterRate);
+  }
+
+  setScanWave(worldCenter: Vector3, origin: Vector3, radius: number, expanding: boolean): void {
+    this.scanGlass.sync(worldCenter, origin, radius, expanding);
+  }
+
   render(scene: Scene, camera: OrthographicCamera | import('three').PerspectiveCamera, time: number, crash: number,
     velocity = new Vector3(), shipPosition = new Vector3(), flightEffects?: FlightEffects): void {
     const wakeActive = flightEffects?.hasWake ?? false;
-    const refractionActive = wakeActive;
+    const refractionActive = wakeActive || this.scanGlass.active;
     this.material.uniforms.uWakeEnabled.value = refractionActive ? 1 : 0;
     const exposure = this.motionBlurEnabled
       ? motionBlurExposure(velocity.length(), this.motionBlurStrength, this.motionBlurStartSpeed) : 0;
@@ -366,6 +376,10 @@ export class PostProcessor {
         this.renderer.setRenderTarget(this.wakeTarget);
         this.renderer.clear();
         this.renderer.autoClear = false;
+        if (this.scanGlass.active) {
+          this.scanGlass.prepare(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height, time);
+          this.renderer.render(this.scanGlass.scene, camera);
+        }
         if (wakeActive && flightEffects) {
           flightEffects.prepareWake(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height);
           this.renderer.render(flightEffects.wakeScene, camera);
@@ -384,6 +398,7 @@ export class PostProcessor {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.scanGlass.dispose();
     for (const scene of [this.effectScene, this.glowScene]) {
       for (const child of scene.children) if (child instanceof Mesh) child.geometry.dispose();
       scene.clear();

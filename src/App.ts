@@ -174,6 +174,8 @@ export class App {
       this.boostShake.strength = settings.boostShakeStrength;
       this.boostShake.frequency = settings.boostShakeFrequency;
       this.flightEffects.configure(settings);
+      this.post.setScanSettings(settings.scanGlassEnabled, settings.scanGlassStrength, settings.scanGlassDispersion, settings.scanGlassPersistence,
+        settings.scanGlassFlutter, settings.scanGlassFlutterRate);
       this.route.setColor(settings.autopilotGuideColor);
       this.wind.applyVisualSettings(settings);
       this.flocks.applyVisualSettings(settings);
@@ -300,6 +302,8 @@ export class App {
     }
     this.blurVelocity.set(0, 0, this.flight.mode === 'crashed' ? 0 : this.flight.speed)
       .applyQuaternion(this.flight.orientation);
+    this.post.setScanWave(this.terrain.currentProbeWorldCenter, this.renderOrigin,
+      this.terrain.currentProbeRadius, this.terrain.isProbeExpanding);
     this.boostShake.update(this.paused ? 0 : rawDelta, this.throttleActive);
     this.cockpitRoll.apply(this.cameraRig.camera, this.flight.cameraOrientation,
       this.cameraRig.mode === 'cockpit' ? this.flight.maneuverRollAngle : 0);

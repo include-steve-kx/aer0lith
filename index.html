@@ -213,6 +213,23 @@
             </div>
           </section>
 
+          <section class="settings-section" aria-labelledby="settings-scan-title">
+            <h2 id="settings-scan-title">SCAN GLASS</h2>
+            <label class="toggle-setting" for="scan-glass-enabled">
+              <span>SCAN GLASS SHELL</span><input id="scan-glass-enabled" type="checkbox" checked />
+            </label>
+            <label for="scan-glass-flutter"><span>SHELL FLUTTER</span><output id="scan-glass-flutter-value">4.0%</output></label>
+            <input id="scan-glass-flutter" type="range" min="0" max="0.12" step="0.005" value="0.04" />
+            <label for="scan-glass-flutter-rate"><span>FLUTTER SPEED</span><output id="scan-glass-flutter-rate-value">1.00×</output></label>
+            <input id="scan-glass-flutter-rate" type="range" min="0" max="4" step="0.05" value="1" />
+            <label for="scan-glass-persistence"><span>SHELL FADE DURATION</span><output id="scan-glass-persistence-value">0.8 S</output></label>
+            <input id="scan-glass-persistence" type="range" min="0.15" max="2" step="0.05" value="0.8" />
+            <label for="scan-glass-strength"><span>SCAN REFRACTION</span><output id="scan-glass-strength-value">1</output></label>
+            <input id="scan-glass-strength" type="range" min="0" max="3" step="0.05" value="1" />
+            <label for="scan-glass-dispersion"><span>SCAN DISPERSION</span><output id="scan-glass-dispersion-value">0.12</output></label>
+            <input id="scan-glass-dispersion" type="range" min="0" max="0.6" step="0.01" value="0.12" />
+          </section>
+
           <section class="settings-section" aria-labelledby="settings-wind-title">
             <h2 id="settings-wind-title">WIND STREAKS</h2>
             <label for="wind-streak-count">
