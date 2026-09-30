@@ -1,10 +1,10 @@
 # Flight effects and roll dodge
 
-## Double-tap roll
+## Dedicated dodge roll
 
-Double-tap **A** or **D** within 320 ms to dodge left/right. On the joystick, push roughly two-thirds of the way in one direction, return near center or release, then push in that same direction again within 320 ms. Holding a key or stick does not retrigger; opposite-direction strokes break the pair. Pausing or losing focus clears pending taps.
+Press **Q** / **E**, or the left/right roll buttons above the joystick, to dodge. A/D and the joystick only steer through coordinated roll and yaw; repeated steering never triggers a maneuver. Holding Q/E does not retrigger. The roll buttons also support keyboard activation and are disabled while paused.
 
-The aircraft makes a 720-degree roll and moves 44 meters sideways over 1.2 seconds. The maneuver takes manual control and keeps forward flight and throttle active. Additional rolls cannot interrupt it; there is a 0.25-second recovery before another. Pitch/heading stay fixed during the dodge. The chase camera follows the translation without spinning with the aircraft. In cockpit view, the eye position and view roll with the ship through exactly two full turns. The roll is applied after camera-follow smoothing and removed after rendering so quaternion interpolation cannot shorten or skip turns.
+The aircraft makes a 360-degree roll and moves 44 meters sideways over 1.2 seconds. The maneuver takes manual control and keeps forward flight and throttle active. Additional rolls cannot interrupt it; there is a 0.25-second recovery before another. Pitch/heading stay fixed during the dodge. The chase camera follows the translation without spinning with the aircraft. In cockpit view, the eye position and view roll with the ship through exactly one full turn. The roll is applied after camera-follow smoothing and removed after rendering so quaternion interpolation cannot shorten or skip turns.
 
 The normal collision samples run on every fixed simulation step during the maneuver. Collision cancels the roll and enters normal crash recovery. There is no invulnerability or teleport. Pause freezes the maneuver.
 
@@ -12,13 +12,13 @@ The normal collision samples run on every fixed simulation step during the maneu
 
 A throttle press (Shift or the touch boost button) ignites twin colored plumes. Boost and brake preserve autopilot; W/S/A/D or a joystick direction takes manual control. They rise in about 65 ms, settle to a steady 42% flame while boost is held, then fade after release. Release fade defaults to 2.8 seconds and is adjustable from 0.3 to 8 seconds. Plumes default to a 54-meter maximum length and cast matching colored light onto nearby objects. A brief tap also leaves a fading flame. Disabling exhaust or setting brightness to zero explicitly hides it.
 
-The flame has a straight centerline, broad tapered body, a bright core, and irregular fluttering tongues. Surface turbulence and tip animation use the same speed-integrated clock as the side wakes; no flame animation uses an independent fixed-speed clock.
+The flame has a straight centerline, broad tapered body, a bright core, and irregular fluttering tongues. Surface detail travels backward from the nozzles while the tongues flutter independently. Both motions integrate aircraft speed; neither uses a fixed-speed wall clock.
 
 The separate rear diamond wake has been removed. Instead, a thin refractive envelope follows each flame using the exact same geometry and flutter deformation, with independent booster refraction and dispersion controls. The compact envelope defaults to 65% of the flame length and 0.55× base width; the flame itself is 0.45× base width. Its length and width are independent controls. The opaque amber debug view shares the exact glass geometry, shader deformation, and uniforms; it replaces the flame during inspection. When idle it previews full boost size, and during boost it shows the current geometry. Debug mode resets to glass on reload. No extra geometry is allocated for toggling it.
 
 Four independent line trails attach just behind the four X-wing tips. Live endpoints stay attached between the bounded 1.5-meter history samples. Two side wakes remain separate meshes, spanning each upper/lower wing pair at their mouths and following previous turns and bank. Defaults are 120 meters long, 14 meters tall, and 0.3 meters thick.
 
-Both side-wake and flame flutter amplitude/frequency increase with aircraft speed. Their flow clock is integrated from speed and simulation time, avoiding a phase jump when speed changes. Appearance and camera settings remain live while paused; motion, flutter, illumination and release fade freeze.
+Four independent controls set **Side Backward Speed**, **Side Flutter Speed**, **Flame Backward Speed**, and **Flame Flutter Speed** (each 0–3×, default 1×). Backward flow advances surface ripples/turbulence in aircraft-relative meters at aircraft speed times the selected multiplier. Flutter advances at aircraft speed / 55 m/s times its multiplier. Thus doubling aircraft speed doubles all four animation rates. Zero freezes only the selected component. The sheet mouths and flame roots stay attached to the ship, and wake geometry still follows the recorded flight path. Flutter amplitude also scales with speed. Integrating each phase avoids jumps when speed or a rate setting changes. Appearance and camera settings remain live while paused; motion, flutter, illumination and release fade freeze.
 
 ## Boost lock
 
@@ -36,15 +36,16 @@ Flight effects live under **Settings > Boost + Wakes**. Scan optics have their o
 | Booster glass | Enable; refraction 1 (0–3); dispersion 0.18 (0–0.6); width 0.55× (0.1–2×); length 65% of flame (20–150%) |
 | Flame width | 0.45× (0.15–1.5×), independent of booster glass width |
 | Booster geometry button | Toggle glass / opaque amber geometry; preview full boost size when idle |
-| Booster flutter | Amplitude 0.45 m (0–2); flow rate 1× (0–3), both responding to speed |
+| Booster motion | Flutter amplitude 0.45 m (0–2); backward speed 1× and flutter speed 1× (each 0–3×), independently responding to aircraft speed |
 | Boost camera | Shake strength 0.65 (0–2, zero disables); frequency 14 Hz (4–30) |
 | Side wakes | Enable; length 120 m (20–240); height 14 m (2–32); thickness 0.3 m (0.02–2); flutter 0.6 m (0–2) |
+| Side wake motion | Backward speed 1× and flutter speed 1× (each 0–3×), independently responding to aircraft speed |
 | Side wake glass | Refraction 1 (0–3); sheen 0.045 (0–0.2); dispersion 0.12 (0–0.4) |
 | Wake geometry button | Toggle glass / opaque cyan sheets using the exact same geometry and flutter |
 | Scan glass | Enable; refraction strength; dispersion; shell fade-out duration 0.8 s (0.15–2); flutter 4% of radius (0–12%); flutter speed 1× (0–4×) |
-| Flight visuals | Show occluded ship; ghost opacity 0.13 (0–0.35), with a brighter outline |
+| Flight visuals | Show occluded ship; body color `#ffee66`; body opacity 50% (0–100%); white outline always 100% |
 
-A longer release fade means slower fading. Bright exhaust cores remain white while the selected color tints the plumes and illumination. Glass needs background detail to bend; orbit the paused camera across terrain edges or dots to inspect it. Existing saved appearance choices are retained; removed rear-wake settings are ignored.
+A longer release fade means slower fading. Bright exhaust cores remain white while the selected color tints the plumes and illumination. Glass needs background detail to bend; orbit the paused camera across terrain edges or dots to inspect it. Opaque inspection keeps the underlying glass pass active and masks only the inspected surfaces, so switching back restores the glass immediately even while paused. Both debug buttons use the same appearance. Existing saved appearance choices are retained; removed rear-wake settings are ignored.
 
 ## Expanding scan glass shell
 
@@ -60,9 +61,17 @@ The shell shares the depth-aware refraction target with the wing wakes and boost
 
 ## Hidden ship and camera shake
 
-A filled faint-yellow ship surface with faceted shading and a brighter edge shader draw only behind occluding geometry. The main scene's depth/stencil buffer distinguishes external occlusion from self-occlusion: visible ship fragments mark the stencil, and the ghost/outline reject those pixels. The ordinary ship remains unchanged when unobstructed. Cockpit mode hides both representations.
+A yellow ship surface (default `#ffee66`, matching the default autopilot guide) at 50% opacity and a fully opaque white edge shader draw only behind occluding geometry. The main scene's depth/stencil buffer distinguishes external occlusion from self-occlusion: visible ship fragments mark the stencil, and the ghost/outline reject those pixels. The opaque ship explicitly renders after terrain and flock bodies, so only genuinely visible pixels receive this mark. Previously, terrain and the ship shared a render priority: material sorting could mark the ship before terrain covered it, incorrectly suppressing the yellow interior. Body color and opacity are independently configurable; zero body opacity leaves the outline visible. Existing default opacity migrates from 13% to 50%, while custom values are preserved. The ordinary ship remains unchanged when unobstructed. Cockpit mode hides both representations.
 
-Boost shake applies a stronger, deterministic translation and rotation only for rendering, then restores the camera's base position/orientation. It never accumulates in camera following or OrbitControls. Boost input ramps the amplitude smoothly, speed scales it, and its clock/envelope freeze during pause. UI overlays stay stable.
+Boost shake applies a stronger, deterministic translation and rotation only for rendering, then restores the camera's base position/orientation. It never accumulates in camera following or OrbitControls. Shake follows only the initial acceleration flare. After the 65 ms attack, both amplitude and frequency taper to exactly zero over the configured **Release Fade Time** (default 2.8 seconds), even when boost remains held or locked. The flame still settles to its sustained 42% intensity. Shake has a separate timer starting at ignition; releasing early does not restart or extend it, and releasing an already settled boost cannot restart shake. A fresh boost press starts a new transient. The frequency setting is the peak rate, integrated over simulation time to avoid phase jumps as it fades or is edited. Aircraft speed also scales amplitude; pause freezes both phase and envelope. UI overlays stay stable. Shift + left-drag orbits normally without activating pan; right-drag still pans, including while boosting.
+
+## Wind streak distribution and speed
+
+Streaks are world-persistent instanced ribbons in an aircraft-following elliptical volume (150 m horizontal radius, 92 m vertical radius, extending 305 m behind and 225 m ahead). A deterministic pseudo-random sequence chooses positions. Angle is uniform and radius is `sqrt(U)`, giving uniform cross-sectional area, including the center. Initial depth is uniform; particles leaving the bounds recycle ahead and fade in. The pool is fixed at 240; changing the visible count does not allocate or reposition particles.
+
+The previous distribution excluded a 14 m central radius and faded streaks around screen center. Both biases have been removed. Equal world-space density still does not imply equal screen-space density: streaks directly ahead foreshorten, terrain hides them, and distance/near-aircraft fading still applies.
+
+**Wind Streaks** now sets count and length at a reference speed of 55 m/s. Independent **Count Speed Response** and **Length Speed Response** sliders range from 0 to 2: 0 holds that quantity constant, 1 scales linearly with speed (default), and 2 gives a stronger quadratic response. The formula is `base × (speed / 55)^response`, with the speed ratio capped at 3 and rendered count capped at 240. The final fractional streak fades smoothly as count changes. Defaults yield about 65.5 streaks / 12 m at 30 m/s, 120 / 22 m at 55 m/s, and 240 / 44 m at 110 m/s. Individual streak lengths also vary slightly to avoid repetition. The existing opacity threshold remains independent.
 
 ## Airframe, collision, and rendering
 
@@ -80,6 +89,6 @@ Screen-space glass only bends scenery already visible in the current frame; it c
 
 ## Verification
 
-`npm run verify` covers same-direction tap timing, joystick hysteresis, measured 720-degree ship and cockpit rotations in both directions, lateral distance, collision during a roll, pause, boost latch timing/release/unlock, autopilot boost/steering takeover, cockpit collision switching and debug/probe agreement, sustained boost/release timing, speed-dependent flutter, booster/side independence, shared flame deformation, camera restoration, trail anchors, shape budgets, origin rebasing, scan-shell pose/restarts/fade/disposal, and existing simulation behavior.
+`npm run verify` covers measured 360-degree ship and cockpit rotations in both directions, lateral distance, collision during a roll, pause, boost latch timing/release/unlock, autopilot boost/steering takeover, cockpit collision switching and debug/probe agreement, sustained boost/release timing, all four independent speed-integrated animation phases, speed-responsive wind count/length and uniform spawn coverage, booster/side independence, shared flame deformation, camera restoration, trail anchors, shape budgets, origin rebasing, scan-shell pose/restarts/fade/disposal, and existing simulation behavior.
 
-Browser fixtures exercise the game's keyboard handlers and completed-roll state. GPU comparisons independently verify booster refraction/dispersion, stronger scan refraction/dispersion, identical paused frames, and an unchanged unoccluded ship versus a visible silhouette/outline through an opaque object. Full-game checks cover controls, wake depth occlusion, and terrain illumination. Scan-shell GPU checks cover a distant backdrop beyond the scan radius, unchanged foreground/outside-shell pixels, identical paused frames, clean completion, and stable geometry/texture/program counts over 25 restarts.
+Browser fixtures exercise the game's keyboard handlers and completed-roll state. GPU comparisons independently verify booster refraction/dispersion, stronger scan refraction/dispersion, identical paused frames, and an unchanged unoccluded ship versus a visible silhouette/outline through an opaque object using terrain’s actual render priority. Separate GPU checks animate each of the four flow/flutter controls, verify zero freezes that component, and verify editing rates does not jump the paused image. Full-game checks cover controls, wake depth occlusion, and terrain illumination. Scan-shell GPU checks cover a distant backdrop beyond the scan radius, unchanged foreground/outside-shell pixels, identical paused frames, clean completion, and stable geometry/texture/program counts over 25 restarts.

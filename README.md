@@ -4,7 +4,7 @@ An endless retro-futurist flight experiment built with Three.js, vanilla TypeScr
 
 The world is divided into pooled cubic chunks. Each chunk samples the same world-space density function and polygonizes its zero surface with marching tetrahedra, a compact Marching Cubes-family method. The density function combines a varying three-dimensional flight vein, domain-warped volumetric noise, porous wall cuts, and sparse gyroid formations. Positive values are solid and negative values are air. A narrow central air passage is always carved last, keeping the world indefinitely navigable without reducing every area to a regular valley.
 
-The wind-streak field uses a fixed pool of world-persistent instanced ribbons inside an aircraft-following volume. Streak positions do not inherit camera rotation, so orbit and camera transitions reveal parallax; their long axes follow relative airflow, while only their narrow widths billboard toward the camera. Terrain depth testing and the scene's distance fog keep the effect embedded in the world rather than drawn as a screen overlay.
+The wind-streak field uses a fixed pool of world-persistent instanced ribbons inside an aircraft-following volume. Streak positions do not inherit camera rotation, so orbit and camera transitions reveal parallax; their long axes follow relative airflow, while only their narrow widths billboard toward the camera. Terrain depth testing and the scene's distance fog keep the effect embedded in the world rather than drawn as a screen overlay. Spawns cover the full elliptical area, including the center. Count and length scale with aircraft speed; independent response sliders adjust each behavior, with the count capped at 240.
 
 Occasional abstract flocks are simulated as pooled boids and drawn as elongated square pyramids in one instanced mesh. Local separation, alignment, and cohesion create the group motion; predictive aircraft avoidance and volumetric terrain-gradient avoidance take priority near hazards. Probe waves reveal pooled world-space corner targets around scanned flock members. See [Terrain sampling and dot rendering](docs/terrain-sampling-and-dot-rendering.md) for a visual explanation of the density lattice, extracted mesh, and projected SDF dots, and [Development history](docs/development-history.md) for the project’s design evolution.
 
@@ -40,10 +40,11 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 | --- | --- |
 | `W` / `S` | Pitch nose up / down |
 | `A` / `D` | Coordinated roll and yaw left / right |
+| `Q` / `E` | One 360° dodge roll left / right; also available above the joystick |
 | `Shift` / `Ctrl` | Boost / brake without disengaging autopilot. Hold boost for 5 seconds + 2 seconds of fill to lock; tap again to unlock. |
 | `Space` | Toggle autopilot |
 | `C` or `1`–`3` | Cycle or select camera |
-| Mouse in camera `2` / `3` | Orbit, pan, and zoom; camera returns after release |
+| Mouse in camera `2` / `3` | Left-drag orbit, right-drag pan, wheel zoom; Shift does not change drag actions. Camera returns after release. |
 | `V` | Toggle Analysis / Ambient presentation mode |
 | `M` | Toggle audio |
 | `R` | Recover at the latest safe checkpoint |
@@ -64,7 +65,7 @@ The spacecraft uses just 22 triangles: a pointed diamond-section hull and four t
 
 Settings > Motion Blur controls subtle speed-dependent scenery blur: enable, strength, start speed, and maximum streak length. The default strength is 0.45, starting at 20 m/s with a 12-pixel cap at 1080p. The ship and HUD stay sharp, and the paused scene retains a stable exposure. See [motion-blur behavior and implementation](docs/motion-blur.md).
 
-Double-tap A/D (or repeat a strong left/right joystick stroke after recentering) for a 720° lateral dodge; collision remains active. Boost flames persist while held, flutter faster at higher speed, and have adjustable glass/dispersion, release fade, and subtle camera shake. Four wing-tip trails and two side wake sheets follow the aircraft; the separate rear wake has been removed. **Boost + Wakes** contains effect controls and opaque wake inspection; **Scan Glass** adjusts a separate expanding spherical glass shell, with refraction, dispersion, and fade controls. The same mesh is recycled for every scan. **Flight Visuals** controls the faint silhouette/outline visible through obstacles. Pause freezes motion/effects while camera and appearance controls remain live. See [flight effects](docs/flight-effects.md) for behavior and rendering details.
+Press Q/E or use the two buttons above the joystick for a 360° lateral dodge; collision remains active. Boost flames persist while held, flutter faster at higher speed, and have adjustable glass/dispersion, release fade, and camera shake whose amount and frequency settle to zero over the configured fade duration, even during held or locked boost. The sustained flame stays at 42%; releasing does not restart the shake timer. Side wakes and flames each have separate backward-flow and flutter-speed controls; all four scale with aircraft speed. Four wing-tip trails and two side wake sheets follow the aircraft; the separate rear wake has been removed. **Boost + Wakes** contains effect controls and opaque wake inspection; **Scan Glass** adjusts a separate expanding spherical glass shell, with refraction, dispersion, and fade controls. The same mesh is recycled for every scan. **Flight Visuals** controls the body color and opacity visible through obstacles (yellow at 50% by default), with a fully opaque white outline. Pause freezes motion/effects while camera and appearance controls remain live. See [flight effects](docs/flight-effects.md) for behavior and rendering details.
 
 The world convention is one Three.js unit per meter. `ALT` is absolute world altitude relative to the procedural world's zero-meter datum, speed is shown in meters per second, and distances in the sensor settings are meters. In Analysis mode, a fixed-world thin gold line previews the autopilot route; it fades away when manual control begins. Terrain points close to the aircraft warm toward the configurable danger color as a proximity cue.
 
