@@ -1,7 +1,9 @@
+import { RollGesture } from './RollGesture.ts';
 import type { FlightInput } from '../core/types.ts';
 
 export interface InputActions {
   onManualInput(): void;
+  onRoll(direction: -1 | 1): void;
   onToggleAutopilot(): void;
   onCycleCamera(): void;
   onSelectCamera(index: number): void;
@@ -72,6 +74,7 @@ export function joystickInputFromOffset(deltaX: number, deltaY: number, radius: 
 }
 
 export class InputManager {
+  private readonly rollGesture = new RollGesture();
   private readonly pressed = new Set<string>();
   private readonly root: HTMLElement;
   private readonly actions: InputActions;
@@ -144,6 +147,8 @@ export class InputManager {
     if (this.pointerControls?.joystick.hasPointerCapture(event.pointerId)) {
       this.pointerControls.joystick.releasePointerCapture(event.pointerId);
     }
+    if (event.type === 'pointercancel') this.rollGesture.reset();
+    else this.rollGesture.releaseStick();
     this.pointerPitch = 0;
     this.pointerRoll = 0;
     this.pointerYaw = 0;
@@ -165,6 +170,8 @@ export class InputManager {
     );
     this.pointerPitch = input.pitch;
     this.pointerRoll = input.roll;
+    const roll = this.rollGesture.stick(input.roll, performance.now());
+    if (roll) this.actions.onRoll(roll);
     this.pointerYaw = input.yaw;
     this.pointerControls.joystickThumb.style.transform = `translate(calc(-50% + ${input.offsetX}px), calc(-50% + ${input.offsetY}px))`;
     if (input.pitch !== 0 || input.roll !== 0) this.actions.onManualInput();
@@ -230,6 +237,7 @@ export class InputManager {
 
   private onKeyDown = (event: KeyboardEvent): void => {
     if (!this.hasExperienceFocus()) return;
+    if (event.target instanceof Element && event.target.closest('input, select, textarea, [contenteditable=true]')) return;
     if (event.code === 'Escape' && document.fullscreenElement) return;
     const fullscreenShortcut = event.code === 'KeyF' && (event.ctrlKey || event.metaKey);
     if (CAPTURED.has(event.code) || fullscreenShortcut) event.preventDefault();
@@ -237,9 +245,14 @@ export class InputManager {
       this.actions.onToggleFullscreen();
       return;
     }
+    const alreadyPressed = this.pressed.has(event.code);
     this.pressed.add(event.code);
     if (FLIGHT_KEYS.has(event.code)) this.actions.onManualInput();
-    if (event.repeat) return;
+    if (event.repeat || alreadyPressed) return;
+    if (event.code === 'KeyA' || event.code === 'KeyD') {
+      const roll = this.rollGesture.tap(event.code === 'KeyA' ? -1 : 1, performance.now());
+      if (roll) this.actions.onRoll(roll);
+    }
     switch (event.code) {
       case 'Space': this.actions.onToggleAutopilot(); break;
       case 'KeyC': this.actions.onCycleCamera(); break;
@@ -260,7 +273,10 @@ export class InputManager {
     this.pressed.delete(event.code);
   };
 
+  resetGestures(): void { this.rollGesture.reset(); }
+
   private clear = (): void => {
+    this.resetGestures();
     this.pressed.clear();
     if (this.joystickPointerId !== undefined && this.pointerControls?.joystick.hasPointerCapture(this.joystickPointerId)) {
       this.pointerControls.joystick.releasePointerCapture(this.joystickPointerId);
@@ -270,6 +286,7 @@ export class InputManager {
     }
     this.joystickPointerId = undefined;
     this.throttlePointerId = undefined;
+    this.rollGesture.releaseStick();
     this.pointerPitch = 0;
     this.pointerRoll = 0;
     this.pointerYaw = 0;

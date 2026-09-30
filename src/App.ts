@@ -1,3 +1,4 @@
+import { CockpitRoll } from './render/CockpitRoll.ts';
 import {
   AmbientLight,
   Color,
@@ -39,6 +40,7 @@ export class App {
   private readonly flocks: FlockSystem;
   private readonly flight: FlightController;
   private readonly aircraft = new AircraftView();
+  private readonly cockpitRoll = new CockpitRoll();
   private readonly collisionDebug = new CollisionDebugView();
   private readonly trail = new TrailView();
   private readonly wind = new WindView();
@@ -123,6 +125,7 @@ export class App {
     this.cameraRig.onChange = () => this.audio.beep(760, 0.035);
 
     this.input = new InputManager(root, {
+      onRoll: direction => { if (!this.paused) this.flight.startRoll(direction); },
       onManualInput: () => { if (!this.paused) this.flight.takeManualControl(); },
       onToggleAutopilot: () => this.toggleAutopilot(),
       onCycleCamera: () => this.setCamera(this.cameraRig.cycle()),
@@ -263,7 +266,7 @@ export class App {
         this.flight.speed, this.renderOrigin, true);
       this.syncViews();
     }
-    this.cameraRig.update(rawDelta, this.renderPlanePosition, this.flight.orientation,
+    this.cameraRig.update(rawDelta, this.renderPlanePosition, this.flight.cameraOrientation,
       this.flight.crashIntensity, this.throttleActive, this.paused);
     this.audio.update(this.flight.speed, this.flight.throttle, this.paused);
 
@@ -276,14 +279,20 @@ export class App {
     }
     this.blurVelocity.set(0, 0, this.flight.mode === 'crashed' ? 0 : this.flight.speed)
       .applyQuaternion(this.flight.orientation);
-    this.post.render(
-      this.scene,
-      this.cameraRig.camera,
-      this.elapsed,
-      this.flight.crashIntensity,
-      this.blurVelocity,
-      this.renderPlanePosition,
-    );
+    this.cockpitRoll.apply(this.cameraRig.camera, this.flight.cameraOrientation,
+      this.cameraRig.mode === 'cockpit' ? this.flight.maneuverRollAngle : 0);
+    try {
+      this.post.render(
+        this.scene,
+        this.cameraRig.camera,
+        this.elapsed,
+        this.flight.crashIntensity,
+        this.blurVelocity,
+        this.renderPlanePosition,
+      );
+    } finally {
+      this.cockpitRoll.restore(this.cameraRig.camera);
+    }
   };
 
   private syncViews(): void {
@@ -338,6 +347,7 @@ export class App {
   }
 
   private togglePause(): void {
+    this.input.resetGestures();
     this.paused = !this.paused;
     // Never accumulate paused wall time or run a catch-up step on resume.
     this.lastTime = performance.now();

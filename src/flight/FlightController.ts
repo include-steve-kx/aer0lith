@@ -26,7 +26,18 @@ function wrapAngle(value: number): number {
 export class FlightController {
   readonly position = new Vector3();
   readonly orientation = new Quaternion();
+  readonly cameraOrientation = new Quaternion();
+  private readonly rollRotation = new Quaternion();
+  private readonly rollAxis = new Vector3(0, 0, 1);
+  private readonly dodgeAxis = new Vector3();
   private cockpitCollision = false;
+  private rollDirection = 0;
+  private rollElapsed = 0;
+  private rollCooldown = 0;
+  private rollAngle = 0;
+  readonly rollDuration = 1.2;
+  readonly rollTurns = 2;
+  readonly rollDistance = 44;
   speed: number = FLIGHT.nominalSpeed;
   throttle: number = (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
   mode: FlightMode = 'loading';
@@ -66,7 +77,9 @@ export class FlightController {
       return;
     }
 
-    if (this.mode === 'autopilot') this.updateAutopilot(dt);
+    this.rollCooldown = Math.max(0, this.rollCooldown - dt);
+    if (this.isRolling) { this.updateThrottle(dt, input.throttle); this.updateRoll(dt); }
+    else if (this.mode === 'autopilot') this.updateAutopilot(dt);
     else this.updateManual(dt, input);
 
     this.syncOrientation();
@@ -83,16 +96,50 @@ export class FlightController {
 
     if (Math.abs(input.roll) < 0.01) this.roll = approach(this.roll, 0, 0.42 * dt);
     if (Math.abs(input.pitch) < 0.01) this.pitch = approach(this.pitch, 0, 0.12 * dt);
+    this.updateThrottle(dt, input.throttle);
+  }
+
+  private updateThrottle(dt: number, throttleInput: number): void {
     const cruiseThrottle = (FLIGHT.nominalSpeed - FLIGHT.minSpeed)
       / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
-    if (Math.abs(input.throttle) > 0.01) {
-      this.throttle = clamp(this.throttle + input.throttle * 0.28 * dt, 0, 1);
+    if (Math.abs(throttleInput) > 0.01) {
+      this.throttle = clamp(this.throttle + throttleInput * 0.28 * dt, 0, 1);
     } else {
       this.throttle = approach(this.throttle, cruiseThrottle, 0.32 * dt);
     }
     const targetSpeed = FLIGHT.minSpeed + this.throttle * (FLIGHT.maxSpeed - FLIGHT.minSpeed);
     this.speed = approach(this.speed, targetSpeed, 15 * dt);
   }
+
+  get isRolling(): boolean { return this.rollDirection !== 0; }
+  get maneuverRollAngle(): number { return this.rollAngle; }
+
+  startRoll(direction: -1 | 1): boolean {
+    if (this.isRolling || this.rollCooldown > 0 || !['manual', 'autopilot'].includes(this.mode)) return false;
+    this.takeManualControl();
+    this.rollDirection = direction;
+    this.rollElapsed = 0;
+    this.rollAngle = 0;
+    // From the chase camera, screen-left is model +X (+Z points forward).
+    this.dodgeAxis.set(-direction, 0, 0).applyQuaternion(this.cameraOrientation).normalize();
+    return true;
+  }
+
+  private updateRoll(dt: number): void {
+    const ease = (t: number) => t * t * (3 - 2 * t);
+    const before = ease(Math.min(1, this.rollElapsed / this.rollDuration));
+    this.rollElapsed = Math.min(this.rollDuration, this.rollElapsed + dt);
+    const after = ease(this.rollElapsed / this.rollDuration);
+    this.position.addScaledVector(this.dodgeAxis, (after - before) * this.rollDistance);
+    this.rollAngle = this.rollDirection * Math.PI * 2 * this.rollTurns * after;
+    if (this.rollElapsed >= this.rollDuration) {
+      this.rollDirection = 0;
+      this.rollAngle = 0; // Exactly two turns returns to the original attitude.
+      this.rollCooldown = 0.25;
+    }
+  }
+
+  private cancelRoll(): void { this.rollDirection = 0; this.rollAngle = 0; this.rollCooldown = 0; }
 
   private updateAutopilot(dt: number): void {
     const lookAhead = clamp(this.speed * 1.25, 52, 105);
@@ -148,7 +195,9 @@ export class FlightController {
 
   private syncOrientation(): void {
     this.euler.set(this.pitch, this.yaw, this.roll, 'YXZ');
-    this.orientation.setFromEuler(this.euler).normalize();
+    this.cameraOrientation.setFromEuler(this.euler).normalize();
+    this.orientation.copy(this.cameraOrientation)
+      .multiply(this.rollRotation.setFromAxisAngle(this.rollAxis, this.rollAngle)).normalize();
   }
 
   setCockpitCollision(active: boolean): void {
@@ -160,8 +209,9 @@ export class FlightController {
   private checkCollision(dt: number): void {
     let deepestPenetration = 0;
     const probes = this.cockpitCollision ? COCKPIT_COLLISION_PROBES : COLLISION_PROBES;
+    const orientation = this.orientation;
     for (const offset of probes) {
-      this.samplePoint.set(offset[0], offset[1], offset[2]).applyQuaternion(this.orientation).add(this.position);
+      this.samplePoint.set(offset[0], offset[1], offset[2]).applyQuaternion(orientation).add(this.position);
       const collisionDensity = this.terrain.collisionDensityAt?.(
         this.samplePoint.x,
         this.samplePoint.y,
@@ -187,7 +237,7 @@ export class FlightController {
   }
 
   private updateCheckpoint(dt: number): void {
-    if (this.mode === 'crashed') return;
+    if (this.mode === 'crashed' || this.isRolling) return;
     this.checkpointTimer += dt;
     if (this.checkpointTimer < FLIGHT.checkpointInterval) return;
     this.checkpointTimer = 0;
@@ -204,6 +254,7 @@ export class FlightController {
   private beginCrash(): void {
     if (this.mode === 'crashed') return;
     this.crashElapsed = 0;
+    this.cancelRoll();
     this.setMode('crashed');
     this.onCrash?.();
   }
@@ -220,6 +271,7 @@ export class FlightController {
   }
 
   private applyCheckpoint(checkpoint: SafeCheckpoint): void {
+    this.cancelRoll();
     this.position.copy(checkpoint.position);
     this.yaw = checkpoint.yaw;
     this.pitch = checkpoint.pitch;
@@ -256,7 +308,7 @@ export class FlightController {
   }
 
   toggleAutopilot(): void {
-    if (this.mode === 'crashed' || this.mode === 'loading') return;
+    if (this.mode === 'crashed' || this.mode === 'loading' || this.isRolling) return;
     this.setMode(this.mode === 'autopilot' ? 'manual' : 'autopilot');
   }
 
