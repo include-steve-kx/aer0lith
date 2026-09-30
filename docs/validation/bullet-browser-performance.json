@@ -1,0 +1,33 @@
+{
+  "scenario": "Five-minute actual-App integration soak, bullet-validation seed, desktop in-app Chromium, landscape viewport",
+  "durationSeconds": 300.0122,
+  "viewport": [844, 390],
+  "pixelRatio": 1,
+  "frames": 34632,
+  "simulationSteps": 32532,
+  "shots": 12978,
+  "nonlethalHits": 1711,
+  "meteorDestructions": 510,
+  "browserErrors": [],
+  "frameIntervalMs": {"median": 8.3, "p95": 9.3, "max": 183.3},
+  "cpuMsPerRenderedFrame": {
+    "bulletUpdate": {"median": 0.1, "p95": 0.3, "max": 24},
+    "bulletVisualBuffers": {"median": 0.1, "p95": 0.2, "max": 14.4},
+    "sharedImpactResolution": {"median": 0, "p95": 0, "max": 2.7},
+    "meteorProjectileSweeps": {"median": 0, "p95": 0.1, "max": 33.9},
+    "terrainDensity": {"median": 0.1, "p95": 0.3, "max": 29},
+    "flight": {"median": 0, "p95": 0.4, "max": 17},
+    "impactEffects": {"median": 0, "p95": 0.1, "max": 3.5}
+  },
+  "peakPools": {"bullets":39,"bulletTrails":88,"meteors":48,"missiles":8,"fragments":104,"explosions":9,"shakeImpulses":7},
+  "lastMinuteResources": {"geometryMin":159,"geometryMax":159,"texturesMin":6,"texturesMax":6,"programsMin":23,"programsMax":23,"observedHeapMinBytes":54777910,"observedHeapMaxBytes":79719733},
+  "notes": [
+    "Fixed production QA bundle served during soak; no hot reloads. 48 shots/s, 1200 m/s, 1600 m range, 100 m / 1 s trails; repeated scans, target spawning, camera changes, rolls, glass debug toggles, resets, pauses, and origin changes.",
+    "CPU categories overlap and must not be added. Very short operations round to zero at browser timer resolution. Measurements include instrumentation overhead.",
+    "GPU resource counts plateaued during the last minute; heap varied with garbage collection. This is bounded-run evidence, not a formal leak proof.",
+    "The run did not saturate every hard pool. Dedicated automated exhaustion tests cover skipped launches and resource reuse.",
+    "There were isolated long frames; the 183.3 ms maximum means stutters are not fully eliminated. No phone measurements or universal FPS claim.",
+    "The paired same-route comparison is CPU-only in bullet-simulation-performance.json. A paired full-render phone median-frame acceptance comparison remains unmeasured.",
+    "Follow-up quick-tap input, simultaneous input-release, zero-velocity settling, and continuous-surface muzzle shader refinements were checked separately after this frozen-bundle soak."
+  ]
+}

@@ -43,6 +43,7 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 | `Q` / `E` | One 360° dodge roll left / right; also available above the joystick |
 | `Shift` / `Ctrl` | Boost / brake without disengaging autopilot. Hold boost for 5 seconds + 2 seconds of fill to lock; tap again to unlock. |
 | `T` | Toggle autopilot |
+| Hold `Space` / FIRE | Shoot bullets from randomized wing tips; release to stop |
 | `C` or `1`–`3` | Cycle or select camera |
 | Mouse in camera `2` / `3` | Left-drag orbit, right-drag pan, wheel zoom; Shift does not change drag actions. Camera returns after release. |
 | `V` | Toggle Analysis / Ambient presentation mode |
@@ -74,6 +75,16 @@ The top-right settings panel adjusts terrain rendering, fog, dots, plane and rou
 The autopilot guide is fixed in world space and fades away before reaching the aircraft. Its route bends vertically and horizontally through spaces that vary from tight covered passages to broad open chambers. All four wing trails are distance-bounded: they fade toward their oldest section and discard history beyond 360 meters. The collision overlay button reveals the aircraft collision hull and probes as yellow wireframes, switching to red during contact. Collision evaluates the same volumetric density field used to build the visible mesh, so ceilings, walls, floating structures, and floors all collide consistently.
 
 Every 10–30 seconds, the aircraft emits a fast light-blue terrain probe outward from its position when triggered. The terrain shader renders its continuous ring, recolors scanned dots with a lingering afterglow, and temporarily lifts the surface before returning it to its generated height. Pressing `B` emits a probe immediately and restarts the automatic interval.
+
+## Bullets and meteor impacts
+
+Hold **Space** or the **FIRE** button to shoot. Each shot chooses a wing and has independent timing and aim variation. The four guns aim around a point 400 m ahead of the cross by default, within a 20° forward cone. When orbiting beyond that cone, a small hollow indicator shows the actual aim center when it is on screen. Bullets travel straight after launch; they do not track targets. Default spread is 0.35° (about a 2.4 m radius at 400 m), adjustable down to exact convergence.
+
+Bullets damage meteors without scanning. At default durability, 6 / 12 / 18 m meteors take approximately 3 / 5 / 8 hits. Missiles remain instantly lethal. Destroyed meteors produce the same fragments, glass pulse, and shake regardless of the weapon. Nearby explosions also push the aircraft away, with a short settling period; autopilot and boost remain engaged, and collision stays active.
+
+**BULLETS** settings control frequency, timing variation, spread, convergence, speed, size, trails, colors, and muzzle flame/glass. Shared impact controls are in **METEORS / DESTRUCTION**; the influence radius controls both shake and physical push. Set push strength to zero to disable the physical effect. Pausing freezes projectiles, flashes, trails, and forces while camera and appearance settings remain live. Releasing input, changing tabs, pausing, or recovering cancels firing; press again to resume.
+
+See [bullet architecture and validation](docs/bullets.md) for budgets, lifecycle rules, test scenarios, and measured performance.
 
 ## Run on an iPhone with Capacitor
 

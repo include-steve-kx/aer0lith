@@ -1,0 +1,69 @@
+{
+  "environment": "v24.19.0",
+  "metric": "CPU-only Node simulation and visual-buffer preparation; fixed identical route and seed; excludes browser, terrain rendering and GPU; first 120 frames warm up",
+  "results": [
+    {
+      "mode": "disabled",
+      "frames": 1680,
+      "shots": 0,
+      "maxBullets": 0,
+      "totalCpuMs": {
+        "median": 0.043042000000014013,
+        "p95": 0.33449999999999136,
+        "max": 5.315500000000043
+      },
+      "bulletsAndSharedResolutionMs": {
+        "median": 0.002376000000026579,
+        "p95": 0.013001000000031127,
+        "max": 0.3470420000000445
+      },
+      "bulletVisualBuffersMs": {
+        "median": 0.0027079999999841675,
+        "p95": 0.011791000000016538,
+        "max": 1.0798340000000053
+      }
+    },
+    {
+      "mode": "default",
+      "frames": 1680,
+      "shots": 543,
+      "maxBullets": 21,
+      "totalCpuMs": {
+        "median": 0.14741700000001856,
+        "p95": 0.48454099999992195,
+        "max": 4.024290999999948
+      },
+      "bulletsAndSharedResolutionMs": {
+        "median": 0.05679099999997561,
+        "p95": 0.25033299999995506,
+        "max": 1.5995419999999285
+      },
+      "bulletVisualBuffersMs": {
+        "median": 0.015249999999923602,
+        "p95": 0.041208000000096945,
+        "max": 0.5664590000000089
+      }
+    },
+    {
+      "mode": "maximum",
+      "frames": 1680,
+      "shots": 1449,
+      "maxBullets": 27,
+      "totalCpuMs": {
+        "median": 0.20316699999989396,
+        "p95": 0.6359589999999571,
+        "max": 1.7266250000000127
+      },
+      "bulletsAndSharedResolutionMs": {
+        "median": 0.07949899999994159,
+        "p95": 0.3737919999998667,
+        "max": 1.4418330000003152
+      },
+      "bulletVisualBuffersMs": {
+        "median": 0.04279100000007929,
+        "p95": 0.0914580000001024,
+        "max": 1.0499999999999545
+      }
+    }
+  ]
+}
