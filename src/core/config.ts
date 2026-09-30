@@ -45,7 +45,9 @@ export const FLIGHT = {
   maxSubsteps: 5,
   minSpeed: 30,
   maxSpeed: 120,
-  nominalSpeed: 55,
+  // Bound accumulated blasts independently of engine speed and default push strength.
+  maxExternalSpeed: 180,
+  nominalSpeed: 90,
   targetClearance: 44,
   safeClearance: 30,
   crashFreeze: 0.25,

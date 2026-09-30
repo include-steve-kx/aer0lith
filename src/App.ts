@@ -546,7 +546,7 @@ export class App {
       camera: this.cameraRig.mode,
       position: this.flight.position,
       orientation: this.flight.orientation,
-      speed: this.flight.speed,
+      speed: this.flight.actualSpeed,
       throttle: this.flight.throttle,
       altitude: this.flight.position.y,
       seed: this.seed,

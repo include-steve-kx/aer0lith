@@ -36,7 +36,7 @@ export class FlightController {
   private rollElapsed = 0;
   private rollCooldown = 0;
   private rollAngle = 0;
-  readonly rollDuration = 1.2;
+  readonly rollDuration = 0.6;
   readonly rollTurns = 1;
   readonly rollDistance = 44;
   readonly externalVelocity = new Vector3();
@@ -52,7 +52,7 @@ export class FlightController {
   clearExternalImpulse(): void { this.externalVelocity.set(0, 0, 0); this.pendingImpulse.set(0, 0, 0); this.externalRemaining = 0; }
   private advanceExternal(dt: number): boolean {
     if (this.pendingImpulse.lengthSq() > 0) {
-      this.externalVelocity.add(this.pendingImpulse).clampLength(0, 30);
+      this.externalVelocity.add(this.pendingImpulse).clampLength(0, FLIGHT.maxExternalSpeed);
       this.pendingImpulse.set(0, 0, 0); this.externalRemaining = this.externalSettle;
     }
     if (this.externalRemaining <= 0 || this.externalVelocity.lengthSq() === 0) { this.clearExternalImpulse(); return false; }
@@ -76,6 +76,8 @@ export class FlightController {
       }
     }
   }
+  /** Distance traveled per fixed step, including dodge and external forces. */
+  actualSpeed: number = FLIGHT.nominalSpeed;
   speed: number = FLIGHT.nominalSpeed;
   throttle: number = (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
   mode: FlightMode = 'loading';
@@ -84,7 +86,7 @@ export class FlightController {
   roll = 0;
   obstacles?: DynamicObstacleProvider;
   onRecovery?: () => void;
-  private readonly previousPosition = new Vector3();
+  readonly previousPosition = new Vector3();
   private readonly previousOrientation = new Quaternion();
   private readonly avoidanceTarget = new Vector3();
   private readonly avoidanceOffset = new Vector3();
@@ -114,7 +116,7 @@ export class FlightController {
   }
 
   update(dt: number, input: FlightInput): void {
-    if (this.mode === 'paused' || this.mode === 'loading') return;
+    if (dt <= 0 || this.mode === 'paused' || this.mode === 'loading') return;
     if (this.mode === 'crashed') {
       this.crashElapsed += dt;
       if (this.crashElapsed >= FLIGHT.crashDuration) this.restoreCheckpoint();
@@ -133,6 +135,7 @@ export class FlightController {
     this.forward.set(0, 0, 1).applyQuaternion(this.orientation).normalize();
     this.position.addScaledVector(this.forward, this.speed * dt);
     const blastMoved = this.advanceExternal(dt);
+    this.actualSpeed = this.position.distanceTo(this.previousPosition) / dt;
     if (blastMoved) this.checkBlastTerrain();
     if (this.obstacles?.sweepShip(this.previousPosition, this.position, this.previousOrientation, this.orientation, this.cockpitCollision)) this.beginCrash();
     if (this.mode !== 'autopilot' && this.crashIntensity === 0) this.checkCollision(dt);
@@ -185,7 +188,7 @@ export class FlightController {
     if (this.rollElapsed >= this.rollDuration) {
       this.rollDirection = 0;
       this.rollAngle = 0; // Exactly one turn returns to the original attitude.
-      this.rollCooldown = 0.25;
+      this.rollCooldown = 0.125;
     }
   }
 
@@ -245,7 +248,8 @@ export class FlightController {
       if (blocked) this.speed = approach(previousSpeed, 8, 45 * dt);
       return;
     }
-    const targetThrottle = 0.62 - turnPenalty;
+    const cruiseThrottle = (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
+    const targetThrottle = cruiseThrottle - turnPenalty;
     this.throttle = approach(this.throttle, targetThrottle, 0.22 * dt);
     const targetSpeed = FLIGHT.minSpeed + this.throttle * (FLIGHT.maxSpeed - FLIGHT.minSpeed);
     this.speed = approach(this.speed, blocked ? 8 : targetSpeed, (blocked ? 45 : 10) * dt);
@@ -313,6 +317,7 @@ export class FlightController {
   private beginCrash(): void {
     if (this.mode === 'crashed') return;
     this.crashElapsed = 0;
+    this.actualSpeed = 0;
     this.clearExternalImpulse();
     this.cancelRoll();
     this.setMode('crashed');
@@ -341,6 +346,7 @@ export class FlightController {
     this.pitch = checkpoint.pitch;
     this.roll = checkpoint.roll;
     this.speed = checkpoint.speed;
+    this.actualSpeed = this.speed;
     this.throttle = checkpoint.throttle;
     this.collisionContactTime = 0;
     this.syncOrientation();
@@ -349,6 +355,7 @@ export class FlightController {
   private restoreCheckpoint(): void {
     this.applyCheckpoint(this.checkpoint);
     this.speed = FLIGHT.nominalSpeed;
+    this.actualSpeed = this.speed;
     this.throttle = (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
     this.setMode('autopilot');
   }

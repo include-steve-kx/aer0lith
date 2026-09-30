@@ -30,6 +30,10 @@ for (const direction of [-1, 1] as const) {
     assert.ok(Math.abs(traveledAngle - Math.PI * 2) < 1e-7, `actual rotation was ${traveledAngle * 180 / Math.PI} degrees`);
     assert.ok(maximum > Math.PI * 2 - 0.01);
     assert.equal(flight.isRolling, false);
+    assert.ok(steps / 120 >= 0.6 && steps / 120 <= 0.6 + 1 / 120, 'one full dodge takes 0.6 seconds');
+    assert.equal(flight.startRoll(direction), false, 'recovery blocks immediate repeat');
+    for (let i = 0; i < 16; i++) flight.update(FLIGHT.fixedStep, neutral);
+    assert.ok(flight.startRoll(direction), 'recovery completes after 0.125 seconds');
     assert.ok(Math.abs(flight.position.x + direction * flight.rollDistance) < 1e-7);
     assert.ok(flight.orientation.angleTo(initial) < 1e-8);
     assert.ok(collisionSamples >= steps * 4);

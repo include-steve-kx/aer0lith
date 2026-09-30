@@ -18,6 +18,7 @@ import {
 } from "../src/combat/settings.ts";
 import { FlightController } from "../src/flight/FlightController.ts";
 import type { ProceduralTerrain } from "../src/world/TerrainModel.ts";
+import { FLIGHT } from "../src/core/config.ts";
 import { WING_TIPS } from "../src/core/aircraftGeometry.ts";
 const zero = new Vector3(),
   q = new Quaternion(),
@@ -297,9 +298,9 @@ test("blast impulses retain autopilot, combine before clamp, settle exactly and 
   assert.equal(flight.mode, "autopilot");
   assert.ok(flight.position.x > before.x);
   assert.ok(flight.externalVelocity.x > 9 && flight.externalVelocity.x < 10);
-  flight.applyExternalImpulse(new Vector3(100, 0, 0));
+  flight.applyExternalImpulse(new Vector3(1000, 0, 0));
   flight.update(0.01, neutral);
-  assert.ok(flight.externalVelocity.length() <= 30);
+  assert.ok(Math.abs(flight.externalVelocity.length() - FLIGHT.maxExternalSpeed * (1 - 0.01 / 0.8)) < 1e-8);
   for (let i = 0; i < 120; i++) flight.update(0.01, neutral);
   assert.equal(flight.externalVelocity.length(), 0);
   flight.applyExternalImpulse(new Vector3(10, 0, 0));

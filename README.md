@@ -133,3 +133,5 @@ http://localhost:5173/?seed=aer0lith-alpha
 The same seed produces the same 3D flight route and density field across cubic chunk boundaries.
 
 In Analysis mode, the compact meter value beside the coordinates reports the aircraft's horizontal distance from the floating render origin. It resets near zero whenever a rebase occurs but no longer flashes. This is a precision-maintenance measurement, not an edge of the infinite terrain; cubic terrain chunks recycle independently every 128 meters. Rebasing translates the camera, orbit target, cached aircraft position, and interpolation target into the new coordinate frame atomically, preserving the view without a jump.
+
+The speedometer displays actual world-space travel speed, including lateral dodges and explosion pushes. Engine speed remains capped at 120 m/s; total movement can temporarily exceed it.
