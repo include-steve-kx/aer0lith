@@ -8,6 +8,7 @@ import {
 } from '../core/config.ts';
 import { COCKPIT_COLLISION_PROBES } from '../core/aircraftGeometry.ts';
 import type { FlightInput, FlightMode, SafeCheckpoint } from '../core/types.ts';
+import type { DynamicObstacleProvider } from '../combat/types.ts';
 import type { ProceduralTerrain } from '../world/TerrainModel.ts';
 
 function clamp(value: number, min: number, max: number): number {
@@ -44,6 +45,12 @@ export class FlightController {
   yaw = 0;
   pitch = 0;
   roll = 0;
+  obstacles?: DynamicObstacleProvider;
+  onRecovery?: () => void;
+  private readonly previousPosition = new Vector3();
+  private readonly previousOrientation = new Quaternion();
+  private readonly avoidanceTarget = new Vector3();
+  private readonly avoidanceOffset = new Vector3();
   onCrash: (() => void) | undefined;
   onModeChange: ((mode: FlightMode) => void) | undefined;
   private readonly terrain: ProceduralTerrain;
@@ -77,6 +84,8 @@ export class FlightController {
       return;
     }
 
+    this.previousPosition.copy(this.position);
+    this.previousOrientation.copy(this.orientation);
     if (input.pitch !== 0 || input.roll !== 0 || input.yaw !== 0) this.takeManualControl();
     this.rollCooldown = Math.max(0, this.rollCooldown - dt);
     if (this.isRolling) { this.updateThrottle(dt, input.throttle); this.updateRoll(dt); }
@@ -86,7 +95,8 @@ export class FlightController {
     this.syncOrientation();
     this.forward.set(0, 0, 1).applyQuaternion(this.orientation).normalize();
     this.position.addScaledVector(this.forward, this.speed * dt);
-    if (this.mode !== 'autopilot') this.checkCollision(dt);
+    if (this.obstacles?.sweepShip(this.previousPosition, this.position, this.previousOrientation, this.orientation, this.cockpitCollision)) this.beginCrash();
+    if (this.mode !== 'autopilot' && this.crashIntensity === 0) this.checkCollision(dt);
     this.updateCheckpoint(dt);
   }
 
@@ -143,6 +153,8 @@ export class FlightController {
   private cancelRoll(): void { this.rollDirection = 0; this.rollAngle = 0; this.rollCooldown = 0; }
 
   private updateAutopilot(dt: number, throttleInput: number): void {
+    const blocked = this.obstacles?.avoidance(dt, this.position, this.speed, this.avoidanceTarget) ?? false;
+    this.avoidanceOffset.lerp(this.avoidanceTarget, 1 - Math.exp(-3 * dt));
     const lookAhead = clamp(this.speed * 1.25, 52, 105);
     const route = this.terrain.sample(this.position.z + lookAhead);
     const localRoute = this.terrain.sample(this.position.z);
@@ -158,9 +170,9 @@ export class FlightController {
     const steeringRoute = this.terrain.sample(this.position.z + 22);
     const correctionGain = 0.05 + avoidance * 0.045;
     const steeringX = steeringRoute.tangentX
-      + (localRoute.x - this.position.x) * correctionGain;
+      + (localRoute.x + this.avoidanceOffset.x - this.position.x) * correctionGain;
     const steeringY = steeringRoute.tangentY
-      + (localRoute.y - this.position.y) * correctionGain;
+      + (localRoute.y + this.avoidanceOffset.y - this.position.y) * correctionGain;
     const desiredYaw = Math.atan2(steeringX, 1);
     const desiredPitch = clamp(
       -Math.atan2(steeringY, Math.hypot(steeringX, 1)),
@@ -189,13 +201,15 @@ export class FlightController {
       0.42,
     );
     if (Math.abs(throttleInput) > 0.01) {
+      const previousSpeed = this.speed;
       this.updateThrottle(dt, throttleInput);
+      if (blocked) this.speed = approach(previousSpeed, 8, 45 * dt);
       return;
     }
     const targetThrottle = 0.62 - turnPenalty;
     this.throttle = approach(this.throttle, targetThrottle, 0.22 * dt);
     const targetSpeed = FLIGHT.minSpeed + this.throttle * (FLIGHT.maxSpeed - FLIGHT.minSpeed);
-    this.speed = approach(this.speed, targetSpeed, 10 * dt);
+    this.speed = approach(this.speed, blocked ? 8 : targetSpeed, (blocked ? 45 : 10) * dt);
   }
 
   private syncOrientation(): void {
@@ -250,6 +264,7 @@ export class FlightController {
     const routeDistance = Math.hypot(this.position.x - path.x, this.position.y - path.y);
     if (
       this.terrain.densityAt(this.position.x, this.position.y, this.position.z) <= -FLIGHT.safeClearance * 0.5
+      && (!this.obstacles || this.obstacles.clearance(this.position, 15))
       && routeDistance < Math.min(path.width, path.height) * 0.65
     ) {
       this.checkpoint = this.captureCheckpoint();
@@ -276,6 +291,9 @@ export class FlightController {
   }
 
   private applyCheckpoint(checkpoint: SafeCheckpoint): void {
+    this.onRecovery?.();
+    this.avoidanceTarget.set(0, 0, 0);
+    this.avoidanceOffset.set(0, 0, 0);
     this.cancelRoll();
     this.position.copy(checkpoint.position);
     this.yaw = checkpoint.yaw;

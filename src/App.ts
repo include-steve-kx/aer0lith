@@ -1,3 +1,10 @@
+import { RockLibrary } from './combat/geometry.ts';
+import { MeteorSystem } from './combat/MeteorSystem.ts';
+import { MissileSystem } from './combat/MissileSystem.ts';
+import { ImpactSystem } from './combat/ImpactSystem.ts';
+import { CombatView } from './combat/CombatView.ts';
+import { CombatHud } from './ui/CombatHud.ts';
+import type { ScanSnapshot, RefractionContributor } from './combat/types.ts';
 import {
   AmbientLight,
   Color,
@@ -39,6 +46,15 @@ export class App {
   private readonly renderer: WebGLRenderer;
   private readonly terrainModel: ProceduralTerrain;
   private readonly terrain: TerrainManager;
+  private readonly rocks: RockLibrary;
+  private readonly meteors: MeteorSystem;
+  private readonly missiles: MissileSystem;
+  private readonly impacts: ImpactSystem;
+  private readonly combatView: CombatView;
+  private readonly combatHud = new CombatHud();
+  private readonly refractionContributors: RefractionContributor[];
+  private readonly scan: ScanSnapshot = { id: 0, center: new Vector3(), previousRadius: 0, radius: 0, expanding: false };
+  private crtCurvature = 0;
   private readonly flocks: FlockSystem;
   private readonly flight: FlightController;
   private readonly aircraft = new AircraftView();
@@ -104,12 +120,21 @@ export class App {
     this.terrain = new TerrainManager(this.scene, this.terrainModel);
     this.flocks = new FlockSystem(this.scene, this.terrainModel, seed);
     this.flight = new FlightController(this.terrainModel);
+    this.rocks = new RockLibrary(seed);
+    this.meteors = new MeteorSystem(this.terrainModel, this.rocks, seed);
+    this.impacts = new ImpactSystem(this.rocks, seed);
+    this.missiles = new MissileSystem(this.meteors, this.impacts, seed);
+    this.combatView = new CombatView(this.meteors, this.missiles, this.impacts);
+    this.refractionContributors = [this.combatView];
+    this.flight.obstacles = this.meteors;
+    this.flight.onRecovery = () => this.resetCombat();
     this.route = new RouteGuide(this.terrainModel);
     this.cameraRig = new CameraRig(window.innerWidth / window.innerHeight, this.renderer.domElement);
     this.post = new PostProcessor(this.renderer);
 
     this.scene.add(this.cameraRig.camera);
     this.scene.add(
+      this.combatView.group,
       this.aircraft.group,
       this.flightEffects.group,
       this.flightEffects.debugGroup,
@@ -123,6 +148,7 @@ export class App {
     this.trail.add(this.flight.position, this.flight.orientation, this.renderOrigin, true);
 
     this.flight.onCrash = () => {
+      this.resetCombat();
       this.audio.crash();
       this.flightEffects.reset();
       this.input.boost.reset();
@@ -163,6 +189,15 @@ export class App {
     bindButtonAction(this.hud.collisionButton, () => this.toggleCollisionDebug());
     bindButtonAction(this.hud.probeButton, () => this.triggerProbe());
     this.settings.onChange = (settings) => {
+      if ((!settings.meteorEnabled && this.meteors.settings.meteorEnabled)
+        || (!settings.missileEnabled && this.missiles.settings.missileEnabled)) {
+        this.missiles.reset(); this.impacts.reset();
+      }
+      this.meteors.configure(settings);
+      this.missiles.configure(settings);
+      this.impacts.configure(settings);
+      this.combatView.configure(settings);
+      this.crtCurvature = settings.crtEnabled ? settings.crtCurvature : 0;
       this.setResolutionMode(settings.renderResolutionMode);
       this.terrain.applyVisualSettings(settings);
       const background = new Color(settings.backgroundColor);
@@ -204,6 +239,14 @@ export class App {
     window.addEventListener('pagehide', event => {
       if (event.persisted) return; // A back/forward-cache restore reuses this app.
       this.running = false;
+      this.resetCombat();
+      this.combatView.dispose();
+      this.rocks.dispose();
+      this.combatHud.dispose();
+      this.settings.disposeCombatControls();
+      this.missiles.dispose();
+      this.meteors.dispose();
+      this.impacts.dispose();
       this.post.dispose();
       this.flightEffects.dispose();
     });
@@ -236,7 +279,22 @@ export class App {
       const frameInput = this.input.read(this.flight.mode === 'crashed' ? 0 : rawDelta);
       let substeps = 0;
       while (this.accumulator >= FLIGHT.fixedStep && substeps < FLIGHT.maxSubsteps) {
-        this.flight.update(FLIGHT.fixedStep, frameInput);
+        const dt = FLIGHT.fixedStep;
+        if (this.flight.mode !== 'crashed') {
+          this.meteors.advance(dt, this.flight.position, this.flight.orientation);
+          if (this.probeScheduler.update(dt)) this.triggerProbe();
+          this.scan.previousRadius = this.terrain.currentProbeRadius;
+          this.scan.expanding = this.terrain.isProbeExpanding;
+          this.terrain.updateProbe(dt, this.renderOrigin);
+          this.scan.radius = this.terrain.currentProbeRadius;
+          this.scan.center.copy(this.terrain.currentProbeWorldCenter);
+        }
+        this.flight.update(dt, frameInput);
+        if (this.flight.mode !== 'crashed') {
+          this.meteors.scan(this.scan);
+          this.missiles.update(dt, this.flight.position, this.flight.orientation);
+          this.impacts.update(dt, this.flight.position);
+        }
         this.accumulator -= FLIGHT.fixedStep;
         substeps += 1;
       }
@@ -244,8 +302,7 @@ export class App {
 
       this.maybeRebase();
       this.terrain.update(this.flight.position, this.renderOrigin);
-      if (this.flight.mode !== 'paused' && this.probeScheduler.update(rawDelta)) this.triggerProbe();
-      this.terrain.updateProbe(rawDelta, this.renderOrigin);
+
       this.hud.setProbeActive(this.terrain.isProbeActive);
       this.trail.add(this.flight.position, this.flight.orientation, this.renderOrigin);
       const throttleActive = frameInput.throttle > 0
@@ -310,8 +367,13 @@ export class App {
     this.boostShake.update(this.paused ? 0 : rawDelta, this.flightEffects.burst.shakeIntensity);
     this.cockpitRoll.apply(this.cameraRig.camera, this.flight.cameraOrientation,
       this.cameraRig.mode === 'cockpit' ? this.flight.maneuverRollAngle : 0);
-    this.boostShake.apply(this.cameraRig.camera, this.flight.speed);
+    this.boostShake.apply(this.cameraRig.camera, this.flight.speed, this.impacts.shakeTranslation, this.impacts.shakeRotation);
     try {
+      this.missiles.syncMuzzles(this.flight.position, this.flight.orientation);
+      this.combatHud.update(this.cameraRig.camera, this.renderOrigin, this.meteors, this.missiles,
+        this.missiles.settings, this.cameraRig.mode === 'cockpit', this.experienceMode === 'analysis', this.crtCurvature, this.flight.orientation);
+      this.combatView.sync(this.renderOrigin, this.cameraRig.camera,
+        this.experienceMode === 'analysis', this.collisionDebugEnabled && this.experienceMode === 'analysis');
       this.post.render(
         this.scene,
         this.cameraRig.camera,
@@ -320,6 +382,7 @@ export class App {
         this.blurVelocity,
         this.renderPlanePosition,
         this.flightEffects,
+        this.refractionContributors,
       );
     } finally {
       this.boostShake.restore(this.cameraRig.camera);
@@ -371,6 +434,7 @@ export class App {
 
   private triggerProbe(): void {
     if (this.paused) return;
+    this.scan.id++;
     this.terrain.triggerProbe(this.flight.position);
     this.probeScheduler.reset();
     this.audio.beep(920, 0.035);
@@ -400,6 +464,15 @@ export class App {
   private async toggleAudio(): Promise<void> {
     await this.audio.toggle();
     this.updateHud(this.frameAverage);
+  }
+
+  private resetCombat(): void {
+    this.missiles.reset();
+    this.impacts.reset();
+    this.meteors.reset();
+    this.scan.expanding = false;
+    this.scan.id++;
+    this.probeScheduler.reset();
   }
 
   private resetFlight(): void {

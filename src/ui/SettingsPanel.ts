@@ -1,3 +1,5 @@
+import { CombatSettingsControls } from './CombatSettingsControls.ts';
+import type { CombatSettings } from '../combat/settings.ts';
 import type { FlightEffectSettings } from '../render/FlightEffects.ts';
 import { bindButtonAction } from './bindButtonAction.ts';
 
@@ -33,7 +35,7 @@ export function migrateVisualSettingsV1(saved: Record<string, unknown>): Record<
   };
 }
 
-export interface VisualSettings extends FlightEffectSettings {
+export interface VisualSettings extends FlightEffectSettings, CombatSettings {
   scanGlassEnabled: boolean;
   scanGlassFlutter: number;
   scanGlassFlutterRate: number;
@@ -244,6 +246,8 @@ export class SettingsPanel {
   private readonly glowRadiusValue = element<HTMLOutputElement>('glow-radius-value');
   onChange: ((settings: VisualSettings) => void) | undefined;
 
+  private readonly combatControls = new CombatSettingsControls();
+
   constructor() {
     this.restore();
     this.flockMinSize.addEventListener('input', () => {
@@ -275,6 +279,7 @@ export class SettingsPanel {
 
   get values(): VisualSettings {
     return {
+      ...this.combatControls.values,
       renderResolutionMode: this.renderResolutionMode.value as VisualSettings['renderResolutionMode'],
       terrainRenderingMode: this.terrainRenderingMode.value as VisualSettings['terrainRenderingMode'],
       backgroundColor: this.backgroundColor.value,
@@ -391,6 +396,7 @@ export class SettingsPanel {
       const parsed = JSON.parse(currentRaw ?? legacyV2Raw ?? legacyV1Raw ?? 'null') as unknown;
       if (!isRecord(parsed)) return;
       const saved = legacyV1Raw ? migrateVisualSettingsV1(parsed) : parsed;
+      this.combatControls.restore(saved);
       if (
         saved.renderResolutionMode === 'full'
         || saved.renderResolutionMode === 'balanced'
@@ -494,9 +500,11 @@ export class SettingsPanel {
     }
   }
 
+  disposeCombatControls(): void { this.combatControls.dispose(); }
+
   private persist(settings: VisualSettings): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...settings, explosionDebug: false }));
     } catch {
       // Visual controls continue to work when browser storage is unavailable.
     }
@@ -518,6 +526,7 @@ export class SettingsPanel {
   }
 
   private updateReadouts(): void {
+    this.combatControls.updateReadouts();
     this.terrainFogDensityValue.textContent = this.terrainFogDensity.valueAsNumber.toFixed(5);
     this.dangerDistanceValue.textContent = `${this.dangerDistance.valueAsNumber.toFixed(0)} M`;
     this.dangerSizeMultiplierValue.textContent = `${this.dangerSizeMultiplier.valueAsNumber.toFixed(1)}×`;

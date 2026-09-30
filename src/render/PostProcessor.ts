@@ -1,3 +1,4 @@
+import type { RefractionContributor } from '../combat/types.ts';
 import {
   Color,
   DepthTexture,
@@ -349,9 +350,9 @@ export class PostProcessor {
   }
 
   render(scene: Scene, camera: OrthographicCamera | import('three').PerspectiveCamera, time: number, crash: number,
-    velocity = new Vector3(), shipPosition = new Vector3(), flightEffects?: FlightEffects): void {
+    velocity = new Vector3(), shipPosition = new Vector3(), flightEffects?: FlightEffects, contributors: readonly RefractionContributor[] = []): void {
     const wakeActive = flightEffects?.hasWake ?? false;
-    const refractionActive = wakeActive || this.scanGlass.active;
+    const refractionActive = wakeActive || this.scanGlass.active || contributors.some(c => c.active);
     this.material.uniforms.uWakeEnabled.value = refractionActive ? 1 : 0;
     const exposure = this.motionBlurEnabled
       ? motionBlurExposure(velocity.length(), this.motionBlurStrength, this.motionBlurStartSpeed) : 0;
@@ -387,6 +388,11 @@ export class PostProcessor {
         if (wakeActive && flightEffects) {
           flightEffects.prepareWake(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height);
           this.renderer.render(flightEffects.wakeScene, camera);
+        }
+        for (const contributor of contributors) {
+          if (!contributor.active) continue;
+          contributor.prepare(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height, time);
+          this.renderer.render(contributor.scene, camera);
         }
       } finally {
         this.renderer.autoClear = autoClear;
