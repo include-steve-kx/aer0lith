@@ -1,0 +1,75 @@
+{
+  "scenario": "combat-validation seeded desktop browser fixture, six meteors",
+  "change": "Detected 2D center crosses ignore terrain occlusion; no visibility raycasts or occlusion cache remain in CombatHud.",
+  "metric": "Main-thread CPU milliseconds per rendered frame; not GPU execution time or phone performance",
+  "before": {
+    "markersOnly": {
+      "markerHudP95Ms": 101.2,
+      "markerHudMaxMs": 102.8,
+      "wholeFrameCpuP95Ms": 102.1
+    },
+    "missilesWithoutMarkers": {
+      "missileSubsystemP95Ms": 0.8
+    },
+    "allEffects": {
+      "wholeFrameCpuP95Ms": 7.3,
+      "wholeFrameCpuMaxMs": 95.5
+    }
+  },
+  "after": {
+    "markersOnly": {
+      "markerHudP95Ms": 0.4,
+      "markerHudMaxMs": 0.6,
+      "wholeFrameCpuP95Ms": 1.5,
+      "markerTerrainQueries": 0
+    },
+    "missilesWithoutMarkers": {
+      "missileSubsystemP95Ms": 0.1
+    },
+    "allEffects": {
+      "wholeFrameCpuP95Ms": 2.3,
+      "wholeFrameCpuMaxMs": 2.5
+    }
+  },
+  "notes": [
+    "The previously added bounded terrain lattice cache remains available to missile and collision queries. Markers bypass terrain entirely.",
+    "Detection expiry, explicit UI/marker settings and camera projection still govern annotation presentation.",
+    "The visual regression fixture uses an opaque occluder in front of detected rocks; their 2D crosses remain visible.",
+    "The new HUD regression test makes all terrain access throw and verifies visible detected markers, camera motion, alpha fade, expiry and retirement."
+  ],
+  "reproduce": [
+    "npm run verify",
+    "npm run dev",
+    "Open /tests/fixtures/combat-profile.html for the automatic five-scenario CPU comparison.",
+    "Open /tests/fixtures/combat.html and select Start 5-minute soak for repeated scans, saturated fragments/explosions, resets, camera changes and origin rebases."
+  ],
+  "fiveMinuteStress": {
+    "durationSeconds": 300,
+    "renderedFrames": 34837,
+    "missileLaunches": 1219,
+    "markerTerrainQueries": 0,
+    "markerHudP95Ms": 0.5,
+    "browserWarningsOrErrors": 0,
+    "peakPools": {
+      "meteors": 48,
+      "missiles": 5,
+      "trails": 37,
+      "fragments": 192,
+      "explosions": 16,
+      "shakeImpulses": 16
+    },
+    "lastMinuteGpu": {
+      "geometries": 149,
+      "textures": 6,
+      "programs": 21
+    },
+    "lastMinuteObservedHeapMB": {
+      "min": 38,
+      "max": 67
+    },
+    "medianOfRollingFrameMediansMs": 8.3,
+    "medianOfRollingFrameP95sMs": 9.2,
+    "finalRollingFrameP95Ms": 58.8,
+    "limitation": "Heavy-load simulation spikes occurred late in the run (roughly 0.25\u20130.53 CPU seconds of new simulation work per wall second). Marker cost remained 0.5 ms P95 with zero terrain queries. This validates the marker fix, not the elimination of every maximum-load bottleneck. CPU subsystem wrappers did not attribute those late spikes further."
+  }
+}

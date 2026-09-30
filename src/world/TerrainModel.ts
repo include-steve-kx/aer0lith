@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+import { DensityLatticeCache } from './DensityLatticeCache.ts';
 import { TERRAIN } from '../core/config.ts';
 import type { FlightPath, FlightPathSample, TerrainSampler } from '../core/types.ts';
 import { SeededNoise } from './Noise.ts';
@@ -24,6 +25,13 @@ function smoothstep(edge0: number, edge1: number, value: number): number {
 export class ProceduralTerrain implements TerrainSampler, FlightPath {
   readonly noise: SeededNoise;
   readonly seedText: string;
+  // Workers only polygonize; allocate the collision cache on first query.
+  private collisionCache?: DensityLatticeCache;
+  private readonly collisionCorners = new Float64Array(8);
+  private readonly sampleCollisionCorner = (x: number, y: number, z: number): number => {
+    const cellSize = TERRAIN.chunkSize / TERRAIN.segments;
+    return this.densityAt(x * cellSize, y * cellSize, z * cellSize);
+  };
 
   constructor(seed: string) {
     this.seedText = seed;
@@ -139,22 +147,18 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
   /** Density interpolation over the exact tetrahedra used by the visible mesh. */
   collisionDensityAt(worldX: number, worldY: number, worldZ: number): number {
     const cellSize = TERRAIN.chunkSize / TERRAIN.segments;
-    const x0 = Math.floor(worldX / cellSize) * cellSize;
-    const y0 = Math.floor(worldY / cellSize) * cellSize;
-    const z0 = Math.floor(worldZ / cellSize) * cellSize;
-    const x1 = x0 + cellSize;
-    const y1 = y0 + cellSize;
-    const z1 = z0 + cellSize;
-    const densities = [
-      this.densityAt(x0, y0, z0),
-      this.densityAt(x1, y0, z0),
-      this.densityAt(x1, y1, z0),
-      this.densityAt(x0, y1, z0),
-      this.densityAt(x0, y0, z1),
-      this.densityAt(x1, y0, z1),
-      this.densityAt(x1, y1, z1),
-      this.densityAt(x0, y1, z1),
-    ];
+    const ix = Math.floor(worldX / cellSize), iy = Math.floor(worldY / cellSize), iz = Math.floor(worldZ / cellSize);
+    const x0 = ix * cellSize, y0 = iy * cellSize, z0 = iz * cellSize;
+    const cache = this.collisionCache ??= new DensityLatticeCache();
+    const densities = this.collisionCorners;
+    densities[0] = cache.get(ix, iy, iz, this.sampleCollisionCorner);
+    densities[1] = cache.get(ix + 1, iy, iz, this.sampleCollisionCorner);
+    densities[2] = cache.get(ix + 1, iy + 1, iz, this.sampleCollisionCorner);
+    densities[3] = cache.get(ix, iy + 1, iz, this.sampleCollisionCorner);
+    densities[4] = cache.get(ix, iy, iz + 1, this.sampleCollisionCorner);
+    densities[5] = cache.get(ix + 1, iy, iz + 1, this.sampleCollisionCorner);
+    densities[6] = cache.get(ix + 1, iy + 1, iz + 1, this.sampleCollisionCorner);
+    densities[7] = cache.get(ix, iy + 1, iz + 1, this.sampleCollisionCorner);
     return interpolateDensityCell(
       densities,
       (worldX - x0) / cellSize,
