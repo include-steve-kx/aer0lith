@@ -4,6 +4,7 @@ import { Vector3 } from 'three';
 import { ImpactSystem } from '../src/combat/ImpactSystem.ts';
 import { MeteorSystem } from '../src/combat/MeteorSystem.ts';
 import { PulseCannonSystem } from '../src/combat/PulseCannonSystem.ts';
+import { PULSE_VIEW_COMPLEXITY, PulseCannonView } from '../src/combat/PulseCannonView.ts';
 import { RockLibrary } from '../src/combat/geometry.ts';
 import { DEFAULT_COMBAT } from '../src/combat/settings.ts';
 
@@ -115,4 +116,53 @@ test('a maximum Pulse burst destroys 48 meteors once and fills bounded cosmetic 
   impacts.dispose();
   meteors.dispose();
   library.dispose();
+});
+
+test('Pulse view keeps fixed geometry and arc complexity across radius, rebase, and settings changes', () => {
+  const pulse = new PulseCannonSystem();
+  const view = new PulseCannonView(pulse, 'pulse-view');
+  const plasmaGeometry = view.plasma.geometry;
+  const electricGeometry = view.electric.geometry;
+  const glassGeometry = view.glass.geometry;
+  assert.deepEqual(PULSE_VIEW_COMPLEXITY, {
+    plasmaDrawCalls: 1,
+    electricDrawCalls: 1,
+    refractionDrawCalls: 1,
+    arcCount: 8,
+    arcSegments: 16,
+    beamSides: 12,
+  });
+  pulse.requestFire();
+  pulse.tryFire(new Vector3(1000, 20, 30), new Vector3(1000, 20, 1030));
+  view.sync(new Vector3(900, 0, 0));
+  assert.equal(view.plasma.visible, true);
+  assert.equal(view.electric.visible, true);
+  assert.equal(view.plasma.position.x, 100);
+  assert.equal(view.electric.geometry.drawRange.count, 8 * 16 * 2);
+  assert.equal(view.plasma.scale.x, 60);
+  assert.equal(view.plasma.scale.z, 480);
+  assert.equal(view.active, true);
+
+  pulse.reset();
+  pulse.configure({
+    ...DEFAULT_COMBAT,
+    pulseRadius: 80,
+    pulseElectricStrength: 0,
+    pulseRefraction: 0,
+    pulseDispersion: 0,
+  });
+  pulse.requestFire();
+  pulse.tryFire(new Vector3(), new Vector3(0, 0, 1));
+  view.sync(new Vector3());
+  assert.equal(view.plasma.geometry, plasmaGeometry);
+  assert.equal(view.electric.geometry, electricGeometry);
+  assert.equal(view.glass.geometry, glassGeometry);
+  assert.equal(view.plasma.scale.x, 80);
+  assert.equal(view.electric.visible, false);
+  assert.equal(view.active, false);
+  pulse.update(DEFAULT_COMBAT.pulseDuration);
+  view.sync(new Vector3());
+  assert.equal(view.plasma.visible, false);
+  view.dispose();
+  view.dispose();
 });

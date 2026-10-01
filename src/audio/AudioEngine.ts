@@ -8,6 +8,7 @@ export class AudioEngine {
   private engineGain: GainNode | undefined;
   private wind: AudioBufferSourceNode | undefined;
   private windGain: GainNode | undefined;
+  private pulseBuffer: AudioBuffer | undefined;
 
   async toggle(): Promise<boolean> {
     if (!this.context) this.initialize();
@@ -51,6 +52,40 @@ export class AudioEngine {
     this.windGain.gain.value = 0.04;
     this.wind.connect(windFilter).connect(this.windGain).connect(this.master);
     this.wind.start();
+    this.pulseBuffer = this.createPulseBuffer();
+  }
+
+  /** A reusable mixed discharge/hiss/crackle sample; only the cheap source is per shot. */
+  private createPulseBuffer(): AudioBuffer | undefined {
+    if (!this.context) return;
+    const duration = 0.68;
+    const buffer = this.context.createBuffer(1, Math.ceil(this.context.sampleRate * duration), this.context.sampleRate);
+    const samples = buffer.getChannelData(0);
+    let phase = 0;
+    let state = 0x9e3779b9;
+    for (let index = 0; index < samples.length; index += 1) {
+      const t = index / this.context.sampleRate;
+      const progress = t / duration;
+      const frequency = 760 * Math.exp(-t * 4.2) + 58;
+      phase += frequency / this.context.sampleRate * Math.PI * 2;
+      state ^= state << 13; state ^= state >>> 17; state ^= state << 5;
+      const noise = ((state >>> 0) / 0xffffffff) * 2 - 1;
+      const discharge = Math.sin(phase) * Math.exp(-t * 5.2) * 0.7;
+      const hiss = noise * Math.exp(-t * 3.6) * 0.22;
+      const crack = t < 0.075 ? noise * (1 - t / 0.075) * 0.75 : 0;
+      samples[index] = Math.tanh((discharge + hiss + crack) * 1.7) * (1 - progress * progress);
+    }
+    return buffer;
+  }
+
+  pulse(): void {
+    if (!this.enabled || !this.context || !this.master || !this.pulseBuffer) return;
+    const source = this.context.createBufferSource();
+    const gain = this.context.createGain();
+    source.buffer = this.pulseBuffer;
+    gain.gain.value = 0.22;
+    source.connect(gain).connect(this.master);
+    source.start();
   }
 
   update(speed: number, throttle: number, paused = false): void {
@@ -96,4 +131,3 @@ export class AudioEngine {
     oscillator.stop(this.context.currentTime + 0.31);
   }
 }
-
