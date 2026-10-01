@@ -37,13 +37,13 @@ export interface FlightEffectSettings {
 }
 
 export const DEFAULT_FLIGHT_EFFECTS: FlightEffectSettings = {
-  boostExhaustEnabled: true, boostExhaustStrength: 1, boostExhaustLength: 54, boostExhaustWidth: 0.45,
-  boostGlassWidth: 0.55, boostGlassLength: 0.65, boostGlassDebug: false, boostFadeDuration: 2.8,
-  boostExhaustColor: '#8cffe0', wingWarpEnabled: true, wingWarpStrength: 1,
-  wingWarpLength: 120, wingWarpHeight: 14, wingWarpThickness: 0.3,
-  wingWarpFlutter: 0.6, wingWarpFlutterRate: 1, wingWarpFlowRate: 1, wingWarpOpacity: 0.045, wingWarpDispersion: 0.12,
-  boostGlassEnabled: true, boostRefraction: 1, boostDispersion: 0.18,
-  boostFlutter: 0.45, boostFlutterRate: 1, boostFlowRate: 1, wakeDebugEnabled: false,
+  boostExhaustEnabled: true, boostExhaustStrength: 2, boostExhaustLength: 54, boostExhaustWidth: 0.45,
+  boostGlassWidth: 0.55, boostGlassLength: 1, boostGlassDebug: false, boostFadeDuration: 3.6,
+  boostExhaustColor: '#8ab7ff', wingWarpEnabled: true, wingWarpStrength: 1.75,
+  wingWarpLength: 120, wingWarpHeight: 3.5, wingWarpThickness: 0.08,
+  wingWarpFlutter: 0.65, wingWarpFlutterRate: 1, wingWarpFlowRate: 0.5, wingWarpOpacity: 0.045, wingWarpDispersion: 0.12,
+  boostGlassEnabled: true, boostRefraction: 0.7, boostDispersion: 0.6,
+  boostFlutter: 0.9, boostFlutterRate: 1, boostFlowRate: 1, wakeDebugEnabled: false,
 };
 
 /** Pooled meshes/light; animation advances only on simulation time. */

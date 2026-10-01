@@ -200,7 +200,8 @@ test('slender flames and compact glass have independent geometry controls and a 
   assert.equal(flame.material.uniforms.uLength.value, 54);
   assert.equal(flame.material.uniforms.uShellScale.value, .45);
   assert.equal(glass.material.uniforms.uShellScale.value, .55);
-  assert.ok(Math.abs(glass.material.uniforms.uLength.value - 54 * .65) < 1e-8);
+  assert.ok(Math.abs(glass.material.uniforms.uLength.value
+    - 54 * DEFAULT_FLIGHT_EFFECTS.boostGlassLength) < 1e-8);
   const geometry = glass.geometry;
   effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, wingWarpEnabled: false, boostGlassWidth: .8,
     boostGlassLength: .4, boostGlassDebug: true });
