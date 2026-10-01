@@ -32,8 +32,8 @@ test('fire input queues quick taps, isolates focused controls and simultaneous p
   const defaults = [win,doc,ElementStub,ElementStub,ElementStub];
   names.forEach((name,i)=>Object.defineProperty(globalThis,name,{value:defaults[i],configurable:true}));
   const oldMax = getMaxListeners(new EventTarget()); setMaxListeners(100);
-  let manual = 0, pulses = 0;
-  const actions = {onManualInput:()=>manual++,onRoll:()=>{},onToggleAutopilot:()=>{},onCycleCamera:()=>{},onSelectCamera:()=>{},onToggleAudio:()=>{},onReset:()=>{},onPause:()=>{},onNewSeed:()=>{},onToggleExperienceMode:()=>{},onToggleFullscreen:()=>{},onTriggerProbe:()=>{},onTriggerPulse:()=>pulses++} satisfies InputActions;
+  let manual = 0, pulses = 0, probes = 0, views = 0, seeds = 0, fullscreens = 0;
+  const actions = {onManualInput:()=>manual++,onRoll:()=>{},onToggleAutopilot:()=>{},onCycleCamera:()=>{},onSelectCamera:()=>{},onToggleAudio:()=>{},onReset:()=>{},onPause:()=>{},onNewSeed:()=>seeds++,onToggleExperienceMode:()=>views++,onToggleFullscreen:()=>fullscreens++,onTriggerProbe:()=>probes++,onTriggerPulse:()=>pulses++} satisfies InputActions;
   const button = () => Object.assign(new ElementStub(),{tagName:'BUTTON'});
   const fire = button(), throttle = button(), joystick = new ElementStub();
   const controls = { fireButton:fire, throttleButton:throttle, joystick, joystickThumb:new ElementStub(), rollLeftButton:button(), rollRightButton:button() } as unknown as PointerFlightControls;
@@ -56,7 +56,15 @@ test('fire input queues quick taps, isolates focused controls and simultaneous p
     key('Space'); doc.hidden=true; fireEvent(doc,'visibilitychange'); assert.equal(input.consumeFire(),false);
     doc.hidden=false; key('Space','keyup'); key('Space'); fireEvent(win,'blur'); assert.equal(input.consumeFire(),false);
     const previousManual=manual; key('Space'); assert.equal(manual,previousManual);
-    key('KeyX'); key('KeyX','keydown',root,true); assert.equal(pulses,1); key('KeyX','keyup'); key('KeyX'); assert.equal(pulses,2);
+    key('KeyF'); key('KeyF','keydown',root,true); assert.equal(probes,1); key('KeyF','keyup'); key('KeyF'); assert.equal(probes,2); key('KeyF','keyup');
+    key('KeyG'); key('KeyG','keydown',root,true); assert.equal(pulses,1); key('KeyG','keyup'); key('KeyG'); assert.equal(pulses,2); key('KeyG','keyup');
+    key('KeyU'); assert.equal(views,1); key('KeyU','keyup');
+    key('KeyN'); assert.equal(seeds,0); key('KeyN','keyup');
+    fireEvent(win,'keydown',{code:'KeyN',target:root,repeat:false,shiftKey:true}); assert.equal(seeds,1); key('KeyN','keyup');
+    fireEvent(win,'keydown',{code:'Enter',target:root,repeat:false,altKey:true,ctrlKey:false,metaKey:false}); assert.equal(fullscreens,1);
+    fireEvent(win,'keydown',{code:'KeyF',target:root,repeat:false,ctrlKey:true}); assert.equal(probes,2,'modified F remains a browser shortcut');
+    key('KeyX'); key('KeyB'); key('KeyV');
+    assert.deepEqual({ pulses, probes, views }, { pulses: 2, probes: 2, views: 1 }, 'retired shortcuts do nothing');
     input.dispose(); input.dispose(); key('Space'); pointer(fire,'pointerdown',5); assert.equal(input.consumeFire(),false);
   } finally {
     input.dispose(); setMaxListeners(oldMax);

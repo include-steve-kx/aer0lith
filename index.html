@@ -63,20 +63,21 @@
             <p><kbd>⇧ ×3</kbd><span>LOCK BOOST</span></p>
             <p><kbd>T</kbd><span>AUTO</span></p>
             <p><kbd>SPACE</kbd><span>FIRE</span></p>
-            <p><kbd>X</kbd><span>PULSE CANNON</span></p>
+            <p><kbd>G</kbd><span>PULSE CANNON</span></p>
             <p><kbd>P / ESC</kbd><span>PAUSE</span></p>
             <p><kbd>I</kbd><span>CHECKPOINT</span></p>
-            <p><kbd>B</kbd><span>PROBE</span></p>
+            <p><kbd>F</kbd><span>PROBE</span></p>
             <p><kbd>C / 1–3</kbd><span>CAMERA</span></p>
-            <p><kbd>V</kbd><span>VIEW MODE</span></p>
-            <p><kbd>⌘/CTRL F</kbd><span>FULLSCREEN</span></p>
+            <p><kbd>U</kbd><span>VIEW MODE</span></p>
+            <p><kbd>⇧ N</kbd><span>NEW WORLD</span></p>
+            <p><kbd>⌥/ALT ↵</kbd><span>FULLSCREEN</span></p>
           </div>
         </section>
 
         <nav class="system-controls" aria-label="System controls">
           <button id="pause-button" type="button" aria-label="Pause game" aria-pressed="false" title="Pause / resume (P or Esc)">PAUSE</button>
           <button id="audio-button" type="button" aria-label="Enable audio">AUDIO / OFF</button>
-          <button id="view-button" type="button" aria-label="Enter ambient mode">UI / ON</button>
+          <button id="view-button" type="button" aria-label="Enter ambient mode" title="Toggle Analysis / Ambient UI (U)">UI / ON</button>
           <button id="camera-button" type="button" aria-label="Change camera">CAM / 2</button>
           <button id="settings-button" type="button" aria-label="Open visual settings" aria-expanded="false">SETTINGS</button>
         </nav>
@@ -434,7 +435,7 @@
             <h2 id="settings-system-title">WORLD + DEBUG</h2>
             <div class="settings-actions">
               <button id="collision-button" type="button" aria-label="Show collision mesh" aria-pressed="false">COLLISION / OFF</button>
-              <button id="seed-button" type="button" aria-label="Generate a new world">NEW SEED</button>
+              <button id="seed-button" type="button" aria-label="Generate a new world" title="Generate a new world (Shift+N)">NEW SEED</button>
             </div>
           </section>
         </section>
@@ -472,14 +473,14 @@
             </svg>
             <span class="sr-only">Fire</span>
           </button>
-          <button id="pulse-button" class="flight-action pulse-button" type="button" aria-label="Fire Pulse Cannon" aria-describedby="pulse-status" title="Pulse Cannon (X)">
+          <button id="pulse-button" class="flight-action pulse-button" type="button" aria-label="Fire Pulse Cannon" aria-describedby="pulse-status" title="Pulse Cannon (G)">
             <span class="pulse-cooldown" aria-hidden="true"></span>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M13.5 2.75 5.75 13h5.5l-.75 8.25L18.25 11h-5.5z" />
             </svg>
             <span id="pulse-status" class="sr-only" aria-live="polite">Pulse Cannon ready</span>
           </button>
-          <button id="probe-button" class="flight-action" type="button" aria-label="Trigger probe wave">
+          <button id="probe-button" class="flight-action" type="button" aria-label="Trigger probe wave" title="Trigger probe wave (F)">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 4.5v4" />
               <path d="M8.5 10.5c.8 1.15 2 1.75 3.5 1.75s2.7-.6 3.5-1.75" />
@@ -494,7 +495,7 @@
             </svg>
             <span class="sr-only">Boost</span>
           </button>
-          <button id="fullscreen-button" class="flight-action fullscreen-button" type="button" aria-label="Enter fullscreen">
+          <button id="fullscreen-button" class="flight-action fullscreen-button" type="button" aria-label="Enter fullscreen" title="Toggle fullscreen (Alt/Option+Enter)">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path class="fullscreen-expand" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
               <path class="fullscreen-contract" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" />

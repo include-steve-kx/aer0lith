@@ -38,8 +38,8 @@ export interface JoystickInput {
 const CAPTURED = new Set([
   'KeyW', 'KeyS', 'KeyA', 'KeyD', 'ShiftLeft', 'ShiftRight',
   'KeyT', 'KeyC', 'Digit1', 'Digit2', 'Digit3',
-  'KeyM', 'KeyI', 'KeyP', 'Escape', 'KeyN', 'KeyB',
-  'KeyV', 'KeyQ', 'KeyE', 'KeyX', 'Space',
+  'KeyM', 'KeyI', 'KeyP', 'Escape', 'KeyN', 'KeyF',
+  'KeyG', 'KeyU', 'KeyQ', 'KeyE', 'Space',
 ]);
 
 const DIRECTION_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD']);
@@ -284,6 +284,13 @@ export class InputManager {
   private onKeyDown = (event: KeyboardEvent): void => {
     if (!this.hasExperienceFocus()) return;
     if (event.target instanceof Element && event.target.closest('input, select, textarea, [contenteditable=true]')) return;
+    const fullscreenShortcut = event.code === 'Enter' && event.altKey
+      && !event.ctrlKey && !event.metaKey;
+    if (fullscreenShortcut) {
+      event.preventDefault();
+      if (!event.repeat) this.actions.onToggleFullscreen();
+      return;
+    }
     if (event.target === this.pointerControls?.throttleButton && ['Space', 'Enter'].includes(event.code)) {
       event.preventDefault(); this.boost.setHeld(event.code, true); return;
     }
@@ -303,12 +310,10 @@ export class InputManager {
       return;
     }
     if (event.code === 'Escape' && document.fullscreenElement) return;
-    const fullscreenShortcut = event.code === 'KeyF' && (event.ctrlKey || event.metaKey);
-    if (CAPTURED.has(event.code) || fullscreenShortcut) event.preventDefault();
-    if (fullscreenShortcut && !event.repeat) {
-      this.actions.onToggleFullscreen();
-      return;
-    }
+    // Preserve browser/system shortcuts and never reinterpret their letter as
+    // an unmodified game action (for example, Ctrl/Cmd+F remains Find).
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (CAPTURED.has(event.code)) event.preventDefault();
     const alreadyPressed = this.pressed.has(event.code);
     this.pressed.add(event.code);
     if (DIRECTION_KEYS.has(event.code)) this.actions.onManualInput();
@@ -326,10 +331,10 @@ export class InputManager {
       case 'KeyI': this.actions.onReset(); break;
       case 'KeyP':
       case 'Escape': this.actions.onPause(); break;
-      case 'KeyN': this.actions.onNewSeed(); break;
-      case 'KeyV': this.actions.onToggleExperienceMode(); break;
-      case 'KeyB': this.actions.onTriggerProbe(); break;
-      case 'KeyX': this.actions.onTriggerPulse(); break;
+      case 'KeyN': if (event.shiftKey) this.actions.onNewSeed(); break;
+      case 'KeyU': this.actions.onToggleExperienceMode(); break;
+      case 'KeyF': this.actions.onTriggerProbe(); break;
+      case 'KeyG': this.actions.onTriggerPulse(); break;
     }
   };
 

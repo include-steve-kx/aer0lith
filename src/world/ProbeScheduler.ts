@@ -9,7 +9,8 @@ export class ProbeScheduler {
     this.reset();
   }
 
-  update(dt: number): boolean {
+  update(dt: number, enabled = true): boolean {
+    if (!enabled) return false;
     this.remaining -= Math.max(0, dt);
     return this.remaining <= 0;
   }

@@ -322,7 +322,7 @@ export class App {
         const dt = FLIGHT.fixedStep;
         if (this.flight.mode !== 'crashed') {
           this.meteors.advance(dt, this.flight.position, this.flight.orientation);
-          if (this.probeScheduler.update(dt)) this.triggerProbe();
+          if (this.probeScheduler.update(dt, this.flight.mode === 'autopilot')) this.triggerProbe();
           this.scan.previousRadius = this.terrain.currentProbeRadius;
           this.scan.expanding = this.terrain.isProbeExpanding;
           this.terrain.updateProbe(dt, this.renderOrigin);
@@ -605,6 +605,7 @@ export class App {
     this.experienceMode = this.experienceMode === 'analysis' ? 'ambient' : 'analysis';
     this.root.classList.toggle('is-ambient', this.experienceMode === 'ambient');
     this.hud.setExperienceMode(this.experienceMode);
+    this.flocks.setTargetPresentationVisible(this.experienceMode === 'analysis');
     this.route.setPresentationVisible(true);
   }
 

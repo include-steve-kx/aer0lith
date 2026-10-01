@@ -214,6 +214,7 @@ export class FlockSystem {
   private frameIndex = 0;
   private spawnSerial = 0;
   private elapsedTime = 0;
+  private targetPresentationVisible = true;
 
   constructor(scene: Scene, terrain: FlockTerrain, seed: string) {
     this.terrain = terrain;
@@ -308,15 +309,18 @@ export class FlockSystem {
     updateTargetCornerTransforms(this.targetCornerTransforms, this.settings.flockTargetThickness);
     if (!settings.flockEnabled) {
       for (const flock of this.flocks) this.releaseFlock(flock);
-      this.mesh.visible = false;
-      this.targetMesh.visible = false;
       this.hideInactiveInstances();
     } else {
-      this.mesh.visible = true;
-      this.targetMesh.visible = true;
       if (!wasEnabled) this.secondsUntilSpawn = Math.min(FLOCK.initialDelay, this.settings.flockInterval * 0.35);
       else this.secondsUntilSpawn = Math.min(this.secondsUntilSpawn, this.settings.flockInterval * 1.35);
     }
+    this.mesh.visible = settings.flockEnabled;
+    this.targetMesh.visible = settings.flockEnabled && this.targetPresentationVisible;
+  }
+
+  setTargetPresentationVisible(visible: boolean): void {
+    this.targetPresentationVisible = visible;
+    this.targetMesh.visible = this.settings.flockEnabled && visible;
   }
 
   update(

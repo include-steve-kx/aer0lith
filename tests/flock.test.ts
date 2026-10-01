@@ -116,3 +116,30 @@ test('scanned brackets fade in alpha, keep their tint, and freeze with the birds
   assert.equal(targets.instanceColor, null, 'RGB must not be used for fading');
   assert.equal((targets.material as MeshBasicMaterial).depthWrite, false);
 });
+
+test('ambient presentation hides scanned flock brackets across settings changes', () => {
+  const flocks = new FlockSystem(new Scene(), openTerrain, 'presentation');
+  const targets = flocks.group.children[1] as import('three').InstancedMesh;
+  const settings = {
+    flockEnabled: true,
+    flockMinSize: 10,
+    flockMaxSize: 26,
+    flockInterval: 8,
+    flockSpread: 30,
+    flockSpeed: 34,
+    flockColor: '#ffffff',
+    flockTargetColor: '#ffffff',
+    flockTargetThickness: 0.05,
+  };
+
+  flocks.applyVisualSettings(settings);
+  assert.equal(targets.visible, true);
+  flocks.setTargetPresentationVisible(false);
+  assert.equal(targets.visible, false);
+  flocks.applyVisualSettings({ ...settings, flockTargetColor: '#8bdcff' });
+  assert.equal(targets.visible, false, 'live settings must not reveal Ambient targets');
+  flocks.setTargetPresentationVisible(true);
+  assert.equal(targets.visible, true);
+  flocks.applyVisualSettings({ ...settings, flockEnabled: false });
+  assert.equal(targets.visible, false);
+});
