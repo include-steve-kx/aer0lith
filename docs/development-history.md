@@ -22,7 +22,7 @@ The original heightfield and regular valley gave way to a volumetric density fie
 
 Terrain presentation went through point-cloud, mesh, and hybrid experiments. The current shader supports a transparent dot mode and a faceted mesh mode. Projected world-space SDF dots visualize the extracted surface; probe waves temporarily reveal the opposite representation. Distance fog, proximity danger color, adjustable dot density, and double-sided rendering preserve the sparse sensor-display aesthetic.
 
-The probe became a shader-driven spherical wave with a persistent blue afterglow and visual-only displacement. Its color blends with the underlying terrain instead of replacing it. Scanned flock members receive white, open-corner world-space target boxes whose color and thickness are configurable.
+The probe became a shader-driven spherical wave with visual-only displacement. Its speed and advancing stripe are tunable, and a bounded light-blue afterglow can be adjusted by color, length, and falloff without recoloring the entire scanned volume. Recently scanned terrain also receives a separate configurable sparse plus-or-dot marker pattern. Scanned flock members receive white, open-corner world-space target boxes whose color and thickness are configurable.
 
 ## 4. Motion and environmental life
 

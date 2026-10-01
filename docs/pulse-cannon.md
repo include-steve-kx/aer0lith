@@ -2,7 +2,7 @@
 
 ## Player behavior
 
-The Pulse Cannon is a dedicated piercing weapon, separate from bullets and missiles. Press `X` or the lightning button between Fire and Probe to fire one instantaneous shot. The default shot is 800 m long, has a 40 m physical radius, and cools down for one simulation second.
+The Pulse Cannon is a dedicated piercing weapon, separate from bullets and missiles. Press `G` or the lightning button between Fire and Probe to fire one instantaneous shot. The default shot is 800 m long, has a 40 m physical radius, and cools down for one simulation second.
 
 The convergence reticle selects direction only. The shot always extends to the configured Pulse range. Its complete world-space geometry is captured when the shot is accepted, so aircraft or camera motion cannot bend an active beam.
 

@@ -10,7 +10,7 @@ The normal collision samples run on every fixed simulation step during the maneu
 
 ## Boost and side wakes
 
-A throttle press (Shift or the touch boost button) ignites twin colored plumes. Boost preserves autopilot; W/S/A/D or a joystick direction takes manual control. They rise in about 65 ms, settle to a steady 42% flame while boost is held, then fade after release. Release fade defaults to 2.8 seconds and is adjustable from 0.3 to 8 seconds. Plumes default to a 54-meter maximum length and cast matching colored light onto nearby objects. A brief tap also leaves a fading flame. Disabling exhaust or setting brightness to zero explicitly hides it.
+A throttle press (Shift or the touch boost button) ignites twin colored plumes. Boost preserves autopilot; W/S/A/D or a joystick direction takes manual control. They rise in about 65 ms, settle to a steady 42% flame while boost is held, then fade after release. Release fade defaults to 3.6 seconds and is adjustable from 0.3 to 8 seconds. Plumes default to a 54-meter maximum length and cast matching colored light onto nearby objects. A brief tap also leaves a fading flame. Disabling exhaust or setting brightness to zero explicitly hides it.
 
 The flame has a straight centerline, broad tapered body, a bright core, and irregular fluttering tongues. Surface detail travels backward from the nozzles while the tongues flutter independently. Both motions integrate aircraft speed; neither uses a fixed-speed wall clock.
 
@@ -28,30 +28,31 @@ Keyboard repeats and overlapping keyboard/touch holds count as one press. Long h
 
 ## Controls
 
-Flight effects live under **Settings > Boost + Wakes**. Scan optics have their own **Scan Glass** section. Values persist locally; opaque wake debug resets to glass on reload.
+Flight effects live under **Settings > Boost + Wakes**. Scan terrain and optics have their own **Scan Effects** section. Values persist locally; opaque wake debug resets to glass on reload.
 
 | Group | Controls / defaults |
 | --- | --- |
-| Boost | Enable; brightness 1; maximum length 54 m; release fade 2.8 s; mint color `#8cffe0` |
-| Booster glass | Enable; refraction 1 (0–3); dispersion 0.18 (0–0.6); width 0.55× (0.1–2×); length 65% of flame (20–150%) |
+| Boost | Enable; brightness 2; maximum length 54 m; release fade 3.6 s; blue color `#8ab7ff` |
+| Booster glass | Enable; refraction 0.7 (0–3); dispersion 0.6 (0–1.2); width 0.55× (0.1–2×); length 100% of flame (20–150%) |
 | Flame width | 0.45× (0.15–1.5×), independent of booster glass width |
 | Booster geometry button | Toggle glass / opaque amber geometry; preview full boost size when idle |
-| Booster motion | Flutter amplitude 0.45 m (0–2); backward speed 1× and flutter speed 1× (each 0–3×), independently responding to aircraft speed |
-| Boost camera | Shake strength 0.65 (0–2, zero disables); frequency 14 Hz (4–30) |
-| Side wakes | Enable; length 120 m (20–240); height 14 m (2–32); thickness 0.3 m (0.02–2); flutter 0.6 m (0–2) |
-| Side wake motion | Backward speed 1× and flutter speed 1× (each 0–3×), independently responding to aircraft speed |
-| Side wake glass | Refraction 1 (0–3); sheen 0.045 (0–0.2); dispersion 0.12 (0–0.4) |
+| Booster motion | Flutter amplitude 0.9 m (0–2); backward speed 1× and flutter speed 1× (each 0–3×), independently responding to aircraft speed |
+| Boost camera | Shake strength 1.3 (0–2, zero disables); frequency 20 Hz (4–30) |
+| Side wakes | Enable; length 120 m (20–240); height 3.5 m (2–32); thickness 0.08 m (0.02–2); flutter 0.65 m (0–2) |
+| Side wake motion | Backward speed 0.5× and flutter speed 1× (each 0–3×), independently responding to aircraft speed |
+| Side wake glass | Refraction 1.75 (0–3); sheen 0.045 (0–0.2); dispersion 0.12 (0–0.4) |
 | Wake geometry button | Toggle glass / opaque cyan sheets using the exact same geometry and flutter |
-| Scan glass | Enable; refraction strength; dispersion; shell fade-out duration 0.8 s (0.15–2); flutter 4% of radius (0–12%); flutter speed 1× (0–4×) |
-| Flight visuals | Show occluded ship; body color `#ffee66`; body opacity 50% (0–100%); white outline always 100% |
+| Terrain scan | Propagation speed; plus or dot markers; marker spacing, size, color, brightness, and fade duration; front stripe width, color, and brightness; afterglow color, length, and falloff |
+| Scan glass | Enable; refraction 2; dispersion 0.6; shell fade-out duration 1 s (0.15–2); flutter 2% of radius (0–12%); flutter speed 1.55× (0–4×) |
+| Flight visuals | Show occluded ship; ghost color `#ffee66`; ghost opacity 49% (0–100%); white outline always 100% |
 
 A longer release fade means slower fading. Bright exhaust cores remain white while the selected color tints the plumes and illumination. Glass needs background detail to bend; orbit the paused camera across terrain edges or dots to inspect it. Opaque inspection keeps the underlying glass pass active and masks only the inspected surfaces, so switching back restores the glass immediately even while paused. Both debug buttons use the same appearance. Existing saved appearance choices are retained; removed rear-wake settings are ignored.
 
 ## Expanding scan glass shell
 
-`ScanGlass` renders a separate spherical glass membrane. It starts at the aircraft's world position when the scan is triggered, keeps that launch center fixed, and expands with the terrain probe's radius at 160 m/s up to 720 m. The terrain's colored ring and afterglow stay as they were; they no longer carry the glass distortion.
+`ScanGlass` renders a separate spherical glass membrane. It starts at the aircraft's world position when the scan is triggered, keeps that launch center fixed, and expands with the terrain probe's configurable speed (300 m/s by default) up to 720 m. The terrain shader separately draws a configurable colored stripe at the advancing front, a bounded tint behind it with independent color, length, and falloff, and a sparse plus-or-dot pattern over recently scanned ground. The tint retires from the stopped front at the selected scan speed, so it never becomes an unbounded blue wash over the full scanned volume.
 
-The membrane bends and disperses scenery behind its own surface, including distant objects that the terrain scan has not reached. Scene depth rejects objects in front of it. Both faces render so it also works when the camera is inside the expanding sphere. Animated radial flutter deforms the membrane and its silhouette, with analytic surface normals keeping glass distortion aligned to that shape. A subtle rim and smaller surface ripples reinforce the motion. **Shell Flutter** sets displacement as a percentage of scan radius (default 4%, maximum 12%); zero restores a smooth sphere. **Flutter Speed** scales the animation from 0–4×; zero holds its current shape while the scan continues expanding. The scan radius and ripple clock use simulation time, so pause freezes the shell while camera and appearance controls stay live.
+The membrane bends and disperses scenery behind its own surface, including distant objects that the terrain scan has not reached. Scene depth rejects objects in front of it. Both faces render so it also works when the camera is inside the expanding sphere. Animated radial flutter deforms the membrane and its silhouette, with analytic surface normals keeping glass distortion aligned to that shape. A subtle rim and smaller surface ripples reinforce the motion. **Shell Flutter** sets displacement as a percentage of scan radius (default 2%, maximum 12%); zero restores a smooth sphere. **Flutter Speed** scales the animation from 0–4×; zero holds its current shape while the scan continues expanding. The scan radius and ripple clock use simulation time, so pause freezes the shell while camera and appearance controls stay live.
 
 **Scan Glass** controls enable, refraction, dispersion, **Shell Flutter**, **Flutter Speed**, and **Shell Fade Duration**. Flutter phase integrates simulation time, so editing speed while paused does not jump its phase. New scans reset that phase, and origin rebasing preserves it. The old duration setting is retained in storage but now controls the shell's fade-out as it approaches maximum radius, rather than a radial band on terrain. It fades in over its first 20 m and is hidden as soon as expansion finishes.
 
@@ -61,9 +62,9 @@ The shell shares the depth-aware refraction target with the wing wakes and boost
 
 ## Hidden ship and camera shake
 
-A yellow ship surface (default `#ffee66`, matching the default autopilot guide) at 50% opacity and a fully opaque white edge shader draw only behind occluding geometry. The main scene's depth/stencil buffer distinguishes external occlusion from self-occlusion: visible ship fragments mark the stencil, and the ghost/outline reject those pixels. The opaque ship explicitly renders after terrain and flock bodies, so only genuinely visible pixels receive this mark. Previously, terrain and the ship shared a render priority: material sorting could mark the ship before terrain covered it, incorrectly suppressing the yellow interior. Body color and opacity are independently configurable; zero body opacity leaves the outline visible. Existing default opacity migrates from 13% to 50%, while custom values are preserved. The ordinary ship remains unchanged when unobstructed. Cockpit mode hides both representations.
+A yellow ship surface (default `#ffee66`, matching the default autopilot guide) at 49% opacity and a fully opaque white edge shader draw only behind occluding geometry. The main scene's depth/stencil buffer distinguishes external occlusion from self-occlusion: visible ship fragments mark the stencil, and the ghost/outline reject those pixels. The opaque ship explicitly renders after terrain and flock bodies, so only genuinely visible pixels receive this mark. Previously, terrain and the ship shared a render priority: material sorting could mark the ship before terrain covered it, incorrectly suppressing the yellow interior. Body color and opacity are independently configurable; zero body opacity leaves the outline visible. Existing default opacity migrates from 13% to 49%, while custom values are preserved. The ordinary ship remains unchanged when unobstructed. Cockpit mode hides both representations.
 
-Boost shake applies a stronger, deterministic translation and rotation only for rendering, then restores the camera's base position/orientation. It never accumulates in camera following or OrbitControls. Shake follows only the initial acceleration flare. After the 65 ms attack, both amplitude and frequency taper to exactly zero over the configured **Release Fade Time** (default 2.8 seconds), even when boost remains held or locked. The flame still settles to its sustained 42% intensity. Shake has a separate timer starting at ignition; releasing early does not restart or extend it, and releasing an already settled boost cannot restart shake. A fresh boost press starts a new transient. The frequency setting is the peak rate, integrated over simulation time to avoid phase jumps as it fades or is edited. Aircraft speed also scales amplitude; pause freezes both phase and envelope. UI overlays stay stable. Shift + left-drag orbits normally without activating pan; right-drag still pans, including while boosting.
+Boost shake applies a stronger, deterministic translation and rotation only for rendering, then restores the camera's base position/orientation. It never accumulates in camera following or OrbitControls. Shake follows only the initial acceleration flare. After the 65 ms attack, both amplitude and frequency taper to exactly zero over the configured **Release Fade Time** (default 3.6 seconds), even when boost remains held or locked. The flame still settles to its sustained 42% intensity. Shake has a separate timer starting at ignition; releasing early does not restart or extend it, and releasing an already settled boost cannot restart shake. A fresh boost press starts a new transient. The frequency setting is the peak rate, integrated over simulation time to avoid phase jumps as it fades or is edited. Aircraft speed also scales amplitude; pause freezes both phase and envelope. UI overlays stay stable. Shift + left-drag orbits normally without activating pan; right-drag still pans, including while boosting.
 
 ## Wind streak distribution and speed
 

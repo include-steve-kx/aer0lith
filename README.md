@@ -8,6 +8,8 @@ The wind-streak field uses a fixed pool of world-persistent instanced ribbons in
 
 Occasional abstract flocks are simulated as pooled boids and drawn as elongated square pyramids in one instanced mesh. Local separation, alignment, and cohesion create the group motion; predictive aircraft avoidance and volumetric terrain-gradient avoidance take priority near hazards. Probe waves reveal pooled world-space corner targets around scanned flock members. See [Terrain sampling and dot rendering](docs/terrain-sampling-and-dot-rendering.md) for a visual explanation of the density lattice, extracted mesh, and projected SDF dots, and [Development history](docs/development-history.md) for the project’s design evolution.
 
+Proximity meteors sample an individual 50–65 meter surface trigger and 0–0.5 second fuse delay when spawned. Dormant rocks are dark gray; approach produces a ship-facing white hotspot, which freezes at the exact surface direction where the fuse arms without recoloring the rest of the rock. Fresh fragments begin white and cool to dark ash as they age. An armed fuse continues after the aircraft leaves its trigger radius; pause freezes it.
+
 ## Run the web version
 
 See the [laptop and iPhone setup guide](SETUP.md) for first-time setup, troubleshooting, and a complete copy-paste block that builds, installs, and launches the app on Steve's iPhone.
@@ -44,17 +46,18 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 | `Shift` | Boost without disengaging autopilot. Triple-tap boost to lock (up to 0.4 s between presses); tap again to unlock. |
 | `T` | Toggle autopilot |
 | Hold `Space` / fire icon | Shoot bullets from randomized wing tips; release to stop |
+| `F` | Trigger a terrain probe wave |
+| `G` | Fire the Pulse Cannon |
 | `C` or `1`–`3` | Cycle or select camera |
 | Mouse in camera `2` / `3` | Left-drag orbit, right-drag pan, wheel zoom; Shift does not change drag actions. Camera returns after release. |
-| `V` | Toggle Analysis / Ambient presentation mode |
+| `U` | Toggle Analysis / Ambient presentation mode |
 | `M` | Toggle audio |
 | `I` | Recover at the latest safe checkpoint |
-| `B` | Trigger a terrain probe wave |
 | Pause button / `P` / `Escape` | Pause / resume simulation |
-| `N` | Generate a new seeded world |
-| `Ctrl` / `Cmd` + `F` | Toggle fullscreen |
+| `Shift` + `N` | Generate a new seeded world |
+| `Alt` / `Option` + `Enter` | Toggle fullscreen |
 
-Any flight input takes control from autopilot. Autopilot is the default endless-flight mode and continuously maintains terrain clearance. Ambient mode removes the interface while retaining the active autopilot guide, aircraft, and terrain; press `V` or the faint Analysis button to restore the interface. Audio starts muted and is synthesized through the Web Audio API after it is explicitly enabled.
+Any flight input takes control from autopilot. Autopilot is the default endless-flight mode and continuously maintains terrain clearance. Ambient mode removes the interface and scanned flock target boxes while retaining the active autopilot guide, aircraft, and terrain; press `U` or the faint Analysis button to restore the interface. Audio starts muted and is synthesized through the Web Audio API after it is explicitly enabled.
 
 Camera `1` is the cockpit view, camera `2` is the default chase view, and camera `3` is a higher, farther chase view that follows directly behind the aircraft.
 
@@ -66,7 +69,7 @@ The spacecraft uses just 22 triangles: a pointed diamond-section hull and four t
 
 Settings > Motion Blur controls subtle speed-dependent scenery blur: enable, strength, start speed, and maximum streak length. The default strength is 0.45, starting at 20 m/s with a 12-pixel cap at 1080p. The ship and HUD stay sharp, and the paused scene retains a stable exposure. See [motion-blur behavior and implementation](docs/motion-blur.md).
 
-Press Q/E or use the two buttons above the joystick for a 360° lateral dodge; collision remains active. Boost flames persist while held, flutter faster at higher speed, and have adjustable glass/dispersion, release fade, and camera shake whose amount and frequency settle to zero over the configured fade duration, even during held or locked boost. The sustained flame stays at 42%; releasing does not restart the shake timer. Side wakes and flames each have separate backward-flow and flutter-speed controls; all four scale with aircraft speed. Four wing-tip trails and two side wake sheets follow the aircraft; the separate rear wake has been removed. **Boost + Wakes** contains effect controls and opaque wake inspection; **Scan Glass** adjusts a separate expanding spherical glass shell, with refraction, dispersion, and fade controls. The same mesh is recycled for every scan. **Flight Visuals** controls the body color and opacity visible through obstacles (yellow at 50% by default), with a fully opaque white outline. Pause freezes motion/effects while camera and appearance controls remain live. See [flight effects](docs/flight-effects.md) for behavior and rendering details.
+Press Q/E or use the two buttons above the joystick for a 360° lateral dodge; collision remains active. Boost flames persist while held, flutter faster at higher speed, and have adjustable glass/dispersion, release fade, and camera shake whose amount and frequency settle to zero over the configured fade duration, even during held or locked boost. The sustained flame stays at 42%; releasing does not restart the shake timer. Side wakes and flames each have separate backward-flow and flutter-speed controls; all four scale with aircraft speed. Four wing-tip trails and two side wake sheets follow the aircraft; the separate rear wake has been removed. **Boost + Wakes** contains effect controls and opaque wake inspection; **Scan Effects** adjusts terrain scanning and the separate expanding spherical glass shell. The same mesh is recycled for every scan. **Flight Visuals** controls the body color and opacity visible through obstacles (yellow at 49% by default), with a fully opaque white outline. Pause freezes motion/effects while camera and appearance controls remain live. See [flight effects](docs/flight-effects.md) for behavior and rendering details.
 
 The world convention is one Three.js unit per meter. `ALT` is absolute world altitude relative to the procedural world's zero-meter datum, speed is shown in meters per second, and distances in the sensor settings are meters. In Analysis mode, a fixed-world thin gold line previews the autopilot route; it fades away when manual control begins. Terrain points close to the aircraft warm toward the configurable danger color as a proximity cue.
 
@@ -74,7 +77,7 @@ The top-right settings panel adjusts terrain rendering, fog, dots, plane and rou
 
 The autopilot guide is fixed in world space and fades away before reaching the aircraft. Its route bends vertically and horizontally through spaces that vary from tight covered passages to broad open chambers. All four wing trails are distance-bounded: they fade toward their oldest section and discard history beyond 360 meters. The collision overlay button reveals the aircraft collision hull and probes as yellow wireframes, switching to red during contact. Collision evaluates the same volumetric density field used to build the visible mesh, so ceilings, walls, floating structures, and floors all collide consistently.
 
-Every 10–30 seconds, the aircraft emits a fast light-blue terrain probe outward from its position when triggered. The terrain shader renders its continuous ring, recolors scanned dots with a lingering afterglow, and temporarily lifts the surface before returning it to its generated height. Pressing `B` emits a probe immediately and restarts the automatic interval.
+Every 10–30 seconds of autopilot flight, the aircraft emits a light-blue terrain probe outward from its position. The automatic countdown pauses during manual control; pressing `F` still emits a probe immediately in either flight mode and restarts the interval. Propagation speed is configurable and defaults to 300 m/s. The terrain shader draws a 14.2 m advancing stripe, a separately colored 160 m afterglow behind it, and a configurable sparse plus-or-dot pattern over recently scanned ground. The default plus pattern uses 0.5 m marks on an 8 m grid and fades over five seconds. Afterglow length and falloff are adjustable, so the full scanned volume never becomes a permanent blue wash. The wave front also temporarily lifts the surface before returning it to its generated height.
 
 ## Bullets and meteor impacts
 
