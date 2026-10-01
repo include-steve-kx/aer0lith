@@ -12,16 +12,21 @@ export const DEFAULT_METEORS = {
   meteorBulletHits: 4,
   meteorEnabled: true,
   meteorProximityEnabled: true,
-  meteorTriggerDistance: 50,
-  meteorDangerColor: '#ffffff',
+  meteorMinTriggerDistance: 50,
+  meteorMaxTriggerDistance: 65,
+  meteorMinFuseDelay: 0,
+  meteorMaxFuseDelay: 0.5,
   meteorMinDiameter: 6,
   meteorMaxDiameter: 36,
   meteorCount: 12,
-  meteorInterval: 12,
-  meteorSpeed: 5,
-  meteorSpin: 20,
+  meteorInterval: 10,
+  meteorSpeed: 6.5,
+  meteorSpin: 40,
   meteorSpread: 30,
-  meteorColor: '#8b8f92',
+  meteorColor: '#555b5e',
+  meteorProximityColor: '#ffffff',
+  meteorProximityFalloff: 1,
+  meteorAshColor: '#303638',
   meteorIrregularity: 0.5,
   meteorDetection: 8,
   meteorTargetColor: '#ffffff',
@@ -132,8 +137,10 @@ export const METEOR_CONTROLS: readonly ControlSpec[] = [
   ['meteorBulletHits', 'BULLET HITS AT 12 M', 1, 20, 1],
   ['meteorEnabled', 'METEORS ENABLED'],
   ['meteorProximityEnabled', 'PROXIMITY EXPLOSIONS'],
-  ['meteorTriggerDistance', 'EXPLODE AT SURFACE DISTANCE', 5, 150, 1, ' M'],
-  ['meteorDangerColor', 'METEOR DANGER COLOR'],
+  ['meteorMinTriggerDistance', 'MIN EXPLOSION SURFACE DISTANCE', 5, 150, 1, ' M'],
+  ['meteorMaxTriggerDistance', 'MAX EXPLOSION SURFACE DISTANCE', 5, 150, 1, ' M'],
+  ['meteorMinFuseDelay', 'MIN EXPLOSION WAIT', 0, 8, 0.1, ' S'],
+  ['meteorMaxFuseDelay', 'MAX EXPLOSION WAIT', 0, 8, 0.1, ' S'],
   ['meteorMinDiameter', 'MIN DIAMETER', 2, 72, 1, ' M'],
   ['meteorMaxDiameter', 'MAX DIAMETER', 2, 72, 1, ' M'],
   ['meteorCount', 'METEORS / ENCOUNTER', 1, 24, 1],
@@ -141,7 +148,10 @@ export const METEOR_CONTROLS: readonly ControlSpec[] = [
   ['meteorSpeed', 'DRIFT SPEED', 0, 10, 0.1, ' M/S'],
   ['meteorSpin', 'ROTATION SPEED', 0, 40, 0.5, ' °/S'],
   ['meteorSpread', 'ENCOUNTER SPREAD', 15, 100, 1, ' M'],
-  ['meteorColor', 'METEOR COLOR'],
+  ['meteorColor', 'DORMANT METEOR COLOR'],
+  ['meteorProximityColor', 'TRIGGER HOTSPOT + FRESH FRAGMENT COLOR'],
+  ['meteorProximityFalloff', 'TRIGGER HOTSPOT FALLOFF', 1, 64, 1],
+  ['meteorAshColor', 'ASH FRAGMENT COLOR'],
   ['meteorIrregularity', 'SHAPE IRREGULARITY', 0, 0.5, 0.125],
   ['meteorDetection', 'DETECTION DURATION', 3, 15, 0.5, ' S'],
   ['meteorTargetColor', 'TARGET COLOR'],
@@ -243,6 +253,25 @@ export const PULSE_CONTROLS: readonly ControlSpec[] = [
   ['pulseGlassDebug', 'SOLID GLASS'],
   ['pulseElectricDebug', 'SOLID ELECTRICITY'],
 ];
+export function migrateCombatSettings(
+  input: Partial<Record<keyof CombatSettings, unknown>>,
+): Partial<Record<keyof CombatSettings, unknown>> {
+  const migrated = { ...input };
+  // Adopt the new darker lifecycle default for saves that still contain the
+  // exact former default, while preserving intentional custom meteor colors.
+  if (input.meteorProximityColor === undefined && input.meteorColor === '#8b8f92')
+    migrated.meteorColor = DEFAULT_COMBAT.meteorColor;
+  const legacyArmedColor = (input as Record<string, unknown>).meteorArmedColor;
+  if (
+    input.meteorProximityColor === undefined &&
+    typeof legacyArmedColor === 'string' &&
+    /^#[0-9a-f]{6}$/i.test(legacyArmedColor)
+  )
+    migrated.meteorProximityColor = legacyArmedColor.toLowerCase() === '#e8f6f7'
+      ? DEFAULT_COMBAT.meteorProximityColor
+      : legacyArmedColor;
+  return migrated;
+}
 export function sanitizeCombatSettings(
   input: Partial<Record<keyof CombatSettings, unknown>>,
   restore = false,
@@ -278,6 +307,14 @@ export function sanitizeCombatSettings(
   result.meteorMinDiameter = Math.min(
     result.meteorMinDiameter,
     result.meteorMaxDiameter,
+  );
+  result.meteorMinTriggerDistance = Math.min(
+    result.meteorMinTriggerDistance,
+    result.meteorMaxTriggerDistance,
+  );
+  result.meteorMinFuseDelay = Math.min(
+    result.meteorMinFuseDelay,
+    result.meteorMaxFuseDelay,
   );
   if (restore) {
     result.explosionDebug = false;

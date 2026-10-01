@@ -82,3 +82,40 @@ test('shared prediction equals destruction impulse, uses size, and handles coinc
   assert.deepEqual(coincident.toArray(),[0,0,-10]);
   meteors.dispose();
 });
+
+test('an armed meteor arrow forecasts its delayed impulse while staying attached to the meteor', () => {
+  const meteors = new MeteorSystem(air, library, 'delayed-arrow');
+  const view = new PushVectorView();
+  const rock = meteors.spawnAt(new Vector3(100, 0, 0), 12, 0)!;
+  rock.detected = 8;
+  rock.fuseArmed = true;
+  rock.fuseRemaining = 1;
+  rock.velocity.set(5, 0, 0);
+  meteors.shipPosition.set(10, 0, 0);
+  meteors.shipVelocity.set(20, 0, 0);
+  const forecast = meteors.predictProximityImpulse(new Vector3(), rock);
+  const direct = explosionImpulse(
+    new Vector3(),
+    new Vector3(30, 0, 0),
+    new Vector3(105, 0, 0),
+    meteors.shipVelocity,
+    new Vector3(0, 0, 1),
+    12,
+    DEFAULT_COMBAT.explosionPush,
+    DEFAULT_COMBAT.explosionShakeRadius,
+    DEFAULT_COMBAT.explosionVelocityAxisFactor,
+  );
+  assert.ok(forecast.distanceTo(direct) < 1e-9);
+  assert.ok(forecast.distanceTo(meteors.predictExplosionImpulse(new Vector3(), rock)) > 1e-3,
+    'the remaining fuse time materially changes the displayed prediction');
+
+  view.sync(meteors, zero, true);
+  const shaft = new Matrix4(), head = new Matrix4();
+  view.shafts.getMatrixAt(0, shaft);
+  view.heads.getMatrixAt(0, head);
+  assert.ok(new Vector3().applyMatrix4(shaft).distanceTo(rock.position) < 1e-5);
+  assert.ok(new Vector3(0, 1, 0).applyMatrix4(head)
+    .distanceTo(rock.position.clone().add(forecast)) < 1e-4);
+  view.dispose();
+  meteors.dispose();
+});

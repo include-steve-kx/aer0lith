@@ -48,6 +48,12 @@ export class MeteorState {
   readonly spinAxis = new Vector3();
   speedFactor = 1;
   spinFactor = 1;
+  proximityTriggerDistance = 50;
+  proximityDelay = 0;
+  fuseRemaining = 0;
+  fuseArmed = false;
+  /** Frozen meteor-local direction toward the ship at the arming instant. */
+  readonly fuseTriggerDirection = new Vector3();
 }
 export class MeteorSystem implements DynamicObstacleProvider {
   readonly shipPosition = new Vector3();
@@ -56,7 +62,10 @@ export class MeteorSystem implements DynamicObstacleProvider {
   private readonly proximityStart = new Vector3();
   private readonly proximityTravel = new Vector3();
   private readonly proximityCenter = new Vector3();
+  private readonly proximityShipAtEntry = new Vector3();
   private readonly proximityDirection = new Vector3(0, 0, 1);
+  private readonly predictedShipPosition = new Vector3();
+  private readonly predictedMeteorPosition = new Vector3();
   private readonly pulseAxis = new Vector3();
   private readonly pulseOffset = new Vector3();
   private readonly pulseClosest = new Vector3();
@@ -70,13 +79,21 @@ export class MeteorSystem implements DynamicObstacleProvider {
       this.settings.explosionShakeRadius, this.settings.explosionVelocityAxisFactor);
   }
 
-  /** Surface clearance drives both the tint and the proximity fuse. */
-  dangerIntensity(rock: MeteorState): number {
-    if (!this.settings.meteorProximityEnabled) return 0;
-    const clearance = Math.max(0, this.shipPosition.distanceTo(rock.position) - rock.radius);
-    const trigger = this.settings.meteorTriggerDistance;
-    const t = Math.max(0, Math.min(1, (clearance - trigger) / (trigger * 2)));
-    return 1 - t * t * (3 - 2 * t);
+  /** Forecast the displayed impulse while an armed meteor counts down. The
+   * physical impulse still uses the actual positions at destruction time. */
+  predictProximityImpulse(out: Vector3, rock: MeteorState): Vector3 {
+    if (!rock.fuseArmed || rock.fuseRemaining <= 0)
+      return this.predictExplosionImpulse(out, rock);
+    this.predictedShipPosition
+      .copy(this.shipPosition)
+      .addScaledVector(this.shipVelocity, rock.fuseRemaining);
+    this.predictedMeteorPosition
+      .copy(rock.position)
+      .addScaledVector(rock.velocity, rock.fuseRemaining);
+    return explosionImpulse(out, this.predictedShipPosition, this.predictedMeteorPosition,
+      this.shipVelocity, this.proximityDirection, rock.diameter,
+      this.settings.explosionPush, this.settings.explosionShakeRadius,
+      this.settings.explosionVelocityAxisFactor);
   }
 
   updateProximity(dt: number, from: Vector3, to: Vector3, orientation: Quaternion): void {
@@ -88,19 +105,67 @@ export class MeteorSystem implements DynamicObstacleProvider {
     for (let slot = 0; slot < this.rocks.length; slot++) {
       const rock = this.rocks[slot];
       if (!rock.active) continue;
-      // Sweep relative motion so a fast dodge cannot skip the fuse radius.
+      if (rock.fuseArmed) {
+        const remainingBeforeStep = rock.fuseRemaining;
+        rock.fuseRemaining = Math.max(0, remainingBeforeStep - dt);
+        if (remainingBeforeStep > dt) continue;
+        const detonationFraction = Math.max(0, Math.min(1, remainingBeforeStep / dt));
+        this.proximityCenter.lerpVectors(rock.previous, rock.position, detonationFraction);
+        this.shipPosition.lerpVectors(from, to, detonationFraction);
+        this.proximityHandle.slot = slot;
+        this.proximityHandle.generation = rock.generation;
+        this.applyHit(this.proximityHandle, this.proximityCenter, this.proximityDirection, true);
+        continue;
+      }
+      // Find the earliest relative-motion entry so fast passes cannot skip a
+      // meteor's individually sampled surface trigger distance.
       this.proximityStart.subVectors(from, rock.previous);
       this.proximityTravel.subVectors(to, rock.position).sub(this.proximityStart);
-      const lengthSq = this.proximityTravel.lengthSq();
-      const t = lengthSq > 1e-12 ? Math.max(0, Math.min(1, -this.proximityStart.dot(this.proximityTravel) / lengthSq)) : 0;
-      this.proximityStart.addScaledVector(this.proximityTravel, t);
-      const radius = rock.radius + this.settings.meteorTriggerDistance;
-      if (this.proximityStart.lengthSq() > radius * radius) continue;
-      this.proximityCenter.lerpVectors(rock.previous, rock.position, t);
+      const radius = rock.radius + rock.proximityTriggerDistance;
+      const c = this.proximityStart.lengthSq() - radius * radius;
+      let entryFraction = 0;
+      if (c > 0) {
+        const a = this.proximityTravel.lengthSq();
+        if (a <= 1e-12) continue;
+        const b = this.proximityStart.dot(this.proximityTravel);
+        const discriminant = b * b - a * c;
+        if (discriminant < 0) continue;
+        entryFraction = (-b - Math.sqrt(discriminant)) / a;
+        if (entryFraction < 0 || entryFraction > 1) continue;
+      }
+      rock.fuseArmed = true;
+      this.proximityCenter.lerpVectors(rock.previous, rock.position, entryFraction);
+      this.proximityShipAtEntry.lerpVectors(from, to, entryFraction);
+      rock.fuseTriggerDirection.subVectors(
+        this.proximityShipAtEntry,
+        this.proximityCenter,
+      );
+      if (rock.fuseTriggerDirection.lengthSq() > 1e-12)
+        rock.fuseTriggerDirection.normalize();
+      else rock.fuseTriggerDirection.copy(this.proximityDirection).negate();
+      this.rockQ.slerpQuaternions(
+        rock.previousQ,
+        rock.orientation,
+        entryFraction,
+      ).invert();
+      rock.fuseTriggerDirection.applyQuaternion(this.rockQ).normalize();
+      const elapsedAfterEntry = (1 - entryFraction) * dt;
+      if (rock.proximityDelay > elapsedAfterEntry) {
+        rock.fuseRemaining = rock.proximityDelay - elapsedAfterEntry;
+        continue;
+      }
+      rock.fuseRemaining = 0;
+      const detonationFraction = Math.max(0, Math.min(
+        1,
+        entryFraction + rock.proximityDelay / dt,
+      ));
+      this.proximityCenter.lerpVectors(rock.previous, rock.position, detonationFraction);
+      this.shipPosition.lerpVectors(from, to, detonationFraction);
       this.proximityHandle.slot = slot;
       this.proximityHandle.generation = rock.generation;
       this.applyHit(this.proximityHandle, this.proximityCenter, this.proximityDirection, true);
     }
+    this.shipPosition.copy(to);
   }
 
   onDestroyed?: (rock: MeteorState, point: Vector3, direction: Vector3) => void;
@@ -156,6 +221,7 @@ export class MeteorSystem implements DynamicObstacleProvider {
   );
   settings: CombatSettings = { ...DEFAULT_COMBAT };
   private readonly random: CombatRandom;
+  private readonly fuseRandom: CombatRandom;
   private remaining = 4;
   private avoidanceTimer = 0;
   private selected = 0;
@@ -185,6 +251,7 @@ export class MeteorSystem implements DynamicObstacleProvider {
     this.terrain = terrain;
     this.library = library;
     this.random = new CombatRandom(`${seed}:meteors`);
+    this.fuseRandom = new CombatRandom(`${seed}:meteor-fuses`);
     this.shipShapes = AIRCRAFT_PARTS.map((points) => {
       const g = hullGeometry(points),
         s = new ShapePose(convexShape(g));
@@ -203,7 +270,15 @@ export class MeteorSystem implements DynamicObstacleProvider {
   }
   configure(settings: CombatSettings): void {
     const disabled = this.settings.meteorEnabled && !settings.meteorEnabled;
+    const proximityDisabled = this.settings.meteorProximityEnabled && !settings.meteorProximityEnabled;
     this.settings = settings;
+    if (proximityDisabled) {
+      for (const meteor of this.rocks) {
+        meteor.fuseArmed = false;
+        meteor.fuseRemaining = meteor.proximityDelay;
+        meteor.fuseTriggerDirection.set(0, 0, 0);
+      }
+    }
     if (disabled) this.reset();
   }
   private disposed = false;
@@ -214,6 +289,9 @@ export class MeteorSystem implements DynamicObstacleProvider {
       m.generation++;
       m.detected = 0;
       m.reserved = -1;
+      m.fuseArmed = false;
+      m.fuseRemaining = 0;
+      m.fuseTriggerDirection.set(0, 0, 0);
     }
     this.remaining = 4;
     this.avoidanceOffset.set(0, 0, 0);
@@ -255,6 +333,17 @@ export class MeteorSystem implements DynamicObstacleProvider {
     m.lastScan = -1;
     m.reserved = -1;
     m.retry = 0;
+    m.proximityTriggerDistance = this.fuseRandom.range(
+      this.settings.meteorMinTriggerDistance,
+      this.settings.meteorMaxTriggerDistance,
+    );
+    m.proximityDelay = this.fuseRandom.range(
+      this.settings.meteorMinFuseDelay,
+      this.settings.meteorMaxFuseDelay,
+    );
+    m.fuseRemaining = m.proximityDelay;
+    m.fuseArmed = false;
+    m.fuseTriggerDirection.set(0, 0, 0);
     return m;
   }
   private air(p: Vector3, radius: number): boolean {

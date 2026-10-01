@@ -149,6 +149,7 @@ export class CombatView implements RefractionContributor {
   readonly group = new Group();
   readonly scene = new Scene();
   private readonly rockMeshes: InstancedMesh[];
+  private readonly rockProximityDirections: InstancedBufferAttribute[];
   private readonly rockMaterial = new MeshStandardMaterial({
     roughness: 0.94,
     metalness: 0.03,
@@ -185,7 +186,11 @@ export class CombatView implements RefractionContributor {
   private readonly dummy = new Object3D();
   private readonly tint = new Color();
   private readonly rockColor = new Color();
-  private readonly dangerColor = new Color();
+  private readonly meteorProximityUniforms = {
+    uMeteorBaseColor: { value: new Color() },
+    uMeteorProximityColor: { value: new Color() },
+    uMeteorProximityFalloff: { value: 24 },
+  };
   private readonly color = new Color();
   private readonly p = new Vector3();
   private readonly b = new Vector3();
@@ -197,6 +202,7 @@ export class CombatView implements RefractionContributor {
   private readonly lightDirection = new Vector3(.3,.8,.5).normalize();
   private readonly cameraWorld = new Vector3();
   private readonly identity = new Quaternion();
+  private readonly inverseOrientation = new Quaternion();
   private disposed = false;
   settings: CombatSettings;
   readonly meteors: MeteorSystem;
@@ -211,6 +217,44 @@ export class CombatView implements RefractionContributor {
     this.missiles = missiles;
     this.impacts = impacts;
     this.settings = meteors.settings;
+    this.rockMaterial.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, this.meteorProximityUniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nattribute vec3 meteorProximity;\nvarying vec3 vMeteorLocalDirection;\nvarying vec3 vMeteorProximity;',
+        )
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvMeteorLocalDirection=normalize(position);\nvMeteorProximity=meteorProximity;',
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform vec3 uMeteorBaseColor;\nuniform vec3 uMeteorProximityColor;\nuniform float uMeteorProximityFalloff;\nvarying vec3 vMeteorLocalDirection;\nvarying vec3 vMeteorProximity;',
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+          float meteorProximityAmount=length(vMeteorProximity);
+          if(meteorProximityAmount>0.0001){
+            vec3 meteorProximityDirection=vMeteorProximity/meteorProximityAmount;
+            float meteorHotspot=pow(max(dot(normalize(vMeteorLocalDirection),meteorProximityDirection),0.0),uMeteorProximityFalloff)*meteorProximityAmount;
+            vec3 meteorColorRatio=diffuseColor.rgb/max(uMeteorBaseColor,vec3(0.0001));
+            float meteorBrightness=max(meteorColorRatio.r,max(meteorColorRatio.g,meteorColorRatio.b));
+            diffuseColor.rgb=mix(diffuseColor.rgb,uMeteorProximityColor*meteorBrightness,meteorHotspot);
+          }`,
+        );
+    };
+    this.rockMaterial.customProgramCacheKey = () => 'meteor-proximity-hotspot-v1';
+    this.rockProximityDirections = meteors.library.variants.map((v) => {
+      const attribute = new InstancedBufferAttribute(
+        new Float32Array(COMBAT_LIMITS.meteors * 3),
+        3,
+      ).setUsage(DynamicDrawUsage);
+      v.geometry.setAttribute('meteorProximity', attribute);
+      return attribute;
+    });
     this.rockMeshes = meteors.library.variants.map((v) => {
       const mesh = new InstancedMesh(
         v.geometry,
@@ -368,7 +412,12 @@ export class CombatView implements RefractionContributor {
     this.settings = settings;
     this.rockMaterial.color.set(0xffffff);
     this.rockColor.set(settings.meteorColor);
-    this.dangerColor.set(settings.meteorDangerColor);
+    this.meteorProximityUniforms.uMeteorBaseColor.value.copy(this.rockColor);
+    this.meteorProximityUniforms.uMeteorProximityColor.value.set(
+      settings.meteorProximityColor,
+    );
+    this.meteorProximityUniforms.uMeteorProximityFalloff.value =
+      settings.meteorProximityFalloff;
     (this.boxes.material as ShaderMaterial).uniforms.uColor.value.set(
       settings.meteorTargetColor,
     );
@@ -435,9 +484,33 @@ export class CombatView implements RefractionContributor {
       const mesh = this.rockMeshes[m.variant],
         i = mesh.count++;
       mesh.setMatrixAt(i, this.dummy.matrix);
-      mesh.setColorAt(i, this.tint.copy(this.rockColor)
-        .lerp(this.dangerColor, this.meteors.dangerIntensity(m))
-        .multiplyScalar(m.brightness + m.hitFlash * 5));
+      const brightness = m.brightness + m.hitFlash * 5;
+      mesh.setColorAt(i, this.tint.copy(this.rockColor).multiplyScalar(brightness));
+      let proximityAmount = 0;
+      if (this.settings.meteorProximityEnabled && m.fuseArmed) {
+        proximityAmount = 1;
+        this.b.copy(m.fuseTriggerDirection);
+      } else if (this.settings.meteorProximityEnabled) {
+        const surfaceDistance = Math.max(
+          0,
+          this.b.subVectors(this.meteors.shipPosition, m.position).length() - m.radius,
+        );
+        const warningStart = m.proximityTriggerDistance * 3;
+        const warningSpan = Math.max(1e-6, warningStart - m.proximityTriggerDistance);
+        proximityAmount = Math.min(1, Math.max(
+          0,
+          (warningStart - surfaceDistance) / warningSpan,
+        ));
+        proximityAmount *= proximityAmount * (3 - 2 * proximityAmount);
+        if (proximityAmount > 0) this.b
+          .subVectors(this.meteors.shipPosition, m.position)
+          .applyQuaternion(this.inverseOrientation.copy(m.orientation).invert())
+          .normalize();
+      }
+      if (proximityAmount > 0) {
+        this.b.multiplyScalar(proximityAmount);
+        this.rockProximityDirections[m.variant].setXYZ(i, this.b.x, this.b.y, this.b.z);
+      } else this.rockProximityDirections[m.variant].setXYZ(i, 0, 0, 0);
       if (debug) {
         const d = this.debugMeshes[m.variant];
         d.setMatrixAt(d.count++, this.dummy.matrix);
@@ -476,6 +549,8 @@ export class CombatView implements RefractionContributor {
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
+    for (const attribute of this.rockProximityDirections)
+      attribute.needsUpdate = true;
     for (const mesh of this.debugMeshes) {
       mesh.visible = mesh.count > 0;
       mesh.instanceMatrix.needsUpdate = true;

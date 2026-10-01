@@ -3,6 +3,7 @@ import {
   METEOR_CONTROLS,
   MISSILE_CONTROLS,
   PULSE_CONTROLS,
+  migrateCombatSettings,
   sanitizeCombatSettings,
   type CombatSettings,
   type ControlSpec,
@@ -13,8 +14,13 @@ export class CombatSettingsControls {
   private readonly specs = [...METEOR_CONTROLS, ...MISSILE_CONTROLS, ...DESTRUCTION_CONTROLS, ...PULSE_CONTROLS, ...BULLET_CONTROLS];
   private readonly events = new AbortController();
   private readonly sections: HTMLElement[] = [];
-  private readonly sizeLabel = document.createElement('output');
-  private readonly sizeRange: HTMLDivElement;
+  private readonly dualRanges: Array<{
+    min: HTMLInputElement;
+    max: HTMLInputElement;
+    label: HTMLOutputElement;
+    container: HTMLDivElement;
+    unit: string;
+  }> = [];
   constructor() {
     const panel = document.querySelector('#settings-panel')!;
     for (const [name, specs] of [
@@ -33,34 +39,56 @@ export class CombatSettingsControls {
       if (name === 'METEORS') {
         const hint = document.createElement('p');
         hint.className = 'settings-help';
-        hint.textContent = 'Danger tint starts at 3× the trigger distance from the rock surface and reaches full intensity at detonation.';
+        hint.textContent = 'Each meteor samples one surface trigger distance and wait time when it spawns. Crossing that distance arms a countdown even if the ship moves away.';
         section.append(hint);
       }
       for (const spec of specs) this.addControl(section, spec);
       panel.append(section);
       this.sections.push(section);
     }
-    const min = this.inputs.get('meteorMinDiameter')!,
-      max = this.inputs.get('meteorMaxDiameter')!;
-    this.sizeRange = document.createElement('div');
-    this.sizeRange.className = 'dual-range';
-    this.sizeRange.setAttribute('role', 'group');
-    this.sizeRange.setAttribute('aria-label', 'Meteor diameter range');
+    this.addDualRange(
+      'meteorMinTriggerDistance', 'meteorMaxTriggerDistance',
+      'EXPLODE AT SURFACE DISTANCE', 'Meteor explosion surface-distance range', ' M',
+    );
+    this.addDualRange(
+      'meteorMinFuseDelay', 'meteorMaxFuseDelay',
+      'WAIT BEFORE EXPLODING', 'Meteor wait-before-exploding range', ' S',
+    );
+    this.addDualRange(
+      'meteorMinDiameter', 'meteorMaxDiameter',
+      'DIAMETER RANGE', 'Meteor diameter range', ' M',
+    );
+    this.restore(DEFAULT_COMBAT);
+  }
+  private addDualRange(
+    minKey: keyof CombatSettings,
+    maxKey: keyof CombatSettings,
+    captionText: string,
+    ariaLabel: string,
+    unit: string,
+  ): void {
+    const min = this.inputs.get(minKey)!, max = this.inputs.get(maxKey)!;
+    const container = document.createElement('div');
+    const label = document.createElement('output');
+    container.className = 'dual-range';
+    container.setAttribute('role', 'group');
+    container.setAttribute('aria-label', ariaLabel);
     const caption = min.previousElementSibling!;
-    caption.querySelector('span')!.textContent = 'DIAMETER RANGE';
-    caption.querySelector('output')!.replaceWith(this.sizeLabel);
+    caption.querySelector('span')!.textContent = captionText;
+    caption.querySelector('output')!.replaceWith(label);
     max.previousElementSibling!.remove();
-    this.outputs.delete('meteorMinDiameter'); this.outputs.delete('meteorMaxDiameter');
-    min.setAttribute('aria-label', 'Minimum meteor diameter'); max.setAttribute('aria-label', 'Maximum meteor diameter');
-    min.before(this.sizeRange);
-    this.sizeRange.append(min, max);
+    this.outputs.delete(minKey); this.outputs.delete(maxKey);
+    min.setAttribute('aria-label', `Minimum ${ariaLabel}`);
+    max.setAttribute('aria-label', `Maximum ${ariaLabel}`);
+    min.before(container);
+    container.append(min, max);
     min.addEventListener('input', () => {
       if (min.valueAsNumber > max.valueAsNumber) min.value = max.value;
     }, { signal: this.events.signal });
     max.addEventListener('input', () => {
       if (max.valueAsNumber < min.valueAsNumber) max.value = min.value;
     }, { signal: this.events.signal });
-    this.restore(DEFAULT_COMBAT);
+    this.dualRanges.push({ min, max, label, container, unit });
   }
   private addControl(
     section: HTMLElement,
@@ -109,7 +137,7 @@ export class CombatSettingsControls {
     return sanitizeCombatSettings(values);
   }
   restore(values: Partial<Record<keyof CombatSettings, unknown>>): void {
-    const safe = sanitizeCombatSettings(values, true);
+    const safe = sanitizeCombatSettings(migrateCombatSettings(values), true);
     for (const [key, input] of this.inputs) {
       if (typeof safe[key] === 'boolean') input.checked = safe[key] as boolean;
       else input.value = String(safe[key]);
@@ -118,7 +146,6 @@ export class CombatSettingsControls {
   }
   dispose(): void { this.events.abort(); this.sections.forEach(section => section.remove()); this.inputs.clear(); this.outputs.clear(); }
   updateReadouts(): void {
-    this.sizeLabel.textContent = `${this.inputs.get('meteorMinDiameter')!.value}–${this.inputs.get('meteorMaxDiameter')!.value} M`;
     for (const [key, , min, , step] of this.specs) {
       const output = this.outputs.get(key);
       if (output) {
@@ -129,14 +156,19 @@ export class CombatSettingsControls {
       }
       void min;
     }
-    if (this.sizeRange) {
-      const min = this.inputs.get('meteorMinDiameter')!, max = this.inputs.get('meteorMaxDiameter')!;
+    for (const range of this.dualRanges) {
+      const { min, max, label, container, unit } = range;
+      const decimals = Math.max(
+        Number(min.step) < 1 ? 1 : 0,
+        Number(max.step) < 1 ? 1 : 0,
+      );
+      label.textContent = `${min.valueAsNumber.toFixed(decimals)}–${max.valueAsNumber.toFixed(decimals)}${unit}`;
       const percent = (input: HTMLInputElement) => ((input.valueAsNumber - Number(input.min)) / (Number(input.max) - Number(input.min))) * 100;
-      this.sizeRange.style.setProperty(
+      container.style.setProperty(
         '--range-min',
         `${percent(min)}%`,
       );
-      this.sizeRange.style.setProperty(
+      container.style.setProperty(
         '--range-max',
         `${percent(max)}%`,
       );

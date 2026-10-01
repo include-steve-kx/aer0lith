@@ -125,6 +125,11 @@ test('ordinary lethal and proximity meteor destruction never mutate terrain carv
   const library = new RockLibrary('meteor-only-regression');
   const meteors = new MeteorSystem(terrain, library, 'meteor-only-regression');
   const impacts = new ImpactSystem(library, 'meteor-only-regression');
+  meteors.configure({
+    ...DEFAULT_COMBAT,
+    meteorMinFuseDelay: 0,
+    meteorMaxFuseDelay: 0,
+  });
   meteors.onDestroyed = (rock, point, direction) => impacts.spawn(rock, point, direction);
 
   for (let route = 0; route < 2; route += 1) {

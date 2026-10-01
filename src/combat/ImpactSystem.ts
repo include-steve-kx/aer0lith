@@ -20,6 +20,8 @@ export class FragmentState {
   readonly orientation = new Quaternion();
   readonly axis = new Vector3();
   readonly color = new Color();
+  readonly freshColor = new Color();
+  readonly ashColor = new Color();
   claim = 0;
 }
 export class ExplosionState {
@@ -145,7 +147,9 @@ export class ImpactSystem {
       f.spin =
         ((this.settings.fragmentSpin * Math.PI) / 180) *
         this.random.range(0.5, 1.5);
-      f.color.set(this.settings.meteorColor).multiplyScalar(rock.brightness);
+      f.freshColor.set(this.settings.meteorProximityColor).multiplyScalar(rock.brightness);
+      f.ashColor.set(this.settings.meteorAshColor).multiplyScalar(rock.brightness);
+      f.color.copy(f.freshColor);
     }
   }
   update(dt: number, ship: Vector3): void {
@@ -162,7 +166,11 @@ export class ImpactSystem {
       f.orientation
         .multiply(this.rotation.setFromAxisAngle(f.axis, f.spin * dt))
         .normalize();
-      const t = Math.min(1, Math.max(0, (f.age / f.life - 0.7) / 0.3));
+      const normalizedAge = f.age / f.life;
+      const ashT = Math.min(1, Math.max(0, (normalizedAge - 0.15) / 0.40));
+      const smoothAshT = ashT * ashT * (3 - 2 * ashT);
+      f.color.copy(f.freshColor).lerp(f.ashColor, smoothAshT);
+      const t = Math.min(1, Math.max(0, (normalizedAge - 0.7) / 0.3));
       f.lifeScale = 1 - t * t * (3 - 2 * t);
     }
     for (const e of this.explosions)

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
+import { Color, InstancedBufferAttribute, PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { RockLibrary } from '../src/combat/geometry.ts';
 import { MeteorSystem } from '../src/combat/MeteorSystem.ts';
 import { MissileSystem } from '../src/combat/MissileSystem.ts';
@@ -62,7 +62,7 @@ test('combat settings restore finite defaults, bounds, min/max and nonpersisted 
   assert.ok(s.meteorMinDiameter <= s.meteorMaxDiameter);
   assert.equal(s.missileSpeed, DEFAULT_COMBAT.missileSpeed);
   assert.equal(s.missileCapacity, 8);
-  assert.equal(s.meteorColor, '#8b8f92');
+  assert.equal(s.meteorColor, '#555b5e');
   assert.equal(s.explosionDebug, false);
   assert.ok([4, 8, 12].includes(s.fragmentCount));
 });
@@ -442,14 +442,25 @@ test('fragments begin in parent shape, shrink near expiry, retain templates, and
     assert.ok(actual.distanceTo(expected) < 1e-8);
     assert.ok(f.velocity.length() < 30);
   }
-  const color = fragments[0].color.clone();
+  const freshColor = fragments[0].color.clone();
+  assert.ok(freshColor.equals(
+    new Color(DEFAULT_COMBAT.meteorProximityColor).multiplyScalar(m.brightness),
+  ));
   impacts.update(0.3, zero);
   assert.equal(fragments[0].lifeScale, 1);
+  assert.ok(fragments[0].color.equals(freshColor), 'fresh fragments stay bright briefly');
   impacts.update(1, zero);
   assert.equal(fragments[0].lifeScale, 1);
+  assert.ok(fragments[0].color.r + fragments[0].color.g + fragments[0].color.b
+    < freshColor.r + freshColor.g + freshColor.b, 'fragments cool toward dark ash');
   impacts.update(0.6, zero);
   assert.ok(fragments[0].lifeScale > 0 && fragments[0].lifeScale < 1);
-  assert.ok(fragments[0].color.equals(color));
+  const expectedAsh = new Color(DEFAULT_COMBAT.meteorAshColor).multiplyScalar(m.brightness);
+  assert.ok(Math.hypot(
+    fragments[0].color.r - expectedAsh.r,
+    fragments[0].color.g - expectedAsh.g,
+    fragments[0].color.b - expectedAsh.b,
+  ) < 1e-12);
   for (let i = 0; i < 80; i++) impacts.spawn(m, m.position, zero);
   assert.equal(impacts.fragments.filter((f) => f.active).length, 576);
   assert.equal(impacts.explosions.filter((e) => e.active).length, 48);
@@ -465,6 +476,67 @@ test('fragments begin in parent shape, shrink near expiry, retain templates, and
     impacts.explosions.some((e) => e.active),
     false,
   );
+});
+
+test('armed meteor keeps its base color and gains a frozen local trigger hotspot', () => {
+  const { meteors, impacts, missiles } = systems('meteor-lifecycle-color');
+  const settings = {
+    ...DEFAULT_COMBAT,
+    meteorMinTriggerDistance: 50,
+    meteorMaxTriggerDistance: 50,
+    meteorMinFuseDelay: 1,
+    meteorMaxFuseDelay: 1,
+  };
+  meteors.configure(settings);
+  const view = new CombatView(meteors, missiles, impacts);
+  view.configure(settings);
+  const meteor = meteors.spawnAt(zero, 12, 0)!;
+  const camera = new PerspectiveCamera();
+  const instanceColor = new Color();
+  const rockMeshes = (view as unknown as { rockMeshes: Array<{
+    getColorAt(index: number, color: Color): void;
+  }> }).rockMeshes;
+  const proximityDirections = (view as unknown as {
+    rockProximityDirections: InstancedBufferAttribute[];
+  }).rockProximityDirections;
+  const colorDistance = (a: Color, b: Color) => Math.hypot(
+    a.r - b.r,
+    a.g - b.g,
+    a.b - b.b,
+  );
+
+  meteors.shipPosition.set(
+    0,
+    0,
+    meteor.radius + meteor.proximityTriggerDistance * 2,
+  );
+  view.sync(zero, camera, false, false);
+  const warningDirection = new Vector3().fromBufferAttribute(proximityDirections[0], 0);
+  assert.ok(warningDirection.length() > 0 && warningDirection.length() < 1);
+  rockMeshes[0].getColorAt(0, instanceColor);
+  assert.ok(colorDistance(instanceColor,
+    new Color(settings.meteorColor).multiplyScalar(meteor.brightness),
+  ) < 1e-6);
+
+  const triggerPoint = new Vector3(0, 0, meteor.radius + meteor.proximityTriggerDistance);
+  meteors.updateProximity(0.1, triggerPoint, triggerPoint, identity);
+  assert.equal(meteor.fuseArmed, true);
+  view.sync(zero, camera, false, false);
+  rockMeshes[0].getColorAt(0, instanceColor);
+  assert.ok(colorDistance(instanceColor,
+    new Color(settings.meteorColor).multiplyScalar(meteor.brightness),
+  ) < 1e-6);
+  const armedDirection = new Vector3().fromBufferAttribute(proximityDirections[0], 0);
+  assert.ok(Math.abs(armedDirection.length() - 1) < 1e-6);
+  assert.ok(armedDirection.normalize().dot(meteor.fuseTriggerDirection) > 0.999999);
+  const frozenDirection = meteor.fuseTriggerDirection.clone();
+  const farAway = new Vector3(1000, 0, 0);
+  meteors.updateProximity(0.1, farAway, farAway, identity);
+  assert.ok(meteor.fuseTriggerDirection.equals(frozenDirection));
+  view.dispose();
+  impacts.dispose();
+  missiles.dispose();
+  meteors.dispose();
 });
 
 test('explosion shake depends on ship proximity, freezes, expires exactly, and composes without camera drift', () => {

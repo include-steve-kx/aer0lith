@@ -36,7 +36,7 @@ export class PushVectorView {
     if (visible && settings.meteorMarkers && settings.meteorPushVectorScale > 0)
       for (const rock of meteors.rocks) {
         if (!rock.active || rock.detected <= 0) continue;
-        meteors.predictExplosionImpulse(this.impulse, rock);
+        meteors.predictProximityImpulse(this.impulse, rock);
         const length = this.impulse.length() * settings.meteorPushVectorScale;
         if (length < 1e-6) continue;
         this.impulse.normalize();
