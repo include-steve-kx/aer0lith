@@ -606,6 +606,28 @@ kbd {
   pointer-events: auto;
 }
 
+.pulse-button {
+  --pulse-cooldown: 0%;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.pulse-button .pulse-cooldown {
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--pulse-cooldown);
+  background: rgb(159 252 255 / 0.18);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.pulse-button svg { position: relative; z-index: 1; }
+
+.pulse-button.is-terrain-busy .pulse-cooldown {
+  height: 100%;
+  background: repeating-linear-gradient(-45deg, rgb(159 252 255 / 0.12) 0 4px, transparent 4px 8px);
+}
+
 .flight-action {
   display: grid;
   place-items: center;

@@ -2,6 +2,7 @@ import {
   DEFAULT_COMBAT, BULLET_CONTROLS, DESTRUCTION_CONTROLS,
   METEOR_CONTROLS,
   MISSILE_CONTROLS,
+  PULSE_CONTROLS,
   sanitizeCombatSettings,
   type CombatSettings,
   type ControlSpec,
@@ -9,7 +10,7 @@ import {
 export class CombatSettingsControls {
   private readonly inputs = new Map<keyof CombatSettings, HTMLInputElement>();
   private readonly outputs = new Map<keyof CombatSettings, HTMLOutputElement>();
-  private readonly specs = [...METEOR_CONTROLS, ...MISSILE_CONTROLS, ...DESTRUCTION_CONTROLS, ...BULLET_CONTROLS];
+  private readonly specs = [...METEOR_CONTROLS, ...MISSILE_CONTROLS, ...DESTRUCTION_CONTROLS, ...PULSE_CONTROLS, ...BULLET_CONTROLS];
   private readonly events = new AbortController();
   private readonly sections: HTMLElement[] = [];
   private readonly sizeLabel = document.createElement('output');
@@ -19,6 +20,7 @@ export class CombatSettingsControls {
     for (const [name, specs] of [
       ['METEORS', METEOR_CONTROLS],
       ['METEORS / DESTRUCTION', DESTRUCTION_CONTROLS],
+      ['PULSE CANNON', PULSE_CONTROLS],
       ['MISSILES', MISSILE_CONTROLS],
       ['BULLETS', BULLET_CONTROLS],
     ] as const) {

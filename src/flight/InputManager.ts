@@ -15,6 +15,7 @@ export interface InputActions {
   onToggleExperienceMode(): void;
   onToggleFullscreen(): void;
   onTriggerProbe(): void;
+  onTriggerPulse(): void;
 }
 
 export interface PointerFlightControls {
@@ -38,7 +39,7 @@ const CAPTURED = new Set([
   'KeyW', 'KeyS', 'KeyA', 'KeyD', 'ShiftLeft', 'ShiftRight',
   'KeyT', 'KeyC', 'Digit1', 'Digit2', 'Digit3',
   'KeyM', 'KeyI', 'KeyP', 'Escape', 'KeyN', 'KeyB',
-  'KeyV', 'KeyQ', 'KeyE', 'Space',
+  'KeyV', 'KeyQ', 'KeyE', 'KeyX', 'Space',
 ]);
 
 const DIRECTION_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD']);
@@ -328,6 +329,7 @@ export class InputManager {
       case 'KeyN': this.actions.onNewSeed(); break;
       case 'KeyV': this.actions.onToggleExperienceMode(); break;
       case 'KeyB': this.actions.onTriggerProbe(); break;
+      case 'KeyX': this.actions.onTriggerPulse(); break;
     }
   };
 

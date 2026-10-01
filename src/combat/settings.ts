@@ -4,9 +4,9 @@ export const COMBAT_LIMITS = {
   missiles: 64,
   trails: 96,
   samples: 256,
-  fragments: 192,
-  explosions: 16,
-  shakes: 16,
+  fragments: 576,
+  explosions: 48,
+  shakes: 48,
 } as const;
 export const DEFAULT_METEORS = {
   meteorBulletHits: 4,
@@ -72,16 +72,29 @@ export const DEFAULT_BULLETS = {
   muzzleColor: '#ffd68a', muzzleLength: 0.65, muzzleWidth: 0.3, muzzleLife: 0.1,
   muzzleRefraction: 0.75, muzzleDispersion: 0.12, muzzleDebug: false,
 };
+export const DEFAULT_PULSE = {
+  pulseEnabled: true,
+  pulseRange: 480,
+  pulseRadius: 60,
+  pulseCooldown: 5,
+  pulseDuration: 0.65,
+  pulseColor: '#9ffcff',
+  pulseElectricStrength: 1,
+  pulseRefraction: 1.2,
+  pulseDispersion: 0.3,
+};
 export type BulletSettings = typeof DEFAULT_BULLETS;
 export type ImpactSettings = typeof DEFAULT_IMPACTS;
 export type MeteorSettings = typeof DEFAULT_METEORS & ImpactSettings;
 export type MissileSettings = typeof DEFAULT_MISSILES;
-export type CombatSettings = MeteorSettings & MissileSettings & BulletSettings;
+export type PulseSettings = typeof DEFAULT_PULSE;
+export type CombatSettings = MeteorSettings & MissileSettings & BulletSettings & PulseSettings;
 export const DEFAULT_COMBAT: CombatSettings = {
   ...DEFAULT_BULLETS,
   ...DEFAULT_METEORS,
   ...DEFAULT_IMPACTS,
   ...DEFAULT_MISSILES,
+  ...DEFAULT_PULSE,
 };
 export type ControlSpec = readonly [
   keyof CombatSettings,
@@ -171,6 +184,17 @@ export const BULLET_CONTROLS: readonly ControlSpec[] = [
   ['muzzleDispersion', 'MUZZLE DISPERSION', 0, 0.3, 0.01],
   ['muzzleDebug', 'OPAQUE MUZZLE GLASS'],
 ];
+export const PULSE_CONTROLS: readonly ControlSpec[] = [
+  ['pulseEnabled', 'PULSE CANNON ENABLED'],
+  ['pulseRange', 'RANGE', 160, 800, 20, ' M'],
+  ['pulseRadius', 'BEAM RADIUS', 16, 80, 2, ' M'],
+  ['pulseCooldown', 'COOLDOWN', 1, 15, 0.5, ' S'],
+  ['pulseDuration', 'VISUAL DURATION', 0.2, 1.5, 0.05, ' S'],
+  ['pulseColor', 'PLASMA COLOR'],
+  ['pulseElectricStrength', 'ELECTRIC STRENGTH', 0, 2, 0.05],
+  ['pulseRefraction', 'REFRACTION', 0, 3, 0.05],
+  ['pulseDispersion', 'DISPERSION', 0, 0.8, 0.01],
+];
 export function sanitizeCombatSettings(
   input: Partial<Record<keyof CombatSettings, unknown>>,
   restore = false,
@@ -178,7 +202,8 @@ export function sanitizeCombatSettings(
   const result = { ...DEFAULT_COMBAT };
   for (const [key, , min, max, step] of [
     ...METEOR_CONTROLS,
-    ...MISSILE_CONTROLS, ...DESTRUCTION_CONTROLS, ...BULLET_CONTROLS,
+    ...MISSILE_CONTROLS, ...DESTRUCTION_CONTROLS, ...PULSE_CONTROLS,
+    ...BULLET_CONTROLS,
   ]) {
     const fallback = DEFAULT_COMBAT[key],
       value = input[key];

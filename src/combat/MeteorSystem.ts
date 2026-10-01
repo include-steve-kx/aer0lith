@@ -57,6 +57,10 @@ export class MeteorSystem implements DynamicObstacleProvider {
   private readonly proximityTravel = new Vector3();
   private readonly proximityCenter = new Vector3();
   private readonly proximityDirection = new Vector3(0, 0, 1);
+  private readonly pulseAxis = new Vector3();
+  private readonly pulseOffset = new Vector3();
+  private readonly pulseClosest = new Vector3();
+  private readonly pulseHandle: MeteorHandle = { slot: -1, generation: 0 };
 
   /** The exact single-explosion impulse used by both physics and scanned arrows.
    * Combined impulses are subsequently capped by FlightController. */
@@ -115,6 +119,36 @@ export class MeteorSystem implements DynamicObstacleProvider {
     // Synchronous consumers copy into their own fixed pools before this snapshot is reused.
     this.onDestroyed?.(snapshot, point, direction);
     return 'destroyed';
+  }
+
+  /** Destroy every active meteor intersecting a finite, rounded beam capsule. */
+  destroyInCapsule(
+    start: Vector3,
+    end: Vector3,
+    radius: number,
+    direction: Vector3,
+  ): number {
+    if (!(radius > 0) || !Number.isFinite(radius)) return 0;
+    this.pulseAxis.subVectors(end, start);
+    const axisLengthSquared = this.pulseAxis.lengthSq();
+    if (!Number.isFinite(axisLengthSquared)) return 0;
+    let destroyed = 0;
+    for (let slot = 0; slot < this.rocks.length; slot += 1) {
+      const rock = this.rocks[slot];
+      if (!rock.active) continue;
+      this.pulseOffset.subVectors(rock.position, start);
+      const t = axisLengthSquared > 1e-12
+        ? Math.max(0, Math.min(1, this.pulseOffset.dot(this.pulseAxis) / axisLengthSquared))
+        : 0;
+      this.pulseClosest.copy(start).addScaledVector(this.pulseAxis, t);
+      const hitRadius = radius + rock.radius;
+      if (rock.position.distanceToSquared(this.pulseClosest) > hitRadius * hitRadius) continue;
+      this.pulseHandle.slot = slot;
+      this.pulseHandle.generation = rock.generation;
+      if (this.applyHit(this.pulseHandle, this.pulseClosest, direction, true) === 'destroyed')
+        destroyed += 1;
+    }
+    return destroyed;
   }
   readonly rocks = Array.from(
     { length: COMBAT_LIMITS.meteors },

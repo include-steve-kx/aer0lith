@@ -20,6 +20,7 @@ export class FragmentState {
   readonly orientation = new Quaternion();
   readonly axis = new Vector3();
   readonly color = new Color();
+  claim = 0;
 }
 export class ExplosionState {
   active = false;
@@ -56,6 +57,7 @@ export class ImpactSystem {
   private readonly random: CombatRandom;
   private readonly rotation = new Quaternion();
   private readonly direction = new Vector3();
+  private fragmentClaim = 0;
   readonly library: RockLibrary;
   constructor(library: RockLibrary, seed: string) {
     this.library = library;
@@ -100,18 +102,20 @@ export class ImpactSystem {
       shake.size = Math.max(0.5, Math.min(1.5, rock.diameter / 12));
     }
     if (!this.settings.fragmentEnabled) return;
-    let free = 0;
-    for (const f of this.fragments) if (!f.active) free++;
-    const count = Math.min(
-      this.settings.fragmentCount,
-      free >= 12 ? 12 : free >= 8 ? 8 : free >= 4 ? 4 : 0,
-    );
-    if (!count) return;
+    const count = this.settings.fragmentCount >= 12 ? 12
+      : this.settings.fragmentCount >= 8 ? 8 : 4;
     const templates = this.library.variants[rock.variant].shards.get(count)!;
-    let cursor = 0;
+    this.fragmentClaim = this.fragmentClaim >= 0x7ffffffe ? 1 : this.fragmentClaim + 1;
     for (const template of templates) {
-      while (this.fragments[cursor].active) cursor++;
-      const f = this.fragments[cursor++];
+      let f = this.fragments.find((candidate) => !candidate.active && candidate.claim !== this.fragmentClaim);
+      if (!f) {
+        f = this.fragments.reduce((oldest, candidate) => {
+          if (candidate.claim === this.fragmentClaim) return oldest;
+          if (oldest.claim === this.fragmentClaim) return candidate;
+          return candidate.age / candidate.life > oldest.age / oldest.life ? candidate : oldest;
+        });
+      }
+      f.claim = this.fragmentClaim;
       f.active = true;
       f.age = 0;
       f.life = this.settings.fragmentLife;

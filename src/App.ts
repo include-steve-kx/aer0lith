@@ -5,6 +5,7 @@ import { MeteorSystem } from './combat/MeteorSystem.ts';
 import { MissileSystem } from './combat/MissileSystem.ts';
 import { ImpactSystem } from './combat/ImpactSystem.ts';
 import { CombatView } from './combat/CombatView.ts';
+import { PulseCannonSystem } from './combat/PulseCannonSystem.ts';
 import { CombatHud } from './ui/CombatHud.ts';
 import type { ScanSnapshot, RefractionContributor } from './combat/types.ts';
 import {
@@ -39,6 +40,7 @@ import { ProceduralTerrain } from './world/TerrainModel.ts';
 import { TerrainManager } from './world/TerrainManager.ts';
 import { ProbeScheduler } from './world/ProbeScheduler.ts';
 import { FlockSystem } from './world/FlockSystem.ts';
+import { PULSE_MUZZLE } from './core/aircraftGeometry.ts';
 
 export class App {
   private readonly root: HTMLElement;
@@ -56,6 +58,8 @@ export class App {
   private readonly explosionImpulse = new Vector3();
   private readonly impacts: ImpactSystem;
   private readonly combatView: CombatView;
+  private readonly pulse = new PulseCannonSystem();
+  private readonly pulseMuzzle = new Vector3();
   private readonly combatHud = new CombatHud();
   private readonly refractionContributors: RefractionContributor[];
   private readonly scan: ScanSnapshot = { id: 0, center: new Vector3(), previousRadius: 0, radius: 0, expanding: false };
@@ -184,6 +188,7 @@ export class App {
       onToggleExperienceMode: () => this.toggleExperienceMode(),
       onToggleFullscreen: () => void this.toggleFullscreen(),
       onTriggerProbe: () => this.triggerProbe(),
+      onTriggerPulse: () => this.requestPulse(),
     }, {
       fireButton: this.hud.fireButton,
       joystick: this.hud.touchJoystick,
@@ -202,6 +207,7 @@ export class App {
     bindButtonAction(this.hud.fullscreenButton, () => void this.toggleFullscreen());
     bindButtonAction(this.hud.collisionButton, () => this.toggleCollisionDebug());
     bindButtonAction(this.hud.probeButton, () => this.triggerProbe());
+    bindButtonAction(this.hud.pulseButton, () => this.requestPulse());
     this.settings.onChange = (settings) => {
       if (!settings.meteorEnabled && this.meteors.settings.meteorEnabled) {
         this.missiles.reset(); this.impacts.reset(); this.flight.clearExternalImpulse();
@@ -212,6 +218,7 @@ export class App {
       this.meteors.configure(settings);
       this.missiles.configure(settings);
       this.impacts.configure(settings);
+      this.pulse.configure(settings);
       this.combatView.configure(settings);
       this.crtCurvature = settings.crtEnabled ? settings.crtCurvature : 0;
       this.setResolutionMode(settings.renderResolutionMode);
@@ -271,6 +278,7 @@ export class App {
       this.impacts.dispose();
       this.post.dispose();
       this.flightEffects.dispose();
+      this.terrain.dispose();
     });
     document.addEventListener('visibilitychange', () => {
       this.lastTime = performance.now();
@@ -312,6 +320,7 @@ export class App {
           this.scan.center.copy(this.terrain.currentProbeWorldCenter);
         }
         this.flight.update(dt, frameInput);
+        this.pulse.update(dt);
         if (this.flight.mode !== 'crashed') {
           this.meteors.updateProximity(dt, this.flight.previousPosition, this.flight.position, this.flight.orientation);
           this.meteors.scan(this.scan);
@@ -397,6 +406,7 @@ export class App {
       this.cameraRig.mode === 'cockpit' ? this.flight.maneuverRollAngle : 0);
     this.bullets.setCamera(this.cameraRig.camera, this.renderOrigin, this.flight.position);
     this.bullets.sync(this.flight.position, this.flight.orientation);
+    this.activatePulse();
     this.boostShake.apply(this.cameraRig.camera, this.flight.speed, this.impacts.shakeTranslation, this.impacts.shakeRotation);
     try {
       this.missiles.syncMuzzles(this.flight.position, this.flight.orientation);
@@ -471,6 +481,34 @@ export class App {
     this.audio.beep(920, 0.035);
   }
 
+  private requestPulse(): void {
+    if (this.paused || this.flight.mode === 'crashed' || !this.terrain.canAcceptPulseCarve) return;
+    this.pulse.requestFire();
+  }
+
+  private activatePulse(): void {
+    if (this.paused || this.flight.mode === 'crashed') {
+      this.pulse.clearRequest();
+      return;
+    }
+    this.pulseMuzzle.set(...PULSE_MUZZLE)
+      .applyQuaternion(this.flight.orientation)
+      .add(this.flight.position);
+    const shot = this.pulse.tryFire(
+      this.pulseMuzzle,
+      this.bullets.aim.point,
+      this.terrain.canAcceptPulseCarve,
+    );
+    if (!shot) return;
+    this.terrain.applyPulseCarve(shot.carveStart, shot.carveEnd, shot.radius);
+    this.meteors.destroyInCapsule(
+      shot.carveStart,
+      shot.carveEnd,
+      shot.radius,
+      shot.direction,
+    );
+  }
+
   private toggleAutopilot(): void {
     if (!this.paused) this.flight.toggleAutopilot();
   }
@@ -503,6 +541,7 @@ export class App {
     this.missiles.reset();
     this.impacts.reset();
     this.meteors.reset();
+    this.pulse.reset();
     this.scan.expanding = false;
     this.scan.id++;
     this.probeScheduler.reset();
@@ -563,6 +602,13 @@ export class App {
     this.hud.update(snapshot, fps, {
       localDistance,
     });
+    this.hud.setPulseState(
+      this.pulse.settings.pulseEnabled,
+      this.pulse.ready,
+      this.pulse.cooldownFraction,
+      this.terrain.canAcceptPulseCarve,
+      snapshot.mode === 'loading' || snapshot.mode === 'crashed',
+    );
   }
 
   private updateQuality(dt: number): void {

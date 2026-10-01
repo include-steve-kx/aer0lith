@@ -32,8 +32,8 @@ test('fire input queues quick taps, isolates focused controls and simultaneous p
   const defaults = [win,doc,ElementStub,ElementStub,ElementStub];
   names.forEach((name,i)=>Object.defineProperty(globalThis,name,{value:defaults[i],configurable:true}));
   const oldMax = getMaxListeners(new EventTarget()); setMaxListeners(100);
-  let manual = 0;
-  const actions = {onManualInput:()=>manual++,onRoll:()=>{},onToggleAutopilot:()=>{},onCycleCamera:()=>{},onSelectCamera:()=>{},onToggleAudio:()=>{},onReset:()=>{},onPause:()=>{},onNewSeed:()=>{},onToggleExperienceMode:()=>{},onToggleFullscreen:()=>{},onTriggerProbe:()=>{}} satisfies InputActions;
+  let manual = 0, pulses = 0;
+  const actions = {onManualInput:()=>manual++,onRoll:()=>{},onToggleAutopilot:()=>{},onCycleCamera:()=>{},onSelectCamera:()=>{},onToggleAudio:()=>{},onReset:()=>{},onPause:()=>{},onNewSeed:()=>{},onToggleExperienceMode:()=>{},onToggleFullscreen:()=>{},onTriggerProbe:()=>{},onTriggerPulse:()=>pulses++} satisfies InputActions;
   const button = () => Object.assign(new ElementStub(),{tagName:'BUTTON'});
   const fire = button(), throttle = button(), joystick = new ElementStub();
   const controls = { fireButton:fire, throttleButton:throttle, joystick, joystickThumb:new ElementStub(), rollLeftButton:button(), rollRightButton:button() } as unknown as PointerFlightControls;
@@ -56,6 +56,7 @@ test('fire input queues quick taps, isolates focused controls and simultaneous p
     key('Space'); doc.hidden=true; fireEvent(doc,'visibilitychange'); assert.equal(input.consumeFire(),false);
     doc.hidden=false; key('Space','keyup'); key('Space'); fireEvent(win,'blur'); assert.equal(input.consumeFire(),false);
     const previousManual=manual; key('Space'); assert.equal(manual,previousManual);
+    key('KeyX'); key('KeyX','keydown',root,true); assert.equal(pulses,1); key('KeyX','keyup'); key('KeyX'); assert.equal(pulses,2);
     input.dispose(); input.dispose(); key('Space'); pointer(fire,'pointerdown',5); assert.equal(input.consumeFire(),false);
   } finally {
     input.dispose(); setMaxListeners(oldMax);

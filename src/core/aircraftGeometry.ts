@@ -12,6 +12,7 @@ export const WING_PARTS: AircraftPoint[][] = [-1, 1].flatMap(side => [-1, 1].map
 ));
 export const AIRCRAFT_PARTS = [HULL_POINTS, ...WING_PARTS];
 export const WING_TIPS = WING_PARTS.map(points => points[2]);
+export const PULSE_MUZZLE: AircraftPoint = [0, 0.05, 6.3];
 export const TRAIL_ANCHORS = WING_TIPS.map(([x, y, z]): AircraftPoint => [x, y, z - 0.06]);
 
 // The hidden wings are difficult to judge from the cockpit. Use a compact,

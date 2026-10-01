@@ -3,7 +3,7 @@ import test from 'node:test';
 import { Quaternion, Vector3 } from 'three';
 import { MeteorSystem } from '../src/combat/MeteorSystem.ts';
 import { RockLibrary } from '../src/combat/geometry.ts';
-import { DEFAULT_COMBAT, sanitizeCombatSettings, METEOR_CONTROLS, MISSILE_CONTROLS, DESTRUCTION_CONTROLS, BULLET_CONTROLS } from '../src/combat/settings.ts';
+import { DEFAULT_COMBAT, sanitizeCombatSettings, METEOR_CONTROLS, MISSILE_CONTROLS, DESTRUCTION_CONTROLS, PULSE_CONTROLS, BULLET_CONTROLS } from '../src/combat/settings.ts';
 import { FlightController } from '../src/flight/FlightController.ts';
 import { FLIGHT } from '../src/core/config.ts';
 import type { ProceduralTerrain } from '../src/world/TerrainModel.ts';
@@ -80,7 +80,10 @@ test('new defaults fit slider bounds and restoration preserves saved custom sett
   const restored = sanitizeCombatSettings({ explosionShakeRadius: 200, meteorTriggerDistance: NaN });
   assert.equal(restored.explosionShakeRadius, 200);
   assert.equal(restored.meteorTriggerDistance, 50);
-  for (const [key, , min, max, step] of [...METEOR_CONTROLS, ...MISSILE_CONTROLS, ...DESTRUCTION_CONTROLS, ...BULLET_CONTROLS]) {
+  assert.equal(DEFAULT_COMBAT.pulseRange, 480);
+  assert.equal(DEFAULT_COMBAT.pulseRadius, 60);
+  assert.equal(DEFAULT_COMBAT.pulseCooldown, 5);
+  for (const [key, , min, max, step] of [...METEOR_CONTROLS, ...MISSILE_CONTROLS, ...DESTRUCTION_CONTROLS, ...PULSE_CONTROLS, ...BULLET_CONTROLS]) {
     const value = DEFAULT_COMBAT[key];
     if (typeof value !== 'number') continue;
     assert.ok(value >= min! && value <= max!, key);

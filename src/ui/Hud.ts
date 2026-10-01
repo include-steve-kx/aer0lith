@@ -47,6 +47,7 @@ export class Hud {
   readonly collisionButton = element<HTMLButtonElement>('collision-button');
   readonly modeButton = element<HTMLButtonElement>('mode-button');
   readonly fireButton = element<HTMLButtonElement>('fire-button');
+  readonly pulseButton = element<HTMLButtonElement>('pulse-button');
   readonly probeButton = element<HTMLButtonElement>('probe-button');
   readonly rollLeftButton = element<HTMLButtonElement>('roll-left-button');
   readonly rollRightButton = element<HTMLButtonElement>('roll-right-button');
@@ -67,7 +68,9 @@ export class Hud {
   private readonly rebaseValue = element<HTMLElement>('rebase-value');
   private readonly fpsValue = element<HTMLElement>('fps-value');
   private readonly horizon = element<HTMLElement>('horizon');
+  private readonly pulseStatus = element<HTMLElement>('pulse-status');
   private readonly attitude = new Euler(0, 0, 0, 'YXZ');
+  private paused = false;
 
   constructor() {
     bindButtonAction(this.legendToggle, () => {
@@ -132,15 +135,45 @@ export class Hud {
   }
 
   setPaused(paused: boolean): void {
+    this.paused = paused;
     this.pauseButton.textContent = paused ? 'RESUME' : 'PAUSE';
     this.pauseButton.setAttribute('aria-label', paused ? 'Resume game' : 'Pause game');
     this.pauseButton.setAttribute('aria-pressed', String(paused));
     this.modeButton.disabled = paused;
     this.fireButton.disabled = paused;
+    this.pulseButton.disabled = paused;
     this.probeButton.disabled = paused;
     this.throttleButton.disabled = paused;
     this.rollLeftButton.disabled = paused;
     this.rollRightButton.disabled = paused;
+  }
+
+  setPulseState(
+    enabled: boolean,
+    ready: boolean,
+    cooldownFraction: number,
+    terrainReady: boolean,
+    unavailable = false,
+  ): void {
+    const cooling = enabled && !ready;
+    const busy = enabled && ready && !terrainReady;
+    const disabled = this.paused || !enabled || cooling || busy || unavailable;
+    this.pulseButton.disabled = disabled;
+    this.pulseButton.style.setProperty('--pulse-cooldown', `${Math.max(0, Math.min(1, cooldownFraction)) * 100}%`);
+    this.pulseButton.classList.toggle('is-cooling', cooling);
+    this.pulseButton.classList.toggle('is-terrain-busy', busy);
+    let label = 'Fire Pulse Cannon';
+    let status = 'Pulse Cannon ready';
+    if (!enabled) label = status = 'Pulse Cannon disabled in settings';
+    else if (this.paused) label = status = 'Pulse Cannon unavailable while paused';
+    else if (unavailable) label = status = 'Pulse Cannon unavailable';
+    else if (busy) label = status = 'Pulse Cannon waiting for terrain';
+    else if (cooling) label = status = `Pulse Cannon cooling down, ${Math.ceil(cooldownFraction * 100)} percent remaining`;
+    this.pulseButton.setAttribute('aria-label', label);
+    this.pulseButton.setAttribute('aria-valuenow', String(Math.round((1 - cooldownFraction) * 100)));
+    this.pulseButton.setAttribute('aria-valuemin', '0');
+    this.pulseButton.setAttribute('aria-valuemax', '100');
+    this.pulseStatus.textContent = status;
   }
 
   setBoostState(active: boolean, locked: boolean): void {

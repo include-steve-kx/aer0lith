@@ -450,10 +450,10 @@ test('fragments begin in parent shape, shrink near expiry, retain templates, and
   impacts.update(0.6, zero);
   assert.ok(fragments[0].lifeScale > 0 && fragments[0].lifeScale < 1);
   assert.ok(fragments[0].color.equals(color));
-  for (let i = 0; i < 50; i++) impacts.spawn(m, m.position, zero);
-  assert.equal(impacts.fragments.filter((f) => f.active).length, 192);
-  assert.equal(impacts.explosions.filter((e) => e.active).length, 16);
-  assert.equal(impacts.shakes.filter((e) => e.active).length, 16);
+  for (let i = 0; i < 80; i++) impacts.spawn(m, m.position, zero);
+  assert.equal(impacts.fragments.filter((f) => f.active).length, 576);
+  assert.equal(impacts.explosions.filter((e) => e.active).length, 48);
+  assert.equal(impacts.shakes.filter((e) => e.active).length, 48);
   assert.equal(meteors.activeCount, 1);
   impacts.configure({ ...DEFAULT_COMBAT, fragmentEnabled: false });
   assert.equal(
