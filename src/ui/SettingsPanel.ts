@@ -529,7 +529,14 @@ export class SettingsPanel {
 
   private persist(settings: VisualSettings): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...settings, explosionDebug: false }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        ...settings,
+        explosionDebug: false,
+        muzzleDebug: false,
+        pulsePlasmaDebug: false,
+        pulseGlassDebug: false,
+        pulseElectricDebug: false,
+      }));
     } catch {
       // Visual controls continue to work when browser storage is unavailable.
     }

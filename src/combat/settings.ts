@@ -17,7 +17,7 @@ export const DEFAULT_METEORS = {
   meteorMinDiameter: 6,
   meteorMaxDiameter: 36,
   meteorCount: 12,
-  meteorInterval: 8,
+  meteorInterval: 12,
   meteorSpeed: 5,
   meteorSpin: 20,
   meteorSpread: 30,
@@ -45,7 +45,7 @@ export const DEFAULT_MISSILES = {
   missileHud: true,
 };
 export const DEFAULT_IMPACTS = {
-  explosionPush: 30,
+  explosionPush: 20,
   explosionVelocityAxisFactor: 0.5,
   explosionPushLife: 2,
   explosionSize: 1.5,
@@ -74,14 +74,38 @@ export const DEFAULT_BULLETS = {
 };
 export const DEFAULT_PULSE = {
   pulseEnabled: true,
-  pulseRange: 480,
-  pulseRadius: 60,
-  pulseCooldown: 5,
-  pulseDuration: 0.65,
+  pulseRange: 800,
+  pulseRadius: 40,
+  pulsePlasmaRadius: 8,
+  pulseCooldown: 1,
+  pulseDuration: 0.6,
   pulseColor: '#9ffcff',
-  pulseElectricStrength: 1,
-  pulseRefraction: 1.2,
-  pulseDispersion: 0.3,
+  pulseBrightness: 1.35,
+  pulseFadePower: 1.4,
+  pulseFlutter: 0.35,
+  pulseFlutterRate: 1,
+  pulseShakeStrength: 1.3,
+  pulseShakeFrequency: 20,
+  pulseShakeDuration: 3.6,
+  pulseGlassWidth: 2,
+  pulseGlassLength: 1,
+  pulseElectricStrength: 2,
+  pulseElectricSpread: 1.3,
+  pulseElectricTravelTime: 0.7,
+  pulseElectricTrail: 0.19,
+  pulseBeamLightColor: '#9ffcff',
+  pulseBeamLightIntensity: 175,
+  pulseBeamLightRange: 100,
+  pulseElectricLightColor: '#6fe9ff',
+  pulseElectricLightIntensity: 875,
+  pulseElectricLightRange: 210,
+  pulseRefraction: 1.65,
+  pulseDispersion: 0.8,
+  pulseTerrainTintStrength: 0.55,
+  pulseTerrainTintWidth: 18,
+  pulsePlasmaDebug: false,
+  pulseGlassDebug: false,
+  pulseElectricDebug: false,
 };
 export type BulletSettings = typeof DEFAULT_BULLETS;
 export type ImpactSettings = typeof DEFAULT_IMPACTS;
@@ -187,13 +211,37 @@ export const BULLET_CONTROLS: readonly ControlSpec[] = [
 export const PULSE_CONTROLS: readonly ControlSpec[] = [
   ['pulseEnabled', 'PULSE CANNON ENABLED'],
   ['pulseRange', 'RANGE', 160, 800, 20, ' M'],
-  ['pulseRadius', 'BEAM RADIUS', 16, 80, 2, ' M'],
-  ['pulseCooldown', 'COOLDOWN', 1, 15, 0.5, ' S'],
+  ['pulseRadius', 'PHYSICAL BEAM RADIUS', 4, 80, 2, ' M'],
+  ['pulsePlasmaRadius', 'INNER PLASMA RADIUS', 4, 80, 2, ' M'],
+  ['pulseCooldown', 'COOLDOWN', 0.25, 15, 0.25, ' S'],
   ['pulseDuration', 'VISUAL DURATION', 0.2, 1.5, 0.05, ' S'],
   ['pulseColor', 'PLASMA COLOR'],
-  ['pulseElectricStrength', 'ELECTRIC STRENGTH', 0, 2, 0.05],
+  ['pulseBrightness', 'PLASMA BRIGHTNESS', 0, 3, 0.05],
+  ['pulseFadePower', 'FADE CURVE', 0.25, 4, 0.05],
+  ['pulseFlutter', 'PLASMA FLUTTER', 0, 1.5, 0.05],
+  ['pulseFlutterRate', 'FLUTTER RATE', 0, 4, 0.05, '×'],
+  ['pulseShakeStrength', 'CAMERA SHAKE', 0, 2, 0.05],
+  ['pulseShakeFrequency', 'SHAKE FREQUENCY', 4, 30, 1, ' HZ'],
+  ['pulseShakeDuration', 'SHAKE DURATION', 0.3, 8, 0.1, ' S'],
+  ['pulseGlassWidth', 'OUTER GLASS WIDTH', 0.5, 2, 0.01, '×'],
+  ['pulseGlassLength', 'OUTER GLASS LENGTH', 0.5, 1.2, 0.01, '×'],
+  ['pulseElectricStrength', 'ELECTRIC STRENGTH', 0, 4, 0.05],
+  ['pulseElectricSpread', 'ELECTRIC SPREAD', 0, 2, 0.05, '×'],
+  ['pulseElectricTravelTime', 'ELECTRIC TRAVEL TIME', 0.1, 1.5, 0.05, ' S'],
+  ['pulseElectricTrail', 'ELECTRIC TRAIL LENGTH', 0.05, 1, 0.01, '×'],
+  ['pulseBeamLightColor', 'BEAM LIGHT COLOR'],
+  ['pulseBeamLightIntensity', 'BEAM LIGHT INTENSITY', 0, 2000, 25],
+  ['pulseBeamLightRange', 'BEAM LIGHT RANGE', 20, 800, 10, ' M'],
+  ['pulseElectricLightColor', 'ELECTRIC LIGHT COLOR'],
+  ['pulseElectricLightIntensity', 'ELECTRIC LIGHT INTENSITY', 0, 2000, 25],
+  ['pulseElectricLightRange', 'ELECTRIC LIGHT RANGE', 10, 400, 10, ' M'],
   ['pulseRefraction', 'REFRACTION', 0, 3, 0.05],
-  ['pulseDispersion', 'DISPERSION', 0, 0.8, 0.01],
+  ['pulseDispersion', 'DISPERSION', 0, 2, 0.01],
+  ['pulseTerrainTintStrength', 'TERRAIN REMNANT', 0, 1, 0.05],
+  ['pulseTerrainTintWidth', 'REMNANT FALLOFF', 2, 60, 2, ' M'],
+  ['pulsePlasmaDebug', 'SOLID PLASMA'],
+  ['pulseGlassDebug', 'SOLID GLASS'],
+  ['pulseElectricDebug', 'SOLID ELECTRICITY'],
 ];
 export function sanitizeCombatSettings(
   input: Partial<Record<keyof CombatSettings, unknown>>,
@@ -231,6 +279,12 @@ export function sanitizeCombatSettings(
     result.meteorMinDiameter,
     result.meteorMaxDiameter,
   );
-  if (restore) { result.explosionDebug = false; result.muzzleDebug = false; }
+  if (restore) {
+    result.explosionDebug = false;
+    result.muzzleDebug = false;
+    result.pulsePlasmaDebug = false;
+    result.pulseGlassDebug = false;
+    result.pulseElectricDebug = false;
+  }
   return result;
 }

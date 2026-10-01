@@ -79,6 +79,25 @@ test('idle time and paused frequency edits do not advance or rephase camera shak
   assert.ok(camera.position.equals(p)); assert.ok(camera.quaternion.equals(q)); shake.restore(camera);
 });
 
+test('one-shot Pulse shake reuses the boost ignition attack and bounded decay', () => {
+  const envelope = new BoostEnvelope();
+  envelope.fadeDuration = 3.6;
+  envelope.trigger();
+  envelope.update(0, false);
+  assert.equal(envelope.shakeIntensity, 0, 'pause freezes the triggered onset');
+  envelope.update(0.065, false);
+  assert.equal(envelope.shakeIntensity, 1, 'Pulse reaches the same boost-onset peak');
+  envelope.update(1.8, false);
+  assert.ok(Math.abs(envelope.shakeIntensity - 0.25) < 1e-10);
+  envelope.update(1.8 + 1e-9, false);
+  assert.equal(envelope.shakeIntensity, 0);
+  envelope.trigger();
+  envelope.update(0.065, false);
+  assert.equal(envelope.shakeIntensity, 1, 'a new Pulse restarts the fixed-capacity envelope');
+  envelope.reset();
+  assert.equal(envelope.shakeIntensity, 0);
+});
+
 for (const fadeDuration of [0.3, 2.8, 8]) {
   test(`held boost keeps its flame while shake ends after ${fadeDuration} seconds`, () => {
     const flame = new BoostEnvelope(), shake = new BoostCameraShake();

@@ -18,7 +18,7 @@ const baseSettings = {
   meteorEnabled: false,
   missileEnabled: false,
   pulseEnabled: true,
-  pulseDuration: 0.65,
+  pulseDuration: 1,
 };
 app.meteors.configure(baseSettings);
 app.missiles.configure(baseSettings);

@@ -26,6 +26,7 @@ import {
 } from './VolumeMesher.ts';
 
 const MAX_CARVE_MASKS = 8;
+const MAX_PULSE_SCARS = 8;
 
 /** Converts projected dots per 100 m² into shader-grid spacing in meters. */
 export function dotSpacingFromDensity(densityPer100M2: number): number {
@@ -120,12 +121,23 @@ class TerrainChunk {
 function createTerrainMaterial(): ShaderMaterial {
   const carveStarts = Array.from({ length: MAX_CARVE_MASKS }, () => new Vector3());
   const carveEnds = Array.from({ length: MAX_CARVE_MASKS }, () => new Vector3());
+  const pulseScarStarts = Array.from({ length: MAX_PULSE_SCARS }, () => new Vector3());
+  const pulseScarEnds = Array.from({ length: MAX_PULSE_SCARS }, () => new Vector3());
+  const pulseScarColors = Array.from({ length: MAX_PULSE_SCARS }, () => new Color());
   return new ShaderMaterial({
     uniforms: {
       uAircraftPosition: { value: new Vector3() },
       uBoostPosition: { value: new Vector3() },
       uBoostColor: { value: new Color() },
       uBoostPower: { value: 0 },
+      uPulseBeamPosition: { value: new Vector3() },
+      uPulseBeamColor: { value: new Color() },
+      uPulseBeamPower: { value: 0 },
+      uPulseBeamRange: { value: 1 },
+      uPulseElectricPosition: { value: new Vector3() },
+      uPulseElectricColor: { value: new Color() },
+      uPulseElectricPower: { value: 0 },
+      uPulseElectricRange: { value: 1 },
       uMeshColor: { value: new Color(0x363d3e) },
       uDotColor: { value: new Color(PALETTE.terrainPoints) },
       uAlertColor: { value: new Color(PALETTE.alertRed) },
@@ -152,6 +164,13 @@ function createTerrainMaterial(): ShaderMaterial {
       uCarveStarts: { value: carveStarts },
       uCarveEnds: { value: carveEnds },
       uCarveRadiusSquared: { value: new Float32Array(MAX_CARVE_MASKS) },
+      uPulseScarCount: { value: 0 },
+      uPulseScarStarts: { value: pulseScarStarts },
+      uPulseScarEnds: { value: pulseScarEnds },
+      uPulseScarColors: { value: pulseScarColors },
+      uPulseScarRadiusSquared: { value: new Float32Array(MAX_PULSE_SCARS) },
+      uPulseScarOuterRadiusSquared: { value: new Float32Array(MAX_PULSE_SCARS) },
+      uPulseScarStrength: { value: 0.55 },
     },
     side: DoubleSide,
     transparent: false,
@@ -214,6 +233,10 @@ function createTerrainMaterial(): ShaderMaterial {
       #include <fog_pars_fragment>
       uniform vec3 uBoostPosition, uBoostColor;
       uniform float uBoostPower;
+      uniform vec3 uPulseBeamPosition, uPulseBeamColor;
+      uniform float uPulseBeamPower, uPulseBeamRange;
+      uniform vec3 uPulseElectricPosition, uPulseElectricColor;
+      uniform float uPulseElectricPower, uPulseElectricRange;
       uniform vec3 uMeshColor;
       uniform vec3 uDotColor;
       uniform vec3 uAlertColor;
@@ -233,6 +256,13 @@ function createTerrainMaterial(): ShaderMaterial {
       uniform vec3 uCarveStarts[8];
       uniform vec3 uCarveEnds[8];
       uniform float uCarveRadiusSquared[8];
+      uniform float uPulseScarCount;
+      uniform vec3 uPulseScarStarts[8];
+      uniform vec3 uPulseScarEnds[8];
+      uniform vec3 uPulseScarColors[8];
+      uniform float uPulseScarRadiusSquared[8];
+      uniform float uPulseScarOuterRadiusSquared[8];
+      uniform float uPulseScarStrength;
       varying vec3 vTerrainWorldPosition;
       varying float vAlert;
       varying float vProbeInfluence;
@@ -244,6 +274,20 @@ function createTerrainMaterial(): ShaderMaterial {
         float t = denominator > 0.000001 ? clamp(dot(p - a, ab) / denominator, 0.0, 1.0) : 0.0;
         vec3 delta = p - (a + ab * t);
         return dot(delta, delta);
+      }
+
+      vec3 pulseLight(
+        vec3 position,
+        vec3 lightColor,
+        float lightPower,
+        float lightRange,
+        vec3 faceNormal
+      ) {
+        vec3 toLight = position - vTerrainWorldPosition;
+        float lightDistance = length(toLight);
+        float falloff = pow(max(0.0, 1.0 - lightDistance / max(lightRange, 0.001)), 2.0);
+        float facing = max(0.0, dot(faceNormal, toLight / max(lightDistance, 0.001)));
+        return lightColor * lightPower * 0.004 * falloff * (0.16 + facing * 1.25);
       }
 
       float latticeDot(vec2 coordinate, float radiusM) {
@@ -361,11 +405,46 @@ function createTerrainMaterial(): ShaderMaterial {
           color = mix(meshColor, dotColor, clamp(dotMask * dotReveal, 0.0, 1.0));
           color = mix(color, uProbeColor * 1.08, ringMask);
         #endif
+        vec3 pulseScarColor = vec3(0.0);
+        float pulseScarWeight = 0.0;
+        float pulseScarMix = 0.0;
+        for (int i = 0; i < 8; i++) {
+          if (float(i) >= uPulseScarCount) break;
+          vec3 axis = uPulseScarEnds[i] - uPulseScarStarts[i];
+          float axisLengthSquared = dot(axis, axis);
+          float along = axisLengthSquared > 0.000001
+            ? clamp(dot(vTerrainWorldPosition - uPulseScarStarts[i], axis) / axisLengthSquared, 0.0, 1.0)
+            : 1.0;
+          vec3 radialDelta = vTerrainWorldPosition
+            - (uPulseScarStarts[i] + axis * along);
+          float radialDistanceSquared = dot(radialDelta, radialDelta);
+          float radial = 1.0 - smoothstep(
+            uPulseScarRadiusSquared[i],
+            uPulseScarOuterRadiusSquared[i],
+            radialDistanceSquared
+          );
+          // The rounded far cap receives full influence. Surfaces nearer the
+          // muzzle retain only a faint trace of the same beam color.
+          float axial = mix(0.18, 1.0, smoothstep(0.0, 1.0, along));
+          float influence = radial * axial;
+          pulseScarColor += uPulseScarColors[i] * influence;
+          pulseScarWeight += influence;
+          pulseScarMix = max(pulseScarMix, influence);
+        }
+        if (pulseScarWeight > 0.0001) {
+          color = mix(
+            color,
+            pulseScarColor / pulseScarWeight,
+            clamp(pulseScarMix * uPulseScarStrength, 0.0, 0.85)
+          );
+        }
         vec3 toBoost = uBoostPosition - vTerrainWorldPosition;
         float boostDistance = length(toBoost);
         float boostFalloff = pow(max(0.0, 1.0 - boostDistance / 46.0), 2.0);
         float boostDiffuse = max(0.0, dot(faceNormal, toBoost / max(boostDistance, 0.001)));
         color += uBoostColor * uBoostPower * boostFalloff * (0.2 + boostDiffuse * 1.4);
+        color += pulseLight(uPulseBeamPosition, uPulseBeamColor, uPulseBeamPower, uPulseBeamRange, faceNormal);
+        color += pulseLight(uPulseElectricPosition, uPulseElectricColor, uPulseElectricPower, uPulseElectricRange, faceNormal);
         gl_FragColor = vec4(color, 1.0);
         #include <fog_fragment>
       }
@@ -407,6 +486,14 @@ interface PendingCarveMask {
   readonly requiredByKey: Map<string, number>;
 }
 
+interface PulseTerrainScar {
+  readonly start: Vector3;
+  readonly end: Vector3;
+  readonly radius: number;
+  readonly color: Color;
+  readonly affectedKeys: readonly string[];
+}
+
 export class TerrainManager {
   readonly group = new Group();
   private readonly terrain: ProceduralTerrain;
@@ -426,6 +513,8 @@ export class TerrainManager {
   private readonly syncCarvedDensity = new Float32Array(densityLatticeLength());
   private readonly completedResults: CompletedChunkResult[] = [];
   private readonly pendingCarveMasks: PendingCarveMask[] = [];
+  private readonly pulseTerrainScars: PulseTerrainScar[] = [];
+  private pulseTerrainTintWidth = 18;
   private generationQueue: ChunkGenerationRequest[] = [];
   private desiredKeys = new Set<string>();
   private readonly currentRenderOrigin = new Vector3();
@@ -524,6 +613,7 @@ export class TerrainManager {
       }
       desired.sort((a, b) => a.priority - b.priority);
       this.desiredKeys = new Set(desired.map(({ key }) => key));
+      this.pruneDistantPulseScars();
       this.generationQueue = this.generationQueue.filter(({ key }) => this.desiredKeys.has(key));
       this.rebuildQueuedIndex();
       for (const key of this.requiredRevisionByKey.keys()) {
@@ -736,12 +826,26 @@ export class TerrainManager {
     return this.pendingCarveMasks.length < MAX_CARVE_MASKS;
   }
 
-  applyPulseCarve(start: Vector3, end: Vector3, radius: number): TerrainCarveResult {
+  applyPulseCarve(
+    start: Vector3,
+    end: Vector3,
+    radius: number,
+    color = '#9ffcff',
+  ): TerrainCarveResult {
     if (this.disposed || this.pendingCarveMasks.length >= MAX_CARVE_MASKS) {
       return { applied: false, affectedChunks: [] };
     }
     const result = this.terrain.applyCarveCapsule(start, end, radius);
     if (!result.applied) return result;
+    this.pulseTerrainScars.push({
+      start: start.clone(),
+      end: end.clone(),
+      radius,
+      color: new Color(color),
+      affectedKeys: result.affectedChunks.map(chunkKey),
+    });
+    if (this.pulseTerrainScars.length > MAX_PULSE_SCARS) this.pulseTerrainScars.shift();
+    this.syncPulseScarUniforms();
     const requiredByKey = new Map<string, number>();
     for (const chunk of result.affectedChunks) {
       const key = chunkKey(chunk);
@@ -858,6 +962,42 @@ export class TerrainManager {
     }
   }
 
+  private syncPulseScarUniforms(): void {
+    const uniforms = this.dotMaterial.uniforms;
+    const starts = uniforms.uPulseScarStarts.value as Vector3[];
+    const ends = uniforms.uPulseScarEnds.value as Vector3[];
+    const colors = uniforms.uPulseScarColors.value as Color[];
+    const radiusSquared = uniforms.uPulseScarRadiusSquared.value as Float32Array;
+    const outerRadiusSquared = uniforms.uPulseScarOuterRadiusSquared.value as Float32Array;
+    uniforms.uPulseScarCount.value = this.pulseTerrainScars.length;
+    for (let index = 0; index < MAX_PULSE_SCARS; index += 1) {
+      const scar = this.pulseTerrainScars[index];
+      if (scar) {
+        starts[index].copy(scar.start).sub(this.currentRenderOrigin);
+        ends[index].copy(scar.end).sub(this.currentRenderOrigin);
+        colors[index].copy(scar.color);
+        radiusSquared[index] = scar.radius * scar.radius;
+        const outerRadius = scar.radius + this.pulseTerrainTintWidth;
+        outerRadiusSquared[index] = outerRadius * outerRadius;
+      } else {
+        starts[index].set(0, 0, 0);
+        ends[index].set(0, 0, 0);
+        colors[index].set(0);
+        radiusSquared[index] = 0;
+        outerRadiusSquared[index] = 0;
+      }
+    }
+  }
+
+  private pruneDistantPulseScars(): void {
+    const retained = this.pulseTerrainScars.filter(scar => (
+      scar.affectedKeys.some(key => this.desiredKeys.has(key))
+    ));
+    if (retained.length === this.pulseTerrainScars.length) return;
+    this.pulseTerrainScars.splice(0, this.pulseTerrainScars.length, ...retained);
+    this.syncPulseScarUniforms();
+  }
+
   private releaseRetiredChunks(): void {
     // Keep outgoing terrain visible until its replacements are complete. This
     // prevents a black seam while workers build the next slab.
@@ -873,12 +1013,34 @@ export class TerrainManager {
     this.currentRenderOrigin.copy(origin);
     for (const chunk of this.active.values()) chunk.updateRenderPosition(origin);
     this.syncCarveMaskUniforms();
+    this.syncPulseScarUniforms();
   }
 
   updateBoostLight(position: Vector3, color: Color, intensity: number): void {
     this.terrainMaterial.uniforms.uBoostPosition.value.copy(position);
     this.terrainMaterial.uniforms.uBoostColor.value.copy(color);
     this.terrainMaterial.uniforms.uBoostPower.value = intensity;
+  }
+
+  updatePulseLights(
+    beamPosition: Vector3,
+    beamColor: Color,
+    beamIntensity: number,
+    beamRange: number,
+    electricPosition: Vector3,
+    electricColor: Color,
+    electricIntensity: number,
+    electricRange: number,
+  ): void {
+    const uniforms = this.terrainMaterial.uniforms;
+    uniforms.uPulseBeamPosition.value.copy(beamPosition);
+    uniforms.uPulseBeamColor.value.copy(beamColor);
+    uniforms.uPulseBeamPower.value = beamIntensity;
+    uniforms.uPulseBeamRange.value = beamRange;
+    uniforms.uPulseElectricPosition.value.copy(electricPosition);
+    uniforms.uPulseElectricColor.value.copy(electricColor);
+    uniforms.uPulseElectricPower.value = electricIntensity;
+    uniforms.uPulseElectricRange.value = electricRange;
   }
 
   updateAircraftPosition(renderPosition: Vector3): void {
@@ -936,6 +1098,9 @@ export class TerrainManager {
     this.terrainMaterial.uniforms.uDotColor.value.set(settings.terrainColor);
     this.terrainMaterial.uniforms.uMeshColor.value.set(settings.meshColor);
     this.terrainMaterial.uniforms.uAlertColor.value.set(settings.dangerColor);
+    this.pulseTerrainTintWidth = settings.pulseTerrainTintWidth;
+    this.terrainMaterial.uniforms.uPulseScarStrength.value = settings.pulseTerrainTintStrength;
+    this.syncPulseScarUniforms();
   }
 
   get activeCount(): number {
@@ -972,6 +1137,7 @@ export class TerrainManager {
     carveEvents: number;
     carveIndexReferences: number;
     carveMasks: number;
+    pulseScars: number;
   }> {
     return {
       queued: this.generationQueue.length,
@@ -982,6 +1148,7 @@ export class TerrainManager {
       carveEvents: this.terrain.carveEventCount,
       carveIndexReferences: this.terrain.carveIndexReferenceCount,
       carveMasks: this.pendingCarveMasks.length,
+      pulseScars: this.pulseTerrainScars.length,
     };
   }
 
@@ -999,6 +1166,7 @@ export class TerrainManager {
     this.baseMaximumByKey.clear();
     this.completedResults.length = 0;
     this.pendingCarveMasks.length = 0;
+    this.pulseTerrainScars.length = 0;
     this.deferredResults.length = 0;
     for (const chunk of this.chunks) chunk.dispose();
     this.dotMaterial.dispose();

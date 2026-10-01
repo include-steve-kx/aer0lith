@@ -608,11 +608,12 @@ kbd {
 
 .pulse-button {
   --pulse-cooldown: 0%;
+  position: relative;
   overflow: hidden;
   isolation: isolate;
 }
 
-.pulse-button .pulse-cooldown {
+.pulse-button > .pulse-cooldown {
   position: absolute;
   inset: auto 0 0;
   height: var(--pulse-cooldown);
@@ -623,7 +624,7 @@ kbd {
 
 .pulse-button svg { position: relative; z-index: 1; }
 
-.pulse-button.is-terrain-busy .pulse-cooldown {
+.pulse-button.is-terrain-busy > .pulse-cooldown {
   height: 100%;
   background: repeating-linear-gradient(-45deg, rgb(159 252 255 / 0.12) 0 4px, transparent 4px 8px);
 }

@@ -2,7 +2,7 @@
 
 ## Player behavior
 
-The Pulse Cannon is a dedicated piercing weapon, separate from bullets and missiles. Press `X` or the lightning button between Fire and Probe to fire one instantaneous shot. The default shot is 480 m long, has a 60 m radius, and cools down for five simulation seconds.
+The Pulse Cannon is a dedicated piercing weapon, separate from bullets and missiles. Press `X` or the lightning button between Fire and Probe to fire one instantaneous shot. The default shot is 800 m long, has a 40 m physical radius, and cools down for one simulation second.
 
 The convergence reticle selects direction only. The shot always extends to the configured Pulse range. Its complete world-space geometry is captured when the shot is accepted, so aircraft or camera motion cannot bend an active beam.
 
@@ -17,14 +17,36 @@ The Pulse Cannon settings section contains:
 | Setting | Default | Range |
 |---|---:|---:|
 | Enabled | true | Boolean |
-| Range | 480 m | 160–800 m |
-| Beam radius | 60 m | 16–80 m |
-| Cooldown | 5 s | 1–15 s |
-| Visual duration | 0.65 s | 0.2–1.5 s |
+| Range | 800 m | 160–800 m |
+| Physical beam radius | 40 m | 4–80 m |
+| Inner plasma radius | 8 m | 4–80 m |
+| Cooldown | 1 s | 0.25–15 s |
+| Visual duration | 0.6 s | 0.2–1.5 s |
 | Plasma color | `#9ffcff` | Color |
-| Electric strength | 1.0 | 0–2 |
-| Refraction | 1.2 | 0–3 |
-| Dispersion | 0.30 | 0–0.8 |
+| Plasma brightness | 1.35 | 0–3 |
+| Fade curve | 1.4 | 0.25–4 |
+| Plasma flutter | 0.35 | 0–1.5 |
+| Flutter rate | 1.0× | 0–4× |
+| Camera shake | 1.3 | 0–2 |
+| Shake frequency | 20 Hz | 4–30 Hz |
+| Shake duration | 3.6 s | 0.3–8 s |
+| Outer glass width | 2.0× | 0.5–2× |
+| Outer glass length | 1.0× | 0.5–1.2× |
+| Electric strength | 2.0 | 0–4 |
+| Electric spread | 1.3× | 0–2× |
+| Electric travel time | 0.7 s | 0.1–1.5 s |
+| Electric trail length | 0.19× | 0.05–1× |
+| Beam light color | `#9ffcff` | Color |
+| Beam light intensity | 175 | 0–2,000 |
+| Beam light range | 100 m | 20–800 m |
+| Electric light color | `#6fe9ff` | Color |
+| Electric light intensity | 875 | 0–2,000 |
+| Electric light range | 210 m | 10–400 m |
+| Refraction | 1.65 | 0–3 |
+| Dispersion | 0.80 | 0–2 |
+| Terrain remnant | 0.55 | 0–1 |
+| Remnant falloff | 18 m | 2–60 m |
+| Solid plasma / glass / electricity | false | Boolean debug previews |
 
 The icon button exposes disabled, cooldown, terrain-busy, and pause state to assistive technology. Its CSS fill shows remaining cooldown. A ninth shot is rejected without consuming cooldown while all eight immediate terrain-mask slots are occupied.
 
@@ -42,6 +64,14 @@ Capsules are indexed only into chunks admitted by an AABB broad phase and an exa
 
 Collision reads immutable cached base-lattice corners, applies current capsules, and uses the same tetrahedral interpolation as visible polygonization. Collision therefore changes immediately without invalidating the base cache.
 
+The terrain shader retains the eight newest Pulse paths as damage remnants.
+Each remnant tints only the carved wall and its configurable outer falloff with
+the shot's snapshotted plasma color. Influence rises along the capsule, from a
+faint muzzle trace to full strength around the rounded far cap. A ninth unique
+shot replaces the oldest tint record. Remnants are also discarded once none of
+their affected chunks remain in the desired streaming envelope, so distant old
+shots add no fragment-shader work. The underlying tunnel remains persistent.
+
 ## Bounded remeshing
 
 Workers receive packed seven-value capsule snapshots and monotonic per-chunk revisions. Requests are coalesced to one queued and one in-flight operation per chunk. Carve work precedes ordinary streaming, stale responses are rejected, only one completed geometry is installed per rendered frame, and old geometry remains installed until its replacement is valid.
@@ -58,13 +88,50 @@ Base lattices and one damaged-lattice buffer are reused. Chunks whose immutable 
 
 Both terrain materials share a fixed eight-capsule uniform mask. The dot and mesh fragment shaders discard samples inside pending capsules using squared point-to-segment distance. This makes rock disappear in the first rendered frame after firing while workers build the newly exposed tunnel wall. A mask remains until every relevant active chunk reaches its required revision; non-visible chunks do not hold it open. Mask endpoints are converted from authoritative world space whenever the render origin changes.
 
+The visual is one forward-facing copy of the booster flame geometry and shader:
+the same 16-sided, 24-ring open plume, envelope, tongues, core, and turbulence.
+Its root and far endpoint are both snapshotted from the aircraft nose and firing
+direction when the shot launches. The complete effect remains on that immutable
+world-space trajectory, so the aircraft can fly past it while it fades.
+
+The physical beam radius controls meteor hits and terrain carving. The separate
+inner plasma radius controls the widest point of the visible plasma profile.
+Both are absolute meter values from 4–80 m. They default to 40 m physically and
+8 m visually, so they can be tuned independently. The booster
+envelope is normalized every frame so flutter and the initial power flare cannot
+make the plasma exceed its configured inner radius. Plasma and glass share the
+reusable geometry, with the outer refractive glass 2× wider than the
+inner plasma by default. The beam starts at full power and fades without moving its
+fixed far endpoint. Electricity follows fixed, non-rotating paths wrapped
+around that same changing-radius glass profile; a configurable trail window
+travels from muzzle to endpoint and exits the beam. Electric spread scales that
+complete radial profile rather than adding a constant offset.
+
+Two pooled point lights accompany the effect. The beam light stays in the
+bright forward plume region. The electric light follows
+the moving electric front and switches off when its trail exits. Both light
+positions, colors, strengths, and ranges also feed the custom mesh/dot terrain
+shader, so terrain illumination matches standard lit scene objects.
+
+Firing also triggers an independent one-shot camera shake. It uses the same
+65 ms attack, quadratic decay, waveform, and default strength/frequency as a
+fresh boost ignition. Pulse shake has its own strength, frequency, and duration
+controls, freezes while paused, stacks with explosion/boost shake for rendering,
+and never changes authoritative aircraft or camera-rig state.
+
 The beam itself uses fixed geometry and fixed arc counts:
 
-- one low-poly plasma draw containing a thin white core and cyan flame shell;
+- one reusable 16-sided, 24-ring booster-plume draw;
 - one eight-arc, sixteen-segment electric line batch;
 - one optional depth-aware refraction draw.
 
-Radius changes transforms only; it does not increase tessellation, arc count, or draw calls. Plasma shaders are prewarmed during loading so the first shot cannot incur a gameplay-frame compilation hitch. The initial benchmark exposed a 146.1 ms first-use hitch before this change.
+Radius changes transform fixed geometry only; they do not
+increase tessellation, arc count, or normal draw calls. The three solid debug
+toggles reuse those same pooled geometries and leave the last fired shot visible
+for inspection after its normal fade ends. Debug state is deliberately not
+restored on reload. Plasma shaders are prewarmed during loading so the first
+shot cannot incur a gameplay-frame compilation hitch. The initial benchmark
+exposed a 146.1 ms first-use hitch before this change.
 
 ## Validation and performance
 
@@ -80,7 +147,7 @@ Measured on an Apple M1 Max at a 1280×720 CSS viewport with device pixel ratio 
 |---|---:|
 | 60 m activation CPU p95 | 0.022 ms |
 | 48-meteor capsule test p95 | 0.049 ms |
-| Beam simulation/upload p95 | 0.021 ms |
+| Beam simulation/upload p95 | 0.012 ms |
 | 60 m browser frame p99 / max | 2.3 / 2.4 ms |
 | 48-meteor browser frame p99 / max | 3.5 / 6.0 ms |
 | 60 m GPU disappearance / final visible remesh | next frame / 119 ms |

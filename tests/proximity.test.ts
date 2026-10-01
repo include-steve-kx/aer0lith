@@ -71,18 +71,49 @@ test('danger appearance edits remain live without advancing or exploding paused 
 test('new defaults fit slider bounds and restoration preserves saved custom settings', () => {
   assert.equal(DEFAULT_COMBAT.explosionShakeRadius, 400);
   assert.equal(DEFAULT_COMBAT.bulletRate, 36);
-  assert.equal(DEFAULT_COMBAT.explosionPush, 30);
+  assert.equal(DEFAULT_COMBAT.explosionPush, 20);
   assert.equal(DEFAULT_COMBAT.explosionVelocityAxisFactor, 0.5);
   assert.equal(DEFAULT_COMBAT.explosionPushLife, 2);
   assert.equal(DEFAULT_COMBAT.meteorMaxDiameter, 36);
   assert.equal(DEFAULT_COMBAT.meteorCount, 12);
+  assert.equal(DEFAULT_COMBAT.meteorInterval, 12);
   assert.equal(DEFAULT_COMBAT.missileTrailLife, 6);
   const restored = sanitizeCombatSettings({ explosionShakeRadius: 200, meteorTriggerDistance: NaN });
   assert.equal(restored.explosionShakeRadius, 200);
   assert.equal(restored.meteorTriggerDistance, 50);
-  assert.equal(DEFAULT_COMBAT.pulseRange, 480);
-  assert.equal(DEFAULT_COMBAT.pulseRadius, 60);
-  assert.equal(DEFAULT_COMBAT.pulseCooldown, 5);
+  assert.equal(DEFAULT_COMBAT.pulseRange, 800);
+  assert.equal(DEFAULT_COMBAT.pulseRadius, 40);
+  assert.equal(DEFAULT_COMBAT.pulsePlasmaRadius, 8);
+  assert.equal(DEFAULT_COMBAT.pulseCooldown, 1);
+  assert.equal(DEFAULT_COMBAT.pulseDuration, 0.6);
+  assert.equal('pulsePlasmaWidth' in DEFAULT_COMBAT, false);
+  const minimumPulseRadii = sanitizeCombatSettings({ pulseRadius: 4, pulsePlasmaRadius: 4 });
+  assert.equal(minimumPulseRadii.pulseRadius, 4);
+  assert.equal(minimumPulseRadii.pulsePlasmaRadius, 4);
+  assert.equal(DEFAULT_COMBAT.pulseShakeStrength, 1.3);
+  assert.equal(DEFAULT_COMBAT.pulseShakeFrequency, 20);
+  assert.equal(DEFAULT_COMBAT.pulseShakeDuration, 3.6);
+  assert.equal(DEFAULT_COMBAT.pulseGlassWidth, 2);
+  assert.equal(DEFAULT_COMBAT.pulseElectricStrength, 2);
+  assert.equal(DEFAULT_COMBAT.pulseElectricTravelTime, 0.7);
+  assert.equal(DEFAULT_COMBAT.pulseElectricSpread, 1.3);
+  assert.equal(DEFAULT_COMBAT.pulseElectricTrail, 0.19);
+  assert.equal(DEFAULT_COMBAT.pulseBeamLightIntensity, 175);
+  assert.equal(DEFAULT_COMBAT.pulseBeamLightRange, 100);
+  assert.equal(DEFAULT_COMBAT.pulseElectricLightIntensity, 875);
+  assert.equal(DEFAULT_COMBAT.pulseElectricLightRange, 210);
+  assert.equal(DEFAULT_COMBAT.pulseRefraction, 1.65);
+  assert.equal(DEFAULT_COMBAT.pulseDispersion, 0.8);
+  assert.equal(DEFAULT_COMBAT.pulseTerrainTintStrength, 0.55);
+  assert.equal(DEFAULT_COMBAT.pulseTerrainTintWidth, 18);
+  const restoredDebug = sanitizeCombatSettings({
+    pulsePlasmaDebug: true,
+    pulseGlassDebug: true,
+    pulseElectricDebug: true,
+  }, true);
+  assert.equal(restoredDebug.pulsePlasmaDebug, false);
+  assert.equal(restoredDebug.pulseGlassDebug, false);
+  assert.equal(restoredDebug.pulseElectricDebug, false);
   for (const [key, , min, max, step] of [...METEOR_CONTROLS, ...MISSILE_CONTROLS, ...DESTRUCTION_CONTROLS, ...PULSE_CONTROLS, ...BULLET_CONTROLS]) {
     const value = DEFAULT_COMBAT[key];
     if (typeof value !== 'number') continue;

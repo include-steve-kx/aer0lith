@@ -48,7 +48,7 @@ test('arrows start at rock center and end at the exact shared impulse times the 
       view.sync(meteors,origin,true);
       const impulse=meteors.predictExplosionImpulse(new Vector3(),rock);
       const direct=explosionImpulse(new Vector3(),meteors.shipPosition,rock.position,
-        meteors.shipVelocity,new Vector3(0,0,1),diameter,30,400,.5);
+        meteors.shipVelocity,new Vector3(0,0,1),diameter,DEFAULT_COMBAT.explosionPush,400,.5);
       assert.ok(impulse.distanceTo(direct)<1e-9);
       view.shafts.getMatrixAt(0,shaft); view.heads.getMatrixAt(0,head);
       assert.ok(new Vector3().applyMatrix4(shaft).add(origin).distanceTo(rock.position)<1e-5);
@@ -79,6 +79,6 @@ test('shared prediction equals destruction impulse, uses size, and handles coinc
     meteors.applyHit({slot:meteors.rocks.indexOf(rock),generation:rock.generation},new Vector3(0,0,95),new Vector3(1,0,0),true);
   }
   const coincident=meteors.predictExplosionImpulse(new Vector3(),{position:zero,diameter:12});
-  assert.deepEqual(coincident.toArray(),[0,0,-15]);
+  assert.deepEqual(coincident.toArray(),[0,0,-10]);
   meteors.dispose();
 });

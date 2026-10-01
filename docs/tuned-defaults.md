@@ -1,8 +1,8 @@
 # Tuned defaults and proximity meteors
 
 The shipped preset now matches the settings captured from the existing Chrome
-simulator on September 30, 2026. Notable choices include mesh terrain, sky
-`#3f89a2`, mesh `#5e6768`, blue exhaust `#8ab7ff`, 3.5 m high / 0.08 m thick
+simulator on October 1, 2026. Notable choices include mesh terrain, sky
+`#3f60a2`, mesh `#5e6768`, blue exhaust `#8ab7ff`, 3.5 m high / 0.08 m thick
 side wakes, 36 bullets per second, and 180 m / 6 s missile trails.
 
 Existing saved choices are preserved. Fresh installations use the new preset.
@@ -15,7 +15,7 @@ Ranges now give the tuned values room for adjustment: exhaust strength 0–4,
 booster/scan dispersion 0–1.2, scan refraction 0–4, missile trails up to 360 m /
 12 s, bullet bolts up to 8 m and trails up to 2 s. Thin wake controls have finer
 steps. Blast influence is now 20–1,000 m, default **400 m**, replacing the
-captured 200 m default. Push strength defaults to **30 m/s** (range 0–180 m/s),
+captured 200 m default. Push strength defaults to **20 m/s** (range 0–180 m/s),
 with a **0.5× velocity-axis factor** (range 0–1×) and **2 s** settling
 (range 0.2–4 s). The factor scales only the component parallel to the aircraft's
 current travel direction; perpendicular push remains at full strength. Accumulated
@@ -48,9 +48,9 @@ shake, and a physical push once. Ship collisions take priority within a fixed
 step. Pause freezes fuses and physics; appearance edits remain live. There is
 no splash damage or chain reaction.
 
-Validation: `npm run verify` passes 134 tests and the production build. Browser
+Validation: `npm run verify` passes 160 tests and the production build. Browser
 checks compared every reset control against the captured preset, including the
-400 m radius and 30 m/s push overrides, then verified changed values/debug flags reset and survive
+400 m radius and 20 m/s push overrides, then verified changed values/debug flags reset and survive
 reload. New tests cover warning/fuse boundaries, fast relative sweeps, pause,
 disabled fuses, stale handles, slider bounds, 90/120 m/s cruise/boost, and the
 shortened roll/recovery with unchanged displacement.

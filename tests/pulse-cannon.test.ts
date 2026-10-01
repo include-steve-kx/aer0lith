@@ -7,6 +7,7 @@ import { PulseCannonSystem } from '../src/combat/PulseCannonSystem.ts';
 import { PULSE_VIEW_COMPLEXITY, PulseCannonView } from '../src/combat/PulseCannonView.ts';
 import { RockLibrary } from '../src/combat/geometry.ts';
 import { DEFAULT_COMBAT } from '../src/combat/settings.ts';
+import { HULL_POINTS, PULSE_MUZZLE } from '../src/core/aircraftGeometry.ts';
 import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 
 const air = {
@@ -17,18 +18,18 @@ const air = {
   }),
 };
 
-test('Pulse Cannon snapshots a 480 m shot whose 60 m capsule reaches both visual ends', () => {
+test('Pulse Cannon snapshots an 800 m shot whose 40 m capsule reaches both visual ends', () => {
   const pulse = new PulseCannonSystem();
   const muzzle = new Vector3(10, 20, 30);
   const aim = new Vector3(110, 20, 1030);
   pulse.requestFire();
   const shot = pulse.tryFire(muzzle, aim)!;
   assert.ok(shot);
-  assert.equal(shot.radius, 60);
-  assert.ok(Math.abs(shot.visualStart.distanceTo(shot.visualEnd) - 480) < 1e-9);
-  assert.ok(Math.abs(shot.visualStart.distanceTo(shot.carveStart) - 60) < 1e-9);
-  assert.ok(Math.abs(shot.visualStart.distanceTo(shot.carveEnd) - 420) < 1e-9);
-  assert.ok(Math.abs(shot.carveStart.distanceTo(shot.carveEnd) - 360) < 1e-9);
+  assert.equal(shot.radius, 40);
+  assert.ok(Math.abs(shot.visualStart.distanceTo(shot.visualEnd) - 800) < 1e-9);
+  assert.ok(Math.abs(shot.visualStart.distanceTo(shot.carveStart) - 40) < 1e-9);
+  assert.ok(Math.abs(shot.visualStart.distanceTo(shot.carveEnd) - 760) < 1e-9);
+  assert.ok(Math.abs(shot.carveStart.distanceTo(shot.carveEnd) - 720) < 1e-9);
   assert.equal(pulse.visualActive, true);
   assert.equal(pulse.ready, false);
   pulse.update(DEFAULT_COMBAT.pulseDuration);
@@ -144,51 +145,129 @@ test('ordinary lethal and proximity meteor destruction never mutate terrain carv
   library.dispose();
 });
 
-test('Pulse view keeps fixed geometry and arc complexity across radius, rebase, and settings changes', () => {
+test('Pulse booster plume keeps both endpoints on the snapshotted world-space shot', () => {
   const pulse = new PulseCannonSystem();
   const view = new PulseCannonView(pulse, 'pulse-view');
   const plasmaGeometry = view.plasma.geometry;
   const electricGeometry = view.electric.geometry;
   const glassGeometry = view.glass.geometry;
+  assert.deepEqual(PULSE_MUZZLE, HULL_POINTS.at(-1), 'the cannon muzzle is the visible nose tip');
   assert.deepEqual(PULSE_VIEW_COMPLEXITY, {
     plasmaDrawCalls: 1,
     electricDrawCalls: 1,
     refractionDrawCalls: 1,
     arcCount: 8,
     arcSegments: 16,
-    beamSides: 12,
+    beamSides: 16,
+    beamRings: 24,
   });
+  const muzzle = new Vector3(1000, 20, 30);
+  const origin = new Vector3(900, 0, 0);
   pulse.requestFire();
-  pulse.tryFire(new Vector3(1000, 20, 30), new Vector3(1000, 20, 1030));
-  view.sync(new Vector3(900, 0, 0));
+  pulse.tryFire(muzzle, new Vector3(1000, 20, 1030));
+  view.sync(origin);
   assert.equal(view.plasma.visible, true);
   assert.equal(view.electric.visible, true);
-  assert.equal(view.plasma.position.x, 100);
-  assert.equal(view.electric.geometry.drawRange.count, 8 * 16 * 2);
-  assert.equal(view.plasma.scale.x, 60);
-  assert.equal(view.plasma.scale.z, 480);
+  assert.equal(view.electric.geometry.drawRange.count, 8 * 2);
+  assert.equal(view.plasmaVisualRadius, 8);
+  assert.equal(view.glassRadius, view.plasmaVisualRadius * DEFAULT_COMBAT.pulseGlassWidth);
+  assert.equal(view.glass.geometry, view.plasma.geometry, 'plasma and glass reuse the exact booster plume geometry');
+  assert.equal(view.glassDebug.geometry, view.plasma.geometry);
+  assert.ok(view.plasma.position.equals(new Vector3(100, 20, 30)), 'plume root starts at the launch-time nose tip');
+  assert.equal(view.currentVisualLength, 800);
+  assert.equal(view.plasma.material.uniforms.uPower.value, 1, 'the beam appears at full strength immediately');
+  assert.equal(view.plasma.material.uniforms.uLength.value, 800);
+  assert.equal(view.beamLight.intensity, DEFAULT_COMBAT.pulseBeamLightIntensity);
+  assert.equal(view.electricLight.intensity, DEFAULT_COMBAT.pulseElectricLightIntensity);
+  assert.equal(view.electricLightWorldPosition.z, muzzle.z);
   assert.equal(view.active, true);
+
+  const initialElectric = Array.from((view.electric.geometry.getAttribute('position').array as Float32Array).slice(0, 8 * 2 * 3));
+  pulse.update(0.02);
+  view.sync(origin);
+  const advancedElectric = Array.from(
+    (view.electric.geometry.getAttribute('position').array as Float32Array).slice(0, 8 * 2 * 3),
+  );
+  for (let vertex = 0; vertex < 8 * 2; vertex += 1) {
+    const initialAngle = Math.atan2(initialElectric[vertex * 3 + 1] - 20, initialElectric[vertex * 3] - 100);
+    const advancedAngle = Math.atan2(advancedElectric[vertex * 3 + 1] - 20, advancedElectric[vertex * 3] - 100);
+    assert.ok(Math.abs(initialAngle - advancedAngle) < 1e-6, 'electric paths resize without rotating');
+  }
+  assert.ok(view.plasma.material.uniforms.uPower.value < 1, 'the initial flash fades monotonically');
+  assert.equal(view.currentVisualLength, 800, 'fading does not move the fixed far endpoint');
+
+  pulse.update(0.08);
+  view.sync(origin);
+  assert.ok(view.plasma.position.equals(new Vector3(100, 20, 30)), 'the plume root remains at the launch-time nose tip');
+  const renderedForward = new Vector3(0, 0, 1).applyQuaternion(view.plasma.quaternion);
+  const expectedDirection = pulse.shot.direction;
+  assert.ok(renderedForward.distanceTo(expectedDirection) < 1e-9, 'the plume retains the fired direction');
+  const renderedEnd = muzzle.clone().addScaledVector(renderedForward, view.currentVisualLength);
+  assert.ok(renderedEnd.distanceTo(pulse.shot.visualEnd) < 1e-9, 'the plume far endpoint remains fixed in world space');
+  assert.ok(pulse.shot.visualStart.equals(muzzle), 'moving the aircraft does not move visual or gameplay geometry');
+  const expectedElectricLight = muzzle.clone().addScaledVector(
+    expectedDirection,
+    view.currentVisualLength * (0.1 / DEFAULT_COMBAT.pulseElectricTravelTime),
+  );
+  assert.ok(view.electricLightWorldPosition.distanceTo(expectedElectricLight) < 1e-9);
+
+  pulse.update(0.75);
+  view.sync(origin);
+  assert.equal(view.plasma.visible, false, 'the tuned 0.6 second visual has expired');
+  assert.equal(view.electric.visible, false, 'electricity expires with the visual');
+  assert.equal(view.electricLight.intensity, 0);
 
   pulse.reset();
   pulse.configure({
     ...DEFAULT_COMBAT,
     pulseRadius: 80,
-    pulseElectricStrength: 0,
-    pulseRefraction: 0,
-    pulseDispersion: 0,
+    pulsePlasmaRadius: 42,
+    pulseGlassWidth: 1.05,
+    pulseGlassLength: 0.9,
+    pulsePlasmaDebug: true,
+    pulseGlassDebug: true,
+    pulseElectricDebug: true,
   });
-  pulse.requestFire();
-  pulse.tryFire(new Vector3(), new Vector3(0, 0, 1));
   view.sync(new Vector3());
   assert.equal(view.plasma.geometry, plasmaGeometry);
   assert.equal(view.electric.geometry, electricGeometry);
   assert.equal(view.glass.geometry, glassGeometry);
-  assert.equal(view.plasma.scale.x, 80);
-  assert.equal(view.electric.visible, false);
+  assert.equal(view.glassDebug.geometry, plasmaGeometry);
+  assert.equal(view.glassDebug.material.uniforms, view.glass.material.uniforms);
+  assert.equal(view.plasmaVisualRadius, 42, 'visual radius is independent from the physical shot radius');
+  assert.ok(Math.abs(view.glassRadius - 42 * 1.05) < 1e-9);
+  assert.equal(view.plasma.visible, true);
+  assert.equal(view.glass.visible, false);
+  assert.equal(view.glassDebug.visible, true);
+  assert.equal(view.electric.visible, true);
+  assert.equal(view.electric.geometry.drawRange.count, 8 * 16 * 2);
+  const electricPositions = view.electric.geometry.getAttribute('position').array as Float32Array;
+  const midpointRadii: number[] = [];
+  const glassLength = view.currentVisualLength * 0.9;
+  for (let vertex = 0; vertex < view.electric.geometry.drawRange.count; vertex += 1) {
+    if (Math.abs(electricPositions[vertex * 3 + 2] - (muzzle.z + glassLength * 0.5)) > 1e-4) continue;
+    midpointRadii.push(Math.hypot(
+      electricPositions[vertex * 3] - 1000,
+      electricPositions[vertex * 3 + 1] - 20,
+    ));
+  }
+  assert.ok(midpointRadii.length > 0);
+  const boosterMidpointRadius = view.glassRadius
+    * Math.pow(0.5, 0.72) * 3.5 / 2.36683;
+  assert.ok(
+    midpointRadii.every(radius => radius >= boosterMidpointRadius - 1e-4),
+    'default electricity wraps around or outside the copied booster envelope',
+  );
+  assert.equal(view.plasma.material.transparent, false);
+  assert.equal(view.electric.material.transparent, false);
+  assert.equal(view.beamLight.intensity, 0, 'solid previews do not leave gameplay lights on');
   assert.equal(view.active, false);
-  pulse.update(DEFAULT_COMBAT.pulseDuration);
+
+  pulse.configure({ ...DEFAULT_COMBAT, pulseRefraction: 0, pulseDispersion: 0 });
   view.sync(new Vector3());
   assert.equal(view.plasma.visible, false);
+  assert.equal(view.glassDebug.visible, false);
+  assert.equal(view.electric.visible, false);
   view.dispose();
   view.dispose();
 });

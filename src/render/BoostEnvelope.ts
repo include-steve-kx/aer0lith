@@ -13,6 +13,12 @@ export class BoostEnvelope {
   /** Initial acceleration only; the steady flame must not sustain camera shake. */
   get shakeIntensity(): number { return this.shakeLevel; }
 
+  /** Start the same attack-and-decay shake used by a fresh boost ignition. */
+  trigger(): void {
+    this.shakeAge = 0;
+    this.shakeLevel = 0;
+  }
+
   update(dt: number, pressed: boolean): void {
     if (dt <= 0) return;
     if (pressed) {

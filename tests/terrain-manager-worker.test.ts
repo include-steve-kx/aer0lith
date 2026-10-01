@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Scene, Vector3 } from 'three';
+import { Color, Scene, Vector3 } from 'three';
 import { TerrainManager } from '../src/world/TerrainManager.ts';
 import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 import type { TerrainWorkerRequest, TerrainWorkerResponse } from '../src/world/TerrainWorkerProtocol.ts';
@@ -193,6 +193,69 @@ test('permanently-air active chunks advance revisions without carve generation',
     assert.equal(internal.generationQueue.some((request) => request.key === key && request.carve), false);
     manager.update(new Vector3(), new Vector3());
     assert.equal(manager.generationStats.carveMasks, 0);
+    manager.dispose();
+  } finally {
+    if (original) Object.assign(globalThis, { Worker: original });
+  }
+});
+
+test('Pulse beam and traveling electric lights reach both terrain render modes', () => {
+  const manager = new TerrainManager(new Scene(), new AirTerrain('pulse-lights'));
+  const beamPosition = new Vector3(10, 20, 30);
+  const electricPosition = new Vector3(40, 50, 60);
+  const beamColor = new Color('#9ffcff');
+  const electricColor = new Color('#6fe9ff');
+  manager.updatePulseLights(
+    beamPosition, beamColor, 500, 300,
+    electricPosition, electricColor, 900, 90,
+  );
+  const internal = manager as unknown as {
+    dotMaterial: { uniforms: Record<string, { value: unknown }> };
+    meshMaterial: { uniforms: Record<string, { value: unknown }> };
+  };
+  assert.equal(internal.dotMaterial.uniforms, internal.meshMaterial.uniforms);
+  const uniforms = internal.dotMaterial.uniforms;
+  assert.ok((uniforms.uPulseBeamPosition.value as Vector3).equals(beamPosition));
+  assert.ok((uniforms.uPulseElectricPosition.value as Vector3).equals(electricPosition));
+  assert.equal(uniforms.uPulseBeamPower.value, 500);
+  assert.equal(uniforms.uPulseBeamRange.value, 300);
+  assert.equal(uniforms.uPulseElectricPower.value, 900);
+  assert.equal(uniforms.uPulseElectricRange.value, 90);
+  manager.dispose();
+});
+
+test('Pulse terrain remnants use beam colors, rebase, and recycle at eight shots', () => {
+  const original = globalThis.Worker;
+  Reflect.deleteProperty(globalThis, 'Worker');
+  try {
+    const manager = new TerrainManager(new Scene(), new AirTerrain('pulse-remnants'));
+    manager.update(new Vector3(), new Vector3());
+    for (let index = 0; index < 9; index += 1) {
+      const start = new Vector3(index * 10, index * 10, 0);
+      assert.equal(
+        manager.applyPulseCarve(start, start.clone().add(new Vector3(0, 0, 20)), 2, index === 8 ? '#ff3300' : '#9ffcff').applied,
+        true,
+      );
+      manager.update(new Vector3(), new Vector3());
+    }
+    assert.equal(manager.generationStats.pulseScars, 8);
+    manager.updateRenderOrigin(new Vector3(128, 0, 0));
+    const internal = manager as unknown as {
+      dotMaterial: { uniforms: Record<string, { value: unknown }>; fragmentShader: string };
+    };
+    const uniforms = internal.dotMaterial.uniforms;
+    const starts = uniforms.uPulseScarStarts.value as Vector3[];
+    const colors = uniforms.uPulseScarColors.value as Color[];
+    const outer = uniforms.uPulseScarOuterRadiusSquared.value as Float32Array;
+    assert.equal(uniforms.uPulseScarCount.value, 8);
+    assert.ok(starts[0].equals(new Vector3(-118, 10, 0)), 'oldest remnant is recycled first');
+    assert.equal(colors[7].getHexString(), 'ff3300');
+    assert.equal(outer[7], 20 * 20, 'default 18 m falloff surrounds a 2 m carve');
+    assert.match(internal.dotMaterial.fragmentShader, /mix\(0\.18, 1\.0/,
+      'the far beam cap has greater terrain influence than the muzzle end');
+    manager.update(new Vector3(10_000, 0, 10_000), new Vector3(128, 0, 0));
+    assert.equal(manager.generationStats.pulseScars, 0,
+      'remnants outside the desired streaming envelope stop costing shader work');
     manager.dispose();
   } finally {
     if (original) Object.assign(globalThis, { Worker: original });

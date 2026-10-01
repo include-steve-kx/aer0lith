@@ -26,6 +26,7 @@ import { FlightController } from './flight/FlightController.ts';
 import { InputManager } from './flight/InputManager.ts';
 import { CockpitRoll } from './render/CockpitRoll.ts';
 import { BoostCameraShake } from './render/BoostCameraShake.ts';
+import { BoostEnvelope } from './render/BoostEnvelope.ts';
 import { FlightEffects } from './render/FlightEffects.ts';
 import { AircraftView } from './render/AircraftView.ts';
 import { CameraRig } from './render/CameraRig.ts';
@@ -72,6 +73,8 @@ export class App {
   private readonly flightEffects = new FlightEffects();
   private readonly cockpitRoll = new CockpitRoll();
   private readonly boostShake = new BoostCameraShake();
+  private readonly pulseShake = new BoostCameraShake();
+  private readonly pulseShakeEnvelope = new BoostEnvelope();
   private readonly collisionDebug = new CollisionDebugView();
   private readonly trail = new TrailView();
   private readonly wind = new WindView();
@@ -237,6 +240,9 @@ export class App {
       this.aircraft.setOcclusionSettings(settings.shipGhostEnabled, settings.shipGhostOpacity, settings.shipGhostColor);
       this.boostShake.strength = settings.boostShakeStrength;
       this.boostShake.frequency = settings.boostShakeFrequency;
+      this.pulseShake.strength = settings.pulseShakeStrength;
+      this.pulseShake.frequency = settings.pulseShakeFrequency;
+      this.pulseShakeEnvelope.fadeDuration = settings.pulseShakeDuration;
       this.flightEffects.configure(settings);
       this.post.setScanSettings(settings.scanGlassEnabled, settings.scanGlassStrength, settings.scanGlassDispersion, settings.scanGlassPersistence,
         settings.scanGlassFlutter, settings.scanGlassFlutterRate);
@@ -410,10 +416,26 @@ export class App {
       this.cameraRig.mode === 'cockpit' ? this.flight.maneuverRollAngle : 0);
     this.bullets.setCamera(this.cameraRig.camera, this.renderOrigin, this.flight.position);
     this.bullets.sync(this.flight.position, this.flight.orientation);
+    this.pulseMuzzle.set(...PULSE_MUZZLE)
+      .applyQuaternion(this.flight.orientation)
+      .add(this.flight.position);
     this.activatePulse();
+    this.pulseShakeEnvelope.update(this.paused ? 0 : rawDelta, false);
+    this.pulseShake.update(this.paused ? 0 : rawDelta, this.pulseShakeEnvelope.shakeIntensity);
     this.pulseView.sync(this.renderOrigin);
+    this.terrain.updatePulseLights(
+      this.pulseView.beamLight.position,
+      this.pulseView.beamLight.color,
+      this.pulseView.beamLight.intensity,
+      this.pulseView.beamLight.distance,
+      this.pulseView.electricLight.position,
+      this.pulseView.electricLight.color,
+      this.pulseView.electricLight.intensity,
+      this.pulseView.electricLight.distance,
+    );
     this.syncPulseHud();
     this.boostShake.apply(this.cameraRig.camera, this.flight.speed, this.impacts.shakeTranslation, this.impacts.shakeRotation);
+    this.pulseShake.apply(this.cameraRig.camera, this.flight.speed);
     try {
       this.missiles.syncMuzzles(this.flight.position, this.flight.orientation);
       this.combatHud.update(this.cameraRig.camera, this.renderOrigin, this.meteors, this.missiles,
@@ -432,6 +454,7 @@ export class App {
         this.refractionContributors,
       );
     } finally {
+      this.pulseShake.restore(this.cameraRig.camera);
       this.boostShake.restore(this.cameraRig.camera);
       this.cockpitRoll.restore(this.cameraRig.camera);
     }
@@ -497,16 +520,18 @@ export class App {
       this.pulse.clearRequest();
       return;
     }
-    this.pulseMuzzle.set(...PULSE_MUZZLE)
-      .applyQuaternion(this.flight.orientation)
-      .add(this.flight.position);
     const shot = this.pulse.tryFire(
       this.pulseMuzzle,
       this.bullets.aim.point,
       this.terrain.canAcceptPulseCarve,
     );
     if (!shot) return;
-    this.terrain.applyPulseCarve(shot.carveStart, shot.carveEnd, shot.radius);
+    this.terrain.applyPulseCarve(
+      shot.carveStart,
+      shot.carveEnd,
+      shot.radius,
+      this.pulse.settings.pulseColor,
+    );
     this.meteors.destroyInCapsule(
       shot.carveStart,
       shot.carveEnd,
@@ -514,6 +539,7 @@ export class App {
       shot.direction,
     );
     this.audio.pulse();
+    this.pulseShakeEnvelope.trigger();
   }
 
   private toggleAutopilot(): void {
@@ -549,6 +575,7 @@ export class App {
     this.impacts.reset();
     this.meteors.reset();
     this.pulse.reset();
+    this.pulseShakeEnvelope.reset();
     this.scan.expanding = false;
     this.scan.id++;
     this.probeScheduler.reset();
