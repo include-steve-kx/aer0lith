@@ -3,7 +3,11 @@ import { DensityLatticeCache } from './DensityLatticeCache.ts';
 import { TERRAIN } from '../core/config.ts';
 import type { FlightPath, FlightPathSample, TerrainSampler } from '../core/types.ts';
 import { SeededNoise } from './Noise.ts';
-import { interpolateDensityCell } from './VolumeMesher.ts';
+import { interpolateDensityCell, type VolumeChunkCoordinate } from './VolumeMesher.ts';
+import {
+  TerrainCarveField,
+  type TerrainCarveResult,
+} from './TerrainCarve.ts';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -27,15 +31,46 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
   readonly seedText: string;
   // Workers only polygonize; allocate the collision cache on first query.
   private collisionCache?: DensityLatticeCache;
+  private readonly carves = new TerrainCarveField();
   private readonly collisionCorners = new Float64Array(8);
   private readonly sampleCollisionCorner = (x: number, y: number, z: number): number => {
     const cellSize = TERRAIN.chunkSize / TERRAIN.segments;
-    return this.densityAt(x * cellSize, y * cellSize, z * cellSize);
+    return this.baseDensityAt(x * cellSize, y * cellSize, z * cellSize);
   };
+
+  private damagedCollisionCornerAt(x: number, y: number, z: number): number {
+    const cellSize = TERRAIN.chunkSize / TERRAIN.segments;
+    const cache = this.collisionCache ??= new DensityLatticeCache();
+    return this.carves.applyDensity(
+      cache.get(x, y, z, this.sampleCollisionCorner),
+      x * cellSize,
+      y * cellSize,
+      z * cellSize,
+    );
+  }
 
   constructor(seed: string) {
     this.seedText = seed;
     this.noise = new SeededNoise(seed);
+  }
+
+  primeCollisionBaseLattice(chunk: VolumeChunkCoordinate, density: Float32Array): void {
+    const pointsPerAxis = TERRAIN.segments + 1;
+    if (density.length !== pointsPerAxis ** 3) return;
+    const cache = this.collisionCache ??= new DensityLatticeCache();
+    let index = 0;
+    for (let z = 0; z < pointsPerAxis; z += 1) {
+      for (let y = 0; y < pointsPerAxis; y += 1) {
+        for (let x = 0; x < pointsPerAxis; x += 1) {
+          cache.set(
+            chunk.x * TERRAIN.segments + x,
+            chunk.y * TERRAIN.segments + y,
+            chunk.z * TERRAIN.segments + z,
+            density[index++],
+          );
+        }
+      }
+    }
   }
 
   sample(worldZ: number): FlightPathSample {
@@ -82,7 +117,7 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
     };
   }
 
-  densityAt(worldX: number, worldY: number, worldZ: number): number {
+  baseDensityAt(worldX: number, worldY: number, worldZ: number): number {
     const path = this.sample(worldZ);
     const dx = worldX - path.x;
     const dy = worldY - path.y;
@@ -144,21 +179,29 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
     return Math.min(density, guaranteedAir);
   }
 
+  densityAt(worldX: number, worldY: number, worldZ: number): number {
+    return this.carves.applyDensity(
+      this.baseDensityAt(worldX, worldY, worldZ),
+      worldX,
+      worldY,
+      worldZ,
+    );
+  }
+
   /** Density interpolation over the exact tetrahedra used by the visible mesh. */
   collisionDensityAt(worldX: number, worldY: number, worldZ: number): number {
     const cellSize = TERRAIN.chunkSize / TERRAIN.segments;
     const ix = Math.floor(worldX / cellSize), iy = Math.floor(worldY / cellSize), iz = Math.floor(worldZ / cellSize);
     const x0 = ix * cellSize, y0 = iy * cellSize, z0 = iz * cellSize;
-    const cache = this.collisionCache ??= new DensityLatticeCache();
     const densities = this.collisionCorners;
-    densities[0] = cache.get(ix, iy, iz, this.sampleCollisionCorner);
-    densities[1] = cache.get(ix + 1, iy, iz, this.sampleCollisionCorner);
-    densities[2] = cache.get(ix + 1, iy + 1, iz, this.sampleCollisionCorner);
-    densities[3] = cache.get(ix, iy + 1, iz, this.sampleCollisionCorner);
-    densities[4] = cache.get(ix, iy, iz + 1, this.sampleCollisionCorner);
-    densities[5] = cache.get(ix + 1, iy, iz + 1, this.sampleCollisionCorner);
-    densities[6] = cache.get(ix + 1, iy + 1, iz + 1, this.sampleCollisionCorner);
-    densities[7] = cache.get(ix, iy + 1, iz + 1, this.sampleCollisionCorner);
+    densities[0] = this.damagedCollisionCornerAt(ix, iy, iz);
+    densities[1] = this.damagedCollisionCornerAt(ix + 1, iy, iz);
+    densities[2] = this.damagedCollisionCornerAt(ix + 1, iy + 1, iz);
+    densities[3] = this.damagedCollisionCornerAt(ix, iy + 1, iz);
+    densities[4] = this.damagedCollisionCornerAt(ix, iy, iz + 1);
+    densities[5] = this.damagedCollisionCornerAt(ix + 1, iy, iz + 1);
+    densities[6] = this.damagedCollisionCornerAt(ix + 1, iy + 1, iz + 1);
+    densities[7] = this.damagedCollisionCornerAt(ix, iy + 1, iz + 1);
     return interpolateDensityCell(
       densities,
       (worldX - x0) / cellSize,
@@ -177,6 +220,25 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
       - this.densityAt(worldX, worldY, worldZ - step);
     return target.set(dx, dy, dz).normalize();
   }
+
+  applyCarveCapsule(start: Vector3, end: Vector3, radius: number): TerrainCarveResult {
+    return this.carves.addCapsule(
+      start.x, start.y, start.z,
+      end.x, end.y, end.z,
+      radius,
+    );
+  }
+
+  carveSnapshotForChunk(chunk: VolumeChunkCoordinate): Float64Array {
+    return this.carves.snapshotForChunk(chunk);
+  }
+
+  carveRevisionForChunk(chunk: VolumeChunkCoordinate): number {
+    return this.carves.revisionForChunk(chunk);
+  }
+
+  get carveEventCount(): number { return this.carves.size; }
+  get carveIndexReferenceCount(): number { return this.carves.indexReferenceCount; }
 
   routeDistanceAt(worldX: number, worldY: number, worldZ: number): number {
     const path = this.sample(worldZ);

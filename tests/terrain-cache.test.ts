@@ -14,7 +14,7 @@ test('cached terrain queries match the exact uncached tetrahedral field across s
   for(const seed of ['combat-validation','cache-b']){const terrain=new ProceduralTerrain(seed);for(let i=0;i<250;i++){const z=i%7===0?i*2048:-1100+i*17.371,path=terrain.sample(z),x=path.x+Math.sin(i)*90,y=path.y+Math.cos(i)*60;assert.equal(terrain.collisionDensityAt(x,y,z),uncached(terrain,x,y,z));}}
 });
 test('nearby ray samples reuse immutable corner values instead of regenerating noise',()=>{
-  const t=new ProceduralTerrain('combat-validation'),density=t.densityAt.bind(t);let samples=0;t.densityAt=(...args)=>{samples++;return density(...args);};
+  const t=new ProceduralTerrain('combat-validation'),density=t.baseDensityAt.bind(t);let samples=0;t.baseDensityAt=(...args)=>{samples++;return density(...args);};
   for(let i=0;i<100;i++)t.collisionDensityAt(1+i*.01,2,3);assert.equal(samples,8);
   t.collisionDensityAt(1,2,3);assert.equal(samples,8);
 });

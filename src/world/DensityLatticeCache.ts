@@ -18,4 +18,10 @@ export class DensityLatticeCache {
     this.value[slot] = value; this.valid[slot] = 1;
     return value;
   }
+
+  set(x: number, y: number, z: number, value: number): void {
+    const slot = (Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(z, 83492791)) & (DensityLatticeCache.capacity - 1);
+    this.x[slot] = x; this.y[slot] = y; this.z[slot] = z;
+    this.value[slot] = value; this.valid[slot] = 1;
+  }
 }

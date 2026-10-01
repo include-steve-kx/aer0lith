@@ -1,5 +1,5 @@
 import { TERRAIN } from '../core/config.ts';
-import type { ProceduralTerrain } from './TerrainModel.ts';
+import type { TerrainSampler } from '../core/types.ts';
 
 const CUBE_CORNERS = [
   [0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0],
@@ -113,37 +113,50 @@ export interface VolumeChunkCoordinate {
   z: number;
 }
 
-export function polygonizeDensityChunk(
+export function densityLatticeLength(): number {
+  return (TERRAIN.segments + 1) ** 3;
+}
+
+export function sampleDensityLattice(
   chunk: VolumeChunkCoordinate,
-  terrain: ProceduralTerrain,
-  output: Float32MeshBuffer,
-): void {
-  output.reset();
+  terrain: TerrainSampler,
+  output = new Float32Array(densityLatticeLength()),
+): Float32Array {
+  if (output.length !== densityLatticeLength()) throw new RangeError('Unexpected density lattice length');
   const resolution = TERRAIN.segments;
-  const pointsPerAxis = resolution + 1;
   const cellSize = TERRAIN.chunkSize / resolution;
   const baseX = chunk.x * TERRAIN.chunkSize;
   const baseY = chunk.y * TERRAIN.chunkSize;
   const baseZ = chunk.z * TERRAIN.chunkSize;
-  const densities = new Float32Array(pointsPerAxis ** 3);
-  const sampleIndex = (x: number, y: number, z: number): number => (
-    x + pointsPerAxis * (y + pointsPerAxis * z)
-  );
-
+  let index = 0;
   for (let z = 0; z <= resolution; z += 1) {
     const worldZ = baseZ + z * cellSize;
     for (let y = 0; y <= resolution; y += 1) {
       const worldY = baseY + y * cellSize;
       for (let x = 0; x <= resolution; x += 1) {
-        densities[sampleIndex(x, y, z)] = terrain.densityAt(
-          baseX + x * cellSize,
-          worldY,
-          worldZ,
-        );
+        output[index++] = terrain.densityAt(baseX + x * cellSize, worldY, worldZ);
       }
     }
   }
+  return output;
+}
 
+export function latticeMaximum(density: Float32Array): number {
+  let maximum = -Infinity;
+  for (let index = 0; index < density.length; index += 1) maximum = Math.max(maximum, density[index]);
+  return maximum;
+}
+
+export function polygonizeDensityLattice(
+  density: Float32Array,
+  output: Float32MeshBuffer,
+): void {
+  output.reset();
+  const resolution = TERRAIN.segments;
+  const pointsPerAxis = resolution + 1;
+  if (density.length !== pointsPerAxis ** 3) throw new RangeError('Unexpected density lattice length');
+  const cellSize = TERRAIN.chunkSize / resolution;
+  const sampleIndex = (x: number, y: number, z: number): number => x + pointsPerAxis * (y + pointsPerAxis * z);
   const cubeDensity = new Float32Array(8);
   for (let z = 0; z < resolution; z += 1) {
     for (let y = 0; y < resolution; y += 1) {
@@ -151,28 +164,23 @@ export function polygonizeDensityChunk(
         let insideCount = 0;
         for (let corner = 0; corner < 8; corner += 1) {
           const offset = CUBE_CORNERS[corner];
-          const density = densities[sampleIndex(x + offset[0], y + offset[1], z + offset[2])];
-          cubeDensity[corner] = density;
-          if (density > 0) insideCount += 1;
+          const value = density[sampleIndex(x + offset[0], y + offset[1], z + offset[2])];
+          cubeDensity[corner] = value;
+          if (value > 0) insideCount += 1;
         }
         if (insideCount === 0 || insideCount === 8) continue;
-
         for (const tetrahedron of TETRAHEDRA) {
           let caseIndex = 0;
           for (let vertex = 0; vertex < 4; vertex += 1) {
             if (cubeDensity[tetrahedron[vertex]] > 0) caseIndex |= 1 << vertex;
           }
-          const triangleEdges = TRIANGLE_EDGES[caseIndex];
-          for (const edgeIndex of triangleEdges) {
+          for (const edgeIndex of TRIANGLE_EDGES[caseIndex]) {
             const edge = TETRA_EDGES[edgeIndex];
-            const cornerA = tetrahedron[edge[0]];
-            const cornerB = tetrahedron[edge[1]];
-            const densityA = cubeDensity[cornerA];
-            const densityB = cubeDensity[cornerB];
+            const cornerA = tetrahedron[edge[0]], cornerB = tetrahedron[edge[1]];
+            const densityA = cubeDensity[cornerA], densityB = cubeDensity[cornerB];
             const denominator = densityA - densityB;
             const amount = Math.abs(denominator) < 1e-8 ? 0.5 : densityA / denominator;
-            const a = CUBE_CORNERS[cornerA];
-            const b = CUBE_CORNERS[cornerB];
+            const a = CUBE_CORNERS[cornerA], b = CUBE_CORNERS[cornerB];
             output.push(
               (x + a[0] + (b[0] - a[0]) * amount) * cellSize,
               (y + a[1] + (b[1] - a[1]) * amount) * cellSize,
@@ -183,4 +191,12 @@ export function polygonizeDensityChunk(
       }
     }
   }
+}
+
+export function polygonizeDensityChunk(
+  chunk: VolumeChunkCoordinate,
+  terrain: TerrainSampler,
+  output: Float32MeshBuffer,
+): void {
+  polygonizeDensityLattice(sampleDensityLattice(chunk, terrain), output);
 }
