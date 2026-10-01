@@ -5,6 +5,7 @@ import {
   TerrainCarveField,
   applyCarveSnapshot,
   applyCarveSnapshotToLattice,
+  isValidCarveSnapshot,
   pointSegmentDistanceSquared,
 } from '../src/world/TerrainCarve.ts';
 import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
@@ -74,6 +75,10 @@ test('snapshots reproduce indexed fields and the one-capsule fast path', () => {
     field.applyDensity(100, 30, 15, 18),
   );
   assert.ok(field.revisionForChunk(chunk) > 0);
+  assert.equal(isValidCarveSnapshot(snapshot), true);
+  assert.equal(isValidCarveSnapshot(new Float64Array([0, 0, 0, 1, 1, Number.NaN, 2])), false);
+  assert.equal(isValidCarveSnapshot(new Float64Array([0, 0, 0, 1, 1, 1, 0])), false);
+  assert.equal(isValidCarveSnapshot(new Float64Array(8)), false);
 });
 
 test('collision cache keeps base corners while carving applies immediately', () => {
@@ -90,6 +95,15 @@ test('lattice carving matches direct snapshot evaluation', () => {
   const carved = applyCarveSnapshotToLattice(chunk, base, snapshot);
   assert.ok(carved.some(value => value < 0));
   assert.ok(carved.every(value => value <= 20));
+  const generic = applyCarveSnapshotToLattice(
+    chunk,
+    base,
+    new Float64Array([
+      -64, 0, 0, 64, 0, 0, 60,
+      10_000, 10_000, 10_000, 10_001, 10_001, 10_001, 1,
+    ]),
+  );
+  assert.deepEqual(carved, generic, 'specialized one-capsule evaluation matches the generic union');
 });
 
 test('session history retains unique capsules without pruning', () => {

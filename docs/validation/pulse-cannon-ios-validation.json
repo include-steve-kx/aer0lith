@@ -1,0 +1,28 @@
+{
+  "recordedAt": "2026-09-30T22:00:00-04:00",
+  "xcode": "17.6 / iOS SDK 26.5",
+  "webSync": {
+    "command": "npm run ios:sync",
+    "result": "passed"
+  },
+  "genericDeviceReleaseBuild": {
+    "command": "xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination generic/platform=iOS -derivedDataPath .build/pulse-ios CODE_SIGNING_ALLOWED=NO build",
+    "architecture": "arm64",
+    "result": "BUILD SUCCEEDED"
+  },
+  "iphone13MiniSimulator": {
+    "name": "Fieldframe iPhone 13 mini",
+    "os": "iOS 18.2 Simulator",
+    "udid": "EA4DEBCF-D5E4-46CF-86F5-A81B3992079F",
+    "configuration": "Release",
+    "build": "BUILD SUCCEEDED",
+    "install": "passed",
+    "launch": "passed",
+    "visualSmokeTest": "passed; landscape UI and Pulse control rendered"
+  },
+  "physicalDevice": {
+    "status": "not run",
+    "reason": "All registered physical iOS devices were offline during validation, including Steve's phone.",
+    "performanceClaims": "No physical-iPhone frame or GPU timing is claimed."
+  }
+}

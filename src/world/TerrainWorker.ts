@@ -6,7 +6,7 @@ import {
   polygonizeDensityLattice,
   sampleDensityLattice,
 } from './VolumeMesher.ts';
-import { applyCarveSnapshotToLattice, TERRAIN_CARVE_STRIDE } from './TerrainCarve.ts';
+import { applyCarveSnapshotToLattice, isValidCarveSnapshot } from './TerrainCarve.ts';
 import type { TerrainWorkerRequest, TerrainWorkerResponse } from './TerrainWorkerProtocol.ts';
 
 interface WorkerScope {
@@ -26,7 +26,16 @@ workerScope.onmessage = ({ data }): void => {
     terrain = new ProceduralTerrain(activeSeed);
   }
 
-  if (!(data.carves instanceof Float64Array) || data.carves.length % TERRAIN_CARVE_STRIDE !== 0) {
+  if (
+    !Number.isInteger(data.requestId)
+    || !Number.isInteger(data.revision)
+    || !data.chunk
+    || !Number.isInteger(data.chunk.x)
+    || !Number.isInteger(data.chunk.y)
+    || !Number.isInteger(data.chunk.z)
+    || !(data.carves instanceof Float64Array)
+    || !isValidCarveSnapshot(data.carves)
+  ) {
     throw new RangeError('Malformed terrain carve snapshot');
   }
   const baseDensity = data.baseDensity?.length === densityLatticeLength()

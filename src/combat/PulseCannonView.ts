@@ -2,10 +2,12 @@ import {
   AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
+  Camera,
   Color,
   DoubleSide,
   DynamicDrawUsage,
   Group,
+  FrontSide,
   LineBasicMaterial,
   LineSegments,
   Mesh,
@@ -16,6 +18,7 @@ import {
   Texture,
   Vector2,
   Vector3,
+  WebGLRenderer,
 } from 'three';
 import { refractionOutput } from '../render/RefractionShader.ts';
 import type { PulseCannonSystem } from './PulseCannonSystem.ts';
@@ -59,7 +62,7 @@ function beamGeometry(includeCore: boolean): BufferGeometry {
     }
   };
   addShell(1, 0);
-  if (includeCore) addShell(0.28, 1);
+  if (includeCore) addShell(0.06, 1);
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
   geometry.setAttribute('aLayer', new BufferAttribute(new Float32Array(layers), 1));
@@ -121,11 +124,11 @@ export class PulseCannonView implements RefractionContributor {
         },
         vertexShader: vertex,
         fragmentShader: `uniform vec3 uColor;uniform float uPower;varying float vLayer;varying vec3 vLocal;
-          void main(){float edge=pow(max(0.0,1.0-abs(vLocal.z-.5)*1.85),.22);vec3 color=mix(uColor,vec3(1.0),vLayer);float alpha=uPower*edge*mix(.16,.92,vLayer);gl_FragColor=vec4(color,alpha);}`,
+          void main(){float edge=pow(max(0.0,1.0-abs(vLocal.z-.5)*1.85),.22);vec3 color=mix(uColor,vec3(1.0),vLayer);float alpha=uPower*edge*mix(.035,.5,vLayer);gl_FragColor=vec4(color,alpha);}`,
         transparent: true,
         depthTest: false,
         depthWrite: false,
-        side: DoubleSide,
+        side: FrontSide,
         blending: AdditiveBlending,
       }),
     );
@@ -262,6 +265,17 @@ export class PulseCannonView implements RefractionContributor {
     this.electric.visible = false;
     this.glass.visible = false;
     this.electric.geometry.setDrawRange(0, 0);
+  }
+
+  /** Compile normally dormant Pulse materials during loading, not on first fire. */
+  prewarm(renderer: WebGLRenderer, mainScene: Scene, camera: Camera): void {
+    if (this.disposed) return;
+    this.plasma.visible = true;
+    this.electric.visible = true;
+    this.glass.visible = true;
+    renderer.compile(mainScene, camera);
+    renderer.compile(this.scene, camera);
+    this.hide();
   }
 
   get active(): boolean {

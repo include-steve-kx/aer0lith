@@ -279,23 +279,38 @@ export class TerrainCarveField {
   }
 }
 
-function applyOneCapsule(
+function applyOneCapsuleValues(
   density: number,
   x: number, y: number, z: number,
-  snapshot: Float64Array,
-  offset: number,
+  ax: number, ay: number, az: number,
+  bx: number, by: number, bz: number,
+  radius: number,
 ): number {
-  const radius = snapshot[offset + 6];
   const influence = radius + density;
   if (influence <= 0) return density;
+  if (
+    x < Math.min(ax, bx) - influence || x > Math.max(ax, bx) + influence
+    || y < Math.min(ay, by) - influence || y > Math.max(ay, by) + influence
+    || z < Math.min(az, bz) - influence || z > Math.max(az, bz) + influence
+  ) return density;
   const distanceSquared = pointSegmentDistanceSquared(
     x, y, z,
-    snapshot[offset], snapshot[offset + 1], snapshot[offset + 2],
-    snapshot[offset + 3], snapshot[offset + 4], snapshot[offset + 5],
+    ax, ay, az, bx, by, bz,
   );
   return distanceSquared < influence * influence
     ? Math.sqrt(distanceSquared) - radius
     : density;
+}
+
+export function isValidCarveSnapshot(snapshot: Float64Array): boolean {
+  if (snapshot.length % TERRAIN_CARVE_STRIDE !== 0) return false;
+  for (let offset = 0; offset < snapshot.length; offset += TERRAIN_CARVE_STRIDE) {
+    for (let component = 0; component < 6; component += 1) {
+      if (!Number.isFinite(snapshot[offset + component])) return false;
+    }
+    if (!(snapshot[offset + 6] > 0) || !Number.isFinite(snapshot[offset + 6])) return false;
+  }
+  return true;
 }
 
 export function applyCarveSnapshot(
@@ -304,11 +319,20 @@ export function applyCarveSnapshot(
   snapshot: Float64Array,
 ): number {
   if (snapshot.length === TERRAIN_CARVE_STRIDE) {
-    return applyOneCapsule(baseDensity, x, y, z, snapshot, 0);
+    return applyOneCapsuleValues(
+      baseDensity, x, y, z,
+      snapshot[0], snapshot[1], snapshot[2],
+      snapshot[3], snapshot[4], snapshot[5], snapshot[6],
+    );
   }
   let density = baseDensity;
   for (let offset = 0; offset + 6 < snapshot.length; offset += TERRAIN_CARVE_STRIDE) {
-    density = applyOneCapsule(density, x, y, z, snapshot, offset);
+    density = applyOneCapsuleValues(
+      density, x, y, z,
+      snapshot[offset], snapshot[offset + 1], snapshot[offset + 2],
+      snapshot[offset + 3], snapshot[offset + 4], snapshot[offset + 5],
+      snapshot[offset + 6],
+    );
   }
   return density;
 }
@@ -326,15 +350,57 @@ export function applyCarveSnapshotToLattice(
   const baseX = chunk.x * TERRAIN.chunkSize;
   const baseY = chunk.y * TERRAIN.chunkSize;
   const baseZ = chunk.z * TERRAIN.chunkSize;
+  if (snapshot.length === TERRAIN_CARVE_STRIDE) {
+    const ax = snapshot[0], ay = snapshot[1], az = snapshot[2];
+    const bx = snapshot[3], by = snapshot[4], bz = snapshot[5];
+    const radius = snapshot[6];
+    const abx = bx - ax, aby = by - ay, abz = bz - az;
+    const segmentLengthSquared = abx * abx + aby * aby + abz * abz;
+    const minimumX = Math.min(ax, bx), maximumX = Math.max(ax, bx);
+    const minimumY = Math.min(ay, by), maximumY = Math.max(ay, by);
+    const minimumZ = Math.min(az, bz), maximumZ = Math.max(az, bz);
+    let index = 0;
+    for (let z = 0; z < pointsPerAxis; z += 1) {
+      const worldZ = baseZ + z * cellSize;
+      for (let y = 0; y < pointsPerAxis; y += 1) {
+        const worldY = baseY + y * cellSize;
+        for (let x = 0; x < pointsPerAxis; x += 1) {
+          const worldX = baseX + x * cellSize;
+          const density = baseDensity[index];
+          const influence = radius + density;
+          let next = density;
+          if (
+            influence > 0
+            && worldX >= minimumX - influence && worldX <= maximumX + influence
+            && worldY >= minimumY - influence && worldY <= maximumY + influence
+            && worldZ >= minimumZ - influence && worldZ <= maximumZ + influence
+          ) {
+            const projection = segmentLengthSquared > 1e-18
+              ? Math.max(0, Math.min(1, (
+                  (worldX - ax) * abx + (worldY - ay) * aby + (worldZ - az) * abz
+                ) / segmentLengthSquared))
+              : 0;
+            const dx = worldX - (ax + abx * projection);
+            const dy = worldY - (ay + aby * projection);
+            const dz = worldZ - (az + abz * projection);
+            const distanceSquared = dx * dx + dy * dy + dz * dz;
+            if (distanceSquared < influence * influence) next = Math.sqrt(distanceSquared) - radius;
+          }
+          output[index] = next;
+          index += 1;
+        }
+      }
+    }
+    return output;
+  }
   let index = 0;
   for (let z = 0; z < pointsPerAxis; z += 1) {
     const worldZ = baseZ + z * cellSize;
     for (let y = 0; y < pointsPerAxis; y += 1) {
       const worldY = baseY + y * cellSize;
       for (let x = 0; x < pointsPerAxis; x += 1) {
-        output[index] = applyCarveSnapshot(
-          baseDensity[index], baseX + x * cellSize, worldY, worldZ, snapshot,
-        );
+        const worldX = baseX + x * cellSize;
+        output[index] = applyCarveSnapshot(baseDensity[index], worldX, worldY, worldZ, snapshot);
         index += 1;
       }
     }

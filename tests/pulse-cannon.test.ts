@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
 import { ImpactSystem } from '../src/combat/ImpactSystem.ts';
 import { MeteorSystem } from '../src/combat/MeteorSystem.ts';
 import { PulseCannonSystem } from '../src/combat/PulseCannonSystem.ts';
 import { PULSE_VIEW_COMPLEXITY, PulseCannonView } from '../src/combat/PulseCannonView.ts';
 import { RockLibrary } from '../src/combat/geometry.ts';
 import { DEFAULT_COMBAT } from '../src/combat/settings.ts';
+import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 
 const air = {
   densityAt: () => -1000,
@@ -113,6 +114,31 @@ test('a maximum Pulse burst destroys 48 meteors once and fills bounded cosmetic 
   assert.equal(impacts.explosions.filter((entry) => entry.active).length, 48);
   assert.equal(impacts.fragments.filter((entry) => entry.active).length, 576);
   assert.equal(meteors.destroyInCapsule(new Vector3(0, 0, 60), new Vector3(0, 0, 420), 60, new Vector3(0, 0, 1)), 0);
+  impacts.dispose();
+  meteors.dispose();
+  library.dispose();
+});
+
+test('ordinary lethal and proximity meteor destruction never mutate terrain carve state', () => {
+  const terrain = new ProceduralTerrain('meteor-only-regression');
+  const library = new RockLibrary('meteor-only-regression');
+  const meteors = new MeteorSystem(terrain, library, 'meteor-only-regression');
+  const impacts = new ImpactSystem(library, 'meteor-only-regression');
+  meteors.onDestroyed = (rock, point, direction) => impacts.spawn(rock, point, direction);
+
+  for (let route = 0; route < 2; route += 1) {
+    const meteor = meteors.spawnAt(new Vector3(route * 30, 0, 120), 12, route)!;
+    const slot = meteors.rocks.indexOf(meteor);
+    assert.equal(meteors.applyHit({ slot, generation: meteor.generation }, meteor.position, new Vector3(0, 0, 1), true), 'destroyed');
+  }
+
+  const proximity = meteors.spawnAt(new Vector3(), 12, 2)!;
+  meteors.updateProximity(1 / 120, new Vector3(), new Vector3(), new Quaternion());
+  assert.equal(proximity.active, false);
+  assert.equal(terrain.carveEventCount, 0);
+  assert.equal(terrain.carveRevisionForChunk({ x: 0, y: 0, z: 0 }), 0);
+  assert.equal(impacts.explosions.filter((entry) => entry.active).length, 3);
+
   impacts.dispose();
   meteors.dispose();
   library.dispose();

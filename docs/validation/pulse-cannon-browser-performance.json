@@ -1,0 +1,28 @@
+{
+  "recordedAt": "2026-09-30T21:56:00-04:00",
+  "environment": {
+    "machine": "MacBookPro18,2 / Apple M1 Max / 64 GB",
+    "browser": "Chromium 153 in Codex in-app browser",
+    "viewport": "1280x720",
+    "devicePixelRatio": 2,
+    "hardwareConcurrency": 10,
+    "gpuTimerAvailable": false,
+    "resolutionMode": "full"
+  },
+  "fixture": "tests/fixtures/pulse-cannon-profile.html",
+  "seed": "pulse-cannon-browser-profile",
+  "notes": [
+    "The first run exposed a 146.1 ms first-shot shader compilation hitch.",
+    "Pulse materials were then prewarmed during app loading; these are the post-fix results.",
+    "renderer.info resets across post-processing passes, so maxPulseDrawCalls is the authoritative Pulse-only count."
+  ],
+  "results": [
+    { "phase": "pulse disabled", "frames": 300, "frameMs": { "mean": 1.284, "p50": 1.3, "p95": 1.7, "p99": 2, "max": 2.5 }, "pulseSyncMs": { "mean": 0.002, "p50": 0, "p95": 0, "p99": 0.1, "max": 0.1 }, "maxPulseDrawCalls": 0, "maxQueue": 35, "heapBytes": 58304530 },
+    { "phase": "pulse idle", "frames": 301, "frameMs": { "mean": 1.54, "p50": 1.5, "p95": 1.9, "p99": 2.2, "max": 3.3 }, "pulseSyncMs": { "mean": 0.001, "p50": 0, "p95": 0, "p99": 0.1, "max": 0.1 }, "maxPulseDrawCalls": 0, "maxQueue": 15, "heapBytes": 50180673 },
+    { "phase": "60 m shot", "frames": 301, "frameMs": { "mean": 1.781, "p50": 1.8, "p95": 2.1, "p99": 2.3, "max": 2.4 }, "pulseSyncMs": { "mean": 0.015, "p50": 0, "p95": 0.1, "p99": 0.2, "max": 0.2 }, "maxPulseDrawCalls": 3, "nextFrameLatencyMs": 11.7, "masksSettledLatencyMs": 118.7, "maxQueue": 15, "carveEvents": 1, "carveIndexReferences": 16, "heapBytes": 53409244 },
+    { "phase": "80 m shot", "frames": 301, "frameMs": { "mean": 1.774, "p50": 1.8, "p95": 2, "p99": 2.2, "max": 2.3 }, "pulseSyncMs": { "mean": 0.009, "p50": 0, "p95": 0.1, "p99": 0.1, "max": 0.1 }, "maxPulseDrawCalls": 3, "nextFrameLatencyMs": 2.2, "masksSettledLatencyMs": 200.8, "maxQueue": 24, "carveEvents": 2, "carveIndexReferences": 40, "heapBytes": 58064892 },
+    { "phase": "48 meteor 60 m shot", "frames": 300, "frameMs": { "mean": 2.976, "p50": 3, "p95": 3.3, "p99": 3.5, "max": 6 }, "pulseSyncMs": { "mean": 0.008, "p50": 0, "p95": 0.1, "p99": 0.1, "max": 0.2 }, "maxPulseDrawCalls": 3, "nextFrameLatencyMs": 17.2, "masksSettledLatencyMs": 169.2, "maxQueue": 19, "carveEvents": 3, "carveIndexReferences": 59, "heapBytes": 51133804 },
+    { "phase": "eight pending masks", "frames": 301, "frameMs": { "mean": 1.518, "p50": 1.5, "p95": 2, "p99": 2.2, "max": 2.3 }, "pulseSyncMs": { "mean": 0.002, "p50": 0, "p95": 0, "p99": 0.1, "max": 0.1 }, "maxPulseDrawCalls": 0, "nextFrameLatencyMs": 1.9, "masksSettledLatencyMs": 125.6, "maxQueue": 15, "staleResults": 2, "coalescedRequests": 91, "carveEvents": 11, "carveIndexReferences": 198, "heapBytes": 55834484 },
+    { "phase": "settled", "frames": 301, "frameMs": { "mean": 1.536, "p50": 1.5, "p95": 1.9, "p99": 2.1, "max": 2.3 }, "pulseSyncMs": { "mean": 0.002, "p50": 0, "p95": 0, "p99": 0.1, "max": 0.1 }, "maxPulseDrawCalls": 0, "maxQueue": 15, "staleResults": 2, "coalescedRequests": 91, "carveEvents": 11, "carveIndexReferences": 198, "heapBytes": 60577368 }
+  ]
+}

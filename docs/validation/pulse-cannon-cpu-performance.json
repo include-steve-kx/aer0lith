@@ -1,0 +1,62 @@
+{
+  "recordedAt": "2026-09-30T22:02:00-04:00",
+  "machine": {
+    "model": "MacBookPro18,2",
+    "chip": "Apple M1 Max",
+    "cores": 10,
+    "memoryGB": 64,
+    "os": "macOS 26.5.1 (25F80)",
+    "node": "v24.19.0",
+    "platform": "darwin-arm64"
+  },
+  "scope": "CPU-only Node profile; excludes WebGL GPU, worker transfer, browser scheduling, and device thermal behavior",
+  "command": "node --experimental-strip-types tests/pulse-cannon-profile.ts",
+  "seed": "pulse-cannon-profile",
+  "samples": {
+    "densityQueriesPerPass": 20000,
+    "latticeSamples": 1331,
+    "polygonizationRuns": 60,
+    "beamSyncFrames": 5000,
+    "effectsFrames": 2000
+  },
+  "radiusScaling": {
+    "16m": { "straight": { "broadCandidates": 16, "exactChunks": 16 }, "diagonal": { "broadCandidates": 27, "exactChunks": 11 } },
+    "30m": { "straight": { "broadCandidates": 16, "exactChunks": 16 }, "diagonal": { "broadCandidates": 27, "exactChunks": 15 } },
+    "60m": { "straight": { "broadCandidates": 20, "exactChunks": 20 }, "diagonal": { "broadCandidates": 64, "exactChunks": 22 } },
+    "80m": { "straight": { "broadCandidates": 20, "exactChunks": 20 }, "diagonal": { "broadCandidates": 64, "exactChunks": 22 } }
+  },
+  "activationMs": {
+    "16m": { "mean": 0.010802, "p50": 0.007584, "p95": 0.015917, "p99": 0.085292, "max": 0.094084 },
+    "30m": { "mean": 0.008473, "p50": 0.006, "p95": 0.012875, "p99": 0.028208, "max": 0.075334 },
+    "60m": { "mean": 0.01434, "p50": 0.011959, "p95": 0.02225, "p99": 0.118166, "max": 0.174 },
+    "80m": { "mean": 0.014555, "p50": 0.012042, "p95": 0.03175, "p99": 0.11175, "max": 0.113459 }
+  },
+  "densityLookupMs": {
+    "0Capsules": { "mean": 0.350769, "p50": 0.309125, "p95": 0.627583, "p99": 0.627583, "max": 0.627583 },
+    "1Capsules": { "mean": 0.77784, "p50": 0.673667, "p95": 1.44975, "p99": 1.44975, "max": 1.44975 },
+    "8Capsules": { "mean": 2.358551, "p50": 2.32975, "p95": 2.591958, "p99": 2.591958, "max": 2.591958 },
+    "64Capsules": { "mean": 9.785032, "p50": 9.723208, "p95": 10.571833, "p99": 10.571833, "max": 10.571833 }
+  },
+  "polygonizationMs": {
+    "cachedBase": { "mean": 0.093086, "p50": 0.07975, "p95": 0.144583, "p99": 0.269125, "max": 0.269125 },
+    "cachedOneCapsule": { "mean": 0.208911, "p50": 0.107875, "p95": 0.391792, "p99": 0.467875, "max": 0.467875 },
+    "cachedEightCapsules": { "mean": 0.198186, "p50": 0.180959, "p95": 0.288583, "p99": 0.502292, "max": 0.502292 },
+    "uncachedOneCapsule": { "mean": 14.283741, "p50": 14.156625, "p95": 15.464959, "p99": 15.697, "max": 15.697 }
+  },
+  "oneCapsuleCachedOverheadPercent": 124.427574,
+  "meteorIntersectionMs": {
+    "0Meteors": { "mean": 0.001797, "p50": 0.000584, "p95": 0.003792, "p99": 0.01125, "max": 0.021208 },
+    "12Meteors": { "mean": 0.010784, "p50": 0.006417, "p95": 0.026083, "p99": 0.039583, "max": 0.144542 },
+    "48Meteors": { "mean": 0.031576, "p50": 0.024875, "p95": 0.048834, "p99": 0.405209, "max": 0.405209 }
+  },
+  "beamSimulationAndUploadMs": { "mean": 0.012665, "p50": 0.011458, "p95": 0.020708, "p99": 0.03475, "max": 0.2775 },
+  "fullEffectsUpdateMs": { "mean": 0.021138, "p50": 0.016542, "p95": 0.035083, "p99": 0.169209, "max": 0.503209 },
+  "persistentHistory": {
+    "shots": 1000,
+    "indexReferences": 19342,
+    "estimatedBytes": 226736,
+    "estimatedBytesPerShot": 226.736,
+    "insertionMs": { "mean": 15.335125, "p50": 15.335125, "p95": 15.335125, "p99": 15.335125, "max": 15.335125 }
+  },
+  "heapBytes": { "rss": 135806976, "heapUsed": 32355848 }
+}

@@ -152,6 +152,7 @@ export class Hud {
     enabled: boolean,
     ready: boolean,
     cooldownFraction: number,
+    cooldownSeconds: number,
     terrainReady: boolean,
     unavailable = false,
   ): void {
@@ -168,11 +169,9 @@ export class Hud {
     else if (this.paused) label = status = 'Pulse Cannon unavailable while paused';
     else if (unavailable) label = status = 'Pulse Cannon unavailable';
     else if (busy) label = status = 'Pulse Cannon waiting for terrain';
-    else if (cooling) label = status = `Pulse Cannon cooling down, ${Math.ceil(cooldownFraction * 100)} percent remaining`;
+    else if (cooling) label = status = `Pulse Cannon cooling down, ${cooldownSeconds.toFixed(1)} seconds remaining`;
     this.pulseButton.setAttribute('aria-label', label);
-    this.pulseButton.setAttribute('aria-valuenow', String(Math.round((1 - cooldownFraction) * 100)));
-    this.pulseButton.setAttribute('aria-valuemin', '0');
-    this.pulseButton.setAttribute('aria-valuemax', '100');
+    this.pulseButton.dataset.cooldown = cooldownSeconds.toFixed(1);
     this.pulseStatus.textContent = status;
   }
 

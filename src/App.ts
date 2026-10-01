@@ -265,6 +265,7 @@ export class App {
       this.hud.setCollisionVisible(false);
     };
     this.settings.apply();
+    this.pulseView.prewarm(this.renderer, this.scene, this.cameraRig.camera);
 
     window.addEventListener('resize', this.resize);
     window.addEventListener('pagehide', event => {
@@ -411,6 +412,7 @@ export class App {
     this.bullets.sync(this.flight.position, this.flight.orientation);
     this.activatePulse();
     this.pulseView.sync(this.renderOrigin);
+    this.syncPulseHud();
     this.boostShake.apply(this.cameraRig.camera, this.flight.speed, this.impacts.shakeTranslation, this.impacts.shakeRotation);
     try {
       this.missiles.syncMuzzles(this.flight.position, this.flight.orientation);
@@ -607,12 +609,17 @@ export class App {
     this.hud.update(snapshot, fps, {
       localDistance,
     });
+    this.syncPulseHud(snapshot.mode === 'loading' || snapshot.mode === 'crashed');
+  }
+
+  private syncPulseHud(unavailable = this.flight.mode === 'crashed'): void {
     this.hud.setPulseState(
       this.pulse.settings.pulseEnabled,
       this.pulse.ready,
       this.pulse.cooldownFraction,
+      this.pulse.cooldownRemaining,
       this.terrain.canAcceptPulseCarve,
-      snapshot.mode === 'loading' || snapshot.mode === 'crashed',
+      unavailable,
     );
   }
 
