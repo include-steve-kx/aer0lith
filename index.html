@@ -234,7 +234,38 @@
           </section>
 
           <section class="settings-section" aria-labelledby="settings-scan-title">
-            <h2 id="settings-scan-title">SCAN GLASS</h2>
+            <h2 id="settings-scan-title">SCAN EFFECTS</h2>
+            <h3>TERRAIN SCAN</h3>
+            <label for="scan-terrain-speed"><span>SCAN SPEED</span><output id="scan-terrain-speed-value">300 M/S</output></label>
+            <input id="scan-terrain-speed" type="range" min="80" max="600" step="10" value="300" />
+            <label for="scan-terrain-pattern"><span>SCANNED PATTERN</span></label>
+            <select id="scan-terrain-pattern">
+              <option value="plus" selected>SMALL PLUS</option>
+              <option value="dot">SMALL DOT</option>
+            </select>
+            <label for="scan-terrain-pattern-spacing"><span>PATTERN SPACING</span><output id="scan-terrain-pattern-spacing-value">8 M</output></label>
+            <input id="scan-terrain-pattern-spacing" type="range" min="4" max="40" step="1" value="8" />
+            <label for="scan-terrain-pattern-size"><span>PATTERN SIZE</span><output id="scan-terrain-pattern-size-value">0.5 M</output></label>
+            <input id="scan-terrain-pattern-size" type="range" min="0.2" max="6" step="0.1" value="0.5" />
+            <label for="scan-terrain-pattern-color"><span>PATTERN COLOR</span></label>
+            <input id="scan-terrain-pattern-color" type="color" value="#8bdcff" />
+            <label for="scan-terrain-pattern-brightness"><span>PATTERN BRIGHTNESS</span><output id="scan-terrain-pattern-brightness-value">1.40</output></label>
+            <input id="scan-terrain-pattern-brightness" type="range" min="0" max="4" step="0.05" value="1.4" />
+            <label for="scan-terrain-pattern-persistence"><span>PATTERN FADE DURATION</span><output id="scan-terrain-pattern-persistence-value">5.0 S</output></label>
+            <input id="scan-terrain-pattern-persistence" type="range" min="0.5" max="10" step="0.25" value="5" />
+            <label for="scan-terrain-front-width"><span>FRONT STRIPE WIDTH</span><output id="scan-terrain-front-width-value">14.2 M</output></label>
+            <input id="scan-terrain-front-width" type="range" min="0.2" max="20" step="0.2" value="14.2" />
+            <label for="scan-terrain-front-color"><span>FRONT STRIPE COLOR</span></label>
+            <input id="scan-terrain-front-color" type="color" value="#8bdcff" />
+            <label for="scan-terrain-front-brightness"><span>FRONT STRIPE BRIGHTNESS</span><output id="scan-terrain-front-brightness-value">0.75</output></label>
+            <input id="scan-terrain-front-brightness" type="range" min="0" max="4" step="0.05" value="0.75" />
+            <label for="scan-terrain-trail-color"><span>AFTERGLOW COLOR</span></label>
+            <input id="scan-terrain-trail-color" type="color" value="#6aaac8" />
+            <label for="scan-terrain-trail-length"><span>AFTERGLOW LENGTH</span><output id="scan-terrain-trail-length-value">160 M</output></label>
+            <input id="scan-terrain-trail-length" type="range" min="0" max="360" step="5" value="160" />
+            <label for="scan-terrain-trail-falloff"><span>AFTERGLOW FALLOFF</span><output id="scan-terrain-trail-falloff-value">2.00</output></label>
+            <input id="scan-terrain-trail-falloff" type="range" min="0.25" max="8" step="0.25" value="2" />
+            <h3>SCAN GLASS</h3>
             <label class="toggle-setting" for="scan-glass-enabled">
               <span>SCAN GLASS SHELL</span><input id="scan-glass-enabled" type="checkbox" checked />
             </label>

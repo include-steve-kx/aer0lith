@@ -45,6 +45,10 @@ test('shell finishes cleanly, settings stay live on pause, and animation uses si
   assert.deepEqual(scan.mesh.material.uniforms.uResolution.value.toArray(), [1600, 900]);
   scan.sync(zero, zero, PROBE.maxRadius - PROBE.speed / 2, true);
   assert.equal(scan.mesh.material.uniforms.uFade.value, 0.5);
+  scan.configure(true, 2, 0.3, 1, 0.04, 1, PROBE.speed * 2);
+  scan.sync(zero, zero, PROBE.maxRadius - PROBE.speed, true);
+  assert.equal(scan.mesh.material.uniforms.uFade.value, 0.5,
+    'shell fade distance follows the configurable propagation speed');
   scan.configure(false, 2, 0.3, 1); assert.equal(scan.active, false);
   scan.configure(true, 2, 0.3, 1); assert.equal(scan.active, true);
   scan.sync(zero, zero, PROBE.maxRadius, true); assert.equal(scan.active, false);

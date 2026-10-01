@@ -31,9 +31,9 @@ export const TERRAIN = {
 export const PROBE = {
   minInterval: 10,
   maxInterval: 30,
-  speed: 160,
+  speed: 300,
   maxRadius: 720,
-  afterglowDuration: 3.5,
+  afterglowDuration: 5,
   lineWidth: 1.6,
   influenceWidth: 12,
   lift: 3.2,

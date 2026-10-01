@@ -245,7 +245,7 @@ export class App {
       this.pulseShakeEnvelope.fadeDuration = settings.pulseShakeDuration;
       this.flightEffects.configure(settings);
       this.post.setScanSettings(settings.scanGlassEnabled, settings.scanGlassStrength, settings.scanGlassDispersion, settings.scanGlassPersistence,
-        settings.scanGlassFlutter, settings.scanGlassFlutterRate);
+        settings.scanGlassFlutter, settings.scanGlassFlutterRate, settings.scanTerrainSpeed);
       this.route.setColor(settings.autopilotGuideColor);
       this.wind.applyVisualSettings(settings);
       this.flocks.applyVisualSettings(settings);

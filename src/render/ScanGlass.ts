@@ -10,6 +10,7 @@ export class ScanGlass {
   private expanding = false;
   private radius = 0;
   private fadeDuration = 0.8;
+  private speed: number = PROBE.speed;
   private disposed = false;
   private flutterRate = 1;
   private lastTime: number | undefined;
@@ -76,10 +77,19 @@ export class ScanGlass {
     this.scene.add(this.mesh);
   }
 
-  configure(enabled: boolean, strength: number, dispersion: number, fadeDuration = 0.8, flutter = 0.04, flutterRate = 1): void {
+  configure(
+    enabled: boolean,
+    strength: number,
+    dispersion: number,
+    fadeDuration = 0.8,
+    flutter = 0.04,
+    flutterRate = 1,
+    speed: number = PROBE.speed,
+  ): void {
     if (this.enabled !== enabled) this.lastTime = undefined;
     this.enabled = enabled;
     this.flutterRate = Math.max(0, Math.min(4, flutterRate));
+    this.speed = Math.max(1, speed);
     this.mesh.material.uniforms.uFlutter.value = Math.max(0, Math.min(0.12, flutter));
     this.fadeDuration = Math.max(0.15, fadeDuration);
     this.mesh.material.uniforms.uRefraction.value = strength;
@@ -104,7 +114,10 @@ export class ScanGlass {
 
   private refresh(): void {
     const fadeIn = Math.min(1, this.radius / 20);
-    const fadeOut = Math.min(1, Math.max(0, (PROBE.maxRadius - this.radius) / (PROBE.speed * this.fadeDuration)));
+    const fadeOut = Math.min(1, Math.max(
+      0,
+      (PROBE.maxRadius - this.radius) / (this.speed * this.fadeDuration),
+    ));
     this.mesh.material.uniforms.uFade.value = fadeIn * fadeOut;
     this.mesh.visible = !this.disposed && this.enabled && this.expanding && this.radius > 0
       && fadeOut > 0 && this.mesh.material.uniforms.uRefraction.value > 0;

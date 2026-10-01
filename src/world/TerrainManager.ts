@@ -157,7 +157,17 @@ function createTerrainMaterial(): ShaderMaterial {
       uProbeLineWidth: { value: PROBE.lineWidth },
       uProbeInfluenceWidth: { value: PROBE.influenceWidth },
       uProbeLift: { value: PROBE.lift },
-      uProbeColor: { value: new Color(PROBE.color) },
+      uProbePatternType: { value: 1 },
+      uProbePatternSpacing: { value: 8 },
+      uProbePatternSize: { value: 0.5 },
+      uProbePatternColor: { value: new Color(PROBE.color) },
+      uProbePatternBrightness: { value: 1.4 },
+      uProbeFrontWidth: { value: 14.2 },
+      uProbeFrontColor: { value: new Color(PROBE.color) },
+      uProbeFrontBrightness: { value: 0.75 },
+      uProbeTrailColor: { value: new Color(0x6aaac8) },
+      uProbeTrailLength: { value: 160 },
+      uProbeTrailFalloff: { value: 2 },
       fogColor: { value: new Color(PALETTE.fog) },
       fogDensity: { value: 0.00165 },
       uCarveMaskCount: { value: 0 },
@@ -251,7 +261,17 @@ function createTerrainMaterial(): ShaderMaterial {
       uniform float uProbeTailAge;
       uniform float uProbeSpeed;
       uniform float uProbeAfterglowDuration;
-      uniform vec3 uProbeColor;
+      uniform float uProbePatternType;
+      uniform float uProbePatternSpacing;
+      uniform float uProbePatternSize;
+      uniform vec3 uProbePatternColor;
+      uniform float uProbePatternBrightness;
+      uniform float uProbeFrontWidth;
+      uniform vec3 uProbeFrontColor;
+      uniform float uProbeFrontBrightness;
+      uniform vec3 uProbeTrailColor;
+      uniform float uProbeTrailLength;
+      uniform float uProbeTrailFalloff;
       uniform float uCarveMaskCount;
       uniform vec3 uCarveStarts[8];
       uniform vec3 uCarveEnds[8];
@@ -310,12 +330,45 @@ function createTerrainMaterial(): ShaderMaterial {
           + latticeDot(vTerrainWorldPosition.xy, radiusM) * weight.z;
       }
 
+      float scanPattern2d(vec2 coordinate) {
+        float spacingM = max(uProbePatternSpacing, 0.001);
+        vec2 cellM = (fract(coordinate / spacingM + 0.5) - 0.5) * spacingM;
+        float halfSizeM = max(uProbePatternSize * 0.5, 0.001);
+        float antialiasM = max(fwidth(length(cellM)), 0.001);
+        float dotDistanceM = length(cellM) - halfSizeM;
+        float barHalfWidthM = max(halfSizeM * 0.22, antialiasM * 0.75);
+        vec2 absoluteCellM = abs(cellM);
+        float horizontalDistanceM = max(
+          absoluteCellM.x - halfSizeM,
+          absoluteCellM.y - barHalfWidthM
+        );
+        float verticalDistanceM = max(
+          absoluteCellM.x - barHalfWidthM,
+          absoluteCellM.y - halfSizeM
+        );
+        float plusDistanceM = min(horizontalDistanceM, verticalDistanceM);
+        float signedDistanceM = mix(dotDistanceM, plusDistanceM, step(0.5, uProbePatternType));
+        return 1.0 - smoothstep(-antialiasM, antialiasM, signedDistanceM);
+      }
+
+      float triplanarScanPattern(vec3 faceNormal) {
+        vec3 weight = pow(abs(faceNormal), vec3(8.0));
+        weight /= max(weight.x + weight.y + weight.z, 0.0001);
+        return scanPattern2d(vTerrainWorldPosition.yz) * weight.x
+          + scanPattern2d(vTerrainWorldPosition.xz) * weight.y
+          + scanPattern2d(vTerrainWorldPosition.xy) * weight.z;
+      }
+
       float probeRingMask() {
         float radialDistanceM = distance(vTerrainWorldPosition, uProbeCenter);
         float ringDistanceM = abs(radialDistanceM - uProbeRadius);
         float onePixelM = max(fwidth(radialDistanceM), 0.001);
-        float visibleWidthM = max(onePixelM * 1.25, 0.018);
-        return (1.0 - smoothstep(0.0, visibleWidthM, ringDistanceM))
+        float halfWidthM = max(uProbeFrontWidth * 0.5, onePixelM * 1.25);
+        return (1.0 - smoothstep(
+          max(0.0, halfWidthM - onePixelM),
+          halfWidthM + onePixelM,
+          ringDistanceM
+        ))
           * uProbeExpanding * uProbeRingOpacity;
       }
 
@@ -331,6 +384,21 @@ function createTerrainMaterial(): ShaderMaterial {
           scanAgeS
         );
         return hasBeenScanned * persistence * uProbeActive;
+      }
+
+      float probeTrailMask() {
+        float radialDistanceM = distance(vTerrainWorldPosition, uProbeCenter);
+        float distanceBehindWaveM = uProbeRadius - radialDistanceM;
+        float trailLengthM = max(uProbeTrailLength, 0.001);
+        // After expansion finishes, advance the tail toward the stopped front
+        // at the same configured scan speed so this broad tint remains bounded.
+        float effectiveDistanceM = distanceBehindWaveM + uProbeTailAge * uProbeSpeed;
+        float normalizedTrail = clamp(1.0 - effectiveDistanceM / trailLengthM, 0.0, 1.0);
+        float hasBeenScanned = step(0.0, distanceBehindWaveM);
+        float trailEnabled = step(0.001, uProbeTrailLength);
+        return hasBeenScanned * trailEnabled
+          * pow(normalizedTrail, max(uProbeTrailFalloff, 0.001))
+          * uProbeActive;
       }
 
       // Stable ordered coverage lets dot mode have genuinely empty fragments
@@ -360,50 +428,37 @@ function createTerrainMaterial(): ShaderMaterial {
         float axialVariation = 1.0 - abs(faceNormal.y);
         float ringMask = probeRingMask();
         float afterglowMask = probeAfterglowMask();
-        float probeMix = max(
-          afterglowMask * 0.74,
-          max(ringMask, max(vProbeCore, vProbeInfluence * 0.82))
-        );
+        float trailMask = probeTrailMask();
+        float patternMask = triplanarScanPattern(faceNormal) * afterglowMask;
 
         vec3 meshColor = uMeshColor * (0.62 + diffuse * 0.76 + axialVariation * 0.16);
-        // Keep the underlying terrain hue legible beneath the scan wash. The
-        // narrow ring remains blue, while the revealed surface is a blend.
-        float probeSurfaceMix = clamp(probeMix * 0.40, 0.0, 0.46);
-        meshColor = mix(
-          meshColor,
-          uProbeColor * 1.04,
-          probeSurfaceMix
-        );
         float dangerMix = smoothstep(0.0, 0.92, vAlert);
         meshColor = mix(meshColor, uAlertColor, dangerMix);
         meshColor += uAlertColor * vAlert * 0.05;
 
         float dangerRadiusM = uDotRadiusM * mix(1.0, uDangerSizeMultiplier, vAlert);
         float dotMask = triplanarDot(faceNormal, dangerRadiusM);
-        vec3 dotColor = mix(
-          uDotColor,
-          uProbeColor,
-          clamp(probeMix * 0.56, 0.0, 0.62)
-        );
+        vec3 dotColor = uDotColor;
         dotColor = mix(dotColor, uAlertColor, smoothstep(0.0, 0.92, vAlert));
         dotColor += uAlertColor * vAlert * 0.05;
+        vec3 patternColor = uProbePatternColor * uProbePatternBrightness;
+        vec3 frontColor = uProbeFrontColor * uProbeFrontBrightness;
+        vec3 trailColor = uProbeTrailColor;
 
         vec3 color;
         #ifdef TERRAIN_DOT_MODE
-          // The normal dot view has no surface at all. A probe temporarily
-          // reveals the other rendering mode—the shaded mesh—then ordered
-          // coverage erodes it as the scan afterglow ages.
-          float meshReveal = clamp(probeMix, 0.0, 1.0);
-          float fragmentCoverage = max(dotMask, meshReveal);
+          // Retain normal terrain dots, then reveal only the sparse scanned
+          // marker pattern and the advancing solid front stripe.
+          float fragmentCoverage = max(dotMask, max(patternMask, ringMask));
           if (fragmentCoverage <= orderedCoverageThreshold()) discard;
           color = dotMask > 0.001 ? dotColor : meshColor;
-          color = mix(color, uProbeColor * 1.08, ringMask);
+          color = mix(color, trailColor, trailMask);
+          color = mix(color, patternColor, patternMask);
+          color = mix(color, frontColor, ringMask);
         #else
-          // The solid double-sided mesh uses the exact same masks and SDF,
-          // but the probe reveals the other rendering mode's dots on top.
-          float dotReveal = clamp(probeMix, 0.0, 1.0);
-          color = mix(meshColor, dotColor, clamp(dotMask * dotReveal, 0.0, 1.0));
-          color = mix(color, uProbeColor * 1.08, ringMask);
+          color = mix(meshColor, trailColor, trailMask);
+          color = mix(color, patternColor, patternMask);
+          color = mix(color, frontColor, ringMask);
         #endif
         vec3 pulseScarColor = vec3(0.0);
         float pulseScarWeight = 0.0;
@@ -524,6 +579,9 @@ export class TerrainManager {
   private probeActive = false;
   private probeExpanding = false;
   private probeTailAge = 0;
+  private probeAfterglowDuration: number = PROBE.afterglowDuration;
+  private probeSpeed: number = PROBE.speed;
+  private probeTrailLength = 160;
   private lastCenterX = Number.NaN;
   private lastCenterY = Number.NaN;
   private lastCenterZ = Number.NaN;
@@ -1059,7 +1117,7 @@ export class TerrainManager {
 
   updateProbe(dt: number, renderOrigin: Vector3): void {
     if (this.probeExpanding) {
-      this.probeRadius += PROBE.speed * Math.max(0, dt);
+      this.probeRadius += this.probeSpeed * Math.max(0, dt);
       if (this.probeRadius >= PROBE.maxRadius) {
         this.probeRadius = PROBE.maxRadius;
         this.probeExpanding = false;
@@ -1067,7 +1125,9 @@ export class TerrainManager {
       }
     } else if (this.probeActive) {
       this.probeTailAge += Math.max(0, dt);
-      if (this.probeTailAge >= PROBE.afterglowDuration) this.probeActive = false;
+      const trailDuration = this.probeTrailLength / Math.max(this.probeSpeed, 0.001);
+      if (this.probeTailAge >= Math.max(this.probeAfterglowDuration, trailDuration))
+        this.probeActive = false;
     }
 
     const fadeIn = Math.min(1, this.probeRadius / 20);
@@ -1098,6 +1158,22 @@ export class TerrainManager {
     this.terrainMaterial.uniforms.uDotColor.value.set(settings.terrainColor);
     this.terrainMaterial.uniforms.uMeshColor.value.set(settings.meshColor);
     this.terrainMaterial.uniforms.uAlertColor.value.set(settings.dangerColor);
+    this.probeSpeed = settings.scanTerrainSpeed;
+    this.terrainMaterial.uniforms.uProbeSpeed.value = settings.scanTerrainSpeed;
+    this.terrainMaterial.uniforms.uProbePatternType.value = settings.scanTerrainPattern === 'plus' ? 1 : 0;
+    this.terrainMaterial.uniforms.uProbePatternSpacing.value = settings.scanTerrainPatternSpacing;
+    this.terrainMaterial.uniforms.uProbePatternSize.value = settings.scanTerrainPatternSize;
+    this.terrainMaterial.uniforms.uProbePatternColor.value.set(settings.scanTerrainPatternColor);
+    this.terrainMaterial.uniforms.uProbePatternBrightness.value = settings.scanTerrainPatternBrightness;
+    this.probeAfterglowDuration = settings.scanTerrainPatternPersistence;
+    this.terrainMaterial.uniforms.uProbeAfterglowDuration.value = settings.scanTerrainPatternPersistence;
+    this.terrainMaterial.uniforms.uProbeFrontWidth.value = settings.scanTerrainFrontWidth;
+    this.terrainMaterial.uniforms.uProbeFrontColor.value.set(settings.scanTerrainFrontColor);
+    this.terrainMaterial.uniforms.uProbeFrontBrightness.value = settings.scanTerrainFrontBrightness;
+    this.probeTrailLength = settings.scanTerrainTrailLength;
+    this.terrainMaterial.uniforms.uProbeTrailColor.value.set(settings.scanTerrainTrailColor);
+    this.terrainMaterial.uniforms.uProbeTrailLength.value = settings.scanTerrainTrailLength;
+    this.terrainMaterial.uniforms.uProbeTrailFalloff.value = settings.scanTerrainTrailFalloff;
     this.pulseTerrainTintWidth = settings.pulseTerrainTintWidth;
     this.terrainMaterial.uniforms.uPulseScarStrength.value = settings.pulseTerrainTintStrength;
     this.syncPulseScarUniforms();

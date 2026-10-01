@@ -1,4 +1,5 @@
 import type { RefractionContributor } from '../combat/types.ts';
+import { PROBE } from '../core/config.ts';
 import {
   Color,
   DepthTexture,
@@ -341,8 +342,24 @@ export class PostProcessor {
     this.material.uniforms.uDitherStrength.value = dither;
   }
 
-  setScanSettings(enabled: boolean, strength: number, dispersion: number, fadeDuration = 0.8, flutter = 0.04, flutterRate = 1): void {
-    this.scanGlass.configure(enabled, strength, dispersion, fadeDuration, flutter, flutterRate);
+  setScanSettings(
+    enabled: boolean,
+    strength: number,
+    dispersion: number,
+    fadeDuration = 0.8,
+    flutter = 0.04,
+    flutterRate = 1,
+    speed: number = PROBE.speed,
+  ): void {
+    this.scanGlass.configure(
+      enabled,
+      strength,
+      dispersion,
+      fadeDuration,
+      flutter,
+      flutterRate,
+      speed,
+    );
   }
 
   setScanWave(worldCenter: Vector3, origin: Vector3, radius: number, expanding: boolean): void {

@@ -36,6 +36,19 @@ export function migrateVisualSettingsV1(saved: Record<string, unknown>): Record<
 }
 
 export interface VisualSettings extends FlightEffectSettings, CombatSettings {
+  scanTerrainSpeed: number;
+  scanTerrainPattern: 'dot' | 'plus';
+  scanTerrainPatternSpacing: number;
+  scanTerrainPatternSize: number;
+  scanTerrainPatternColor: string;
+  scanTerrainPatternBrightness: number;
+  scanTerrainPatternPersistence: number;
+  scanTerrainFrontWidth: number;
+  scanTerrainFrontColor: string;
+  scanTerrainFrontBrightness: number;
+  scanTerrainTrailColor: string;
+  scanTerrainTrailLength: number;
+  scanTerrainTrailFalloff: number;
   scanGlassEnabled: boolean;
   scanGlassFlutter: number;
   scanGlassFlutterRate: number;
@@ -113,6 +126,28 @@ export class SettingsPanel {
   private readonly terrainDotRadiusM = element<HTMLInputElement>('terrain-dot-radius');
   private readonly terrainDotDensity = element<HTMLInputElement>('terrain-dot-density');
   private readonly terrainColor = element<HTMLInputElement>('terrain-color');
+  private readonly scanTerrainSpeed = element<HTMLInputElement>('scan-terrain-speed');
+  private readonly scanTerrainSpeedValue = element<HTMLOutputElement>('scan-terrain-speed-value');
+  private readonly scanTerrainPattern = element<HTMLSelectElement>('scan-terrain-pattern');
+  private readonly scanTerrainPatternSpacing = element<HTMLInputElement>('scan-terrain-pattern-spacing');
+  private readonly scanTerrainPatternSpacingValue = element<HTMLOutputElement>('scan-terrain-pattern-spacing-value');
+  private readonly scanTerrainPatternSize = element<HTMLInputElement>('scan-terrain-pattern-size');
+  private readonly scanTerrainPatternSizeValue = element<HTMLOutputElement>('scan-terrain-pattern-size-value');
+  private readonly scanTerrainPatternColor = element<HTMLInputElement>('scan-terrain-pattern-color');
+  private readonly scanTerrainPatternBrightness = element<HTMLInputElement>('scan-terrain-pattern-brightness');
+  private readonly scanTerrainPatternBrightnessValue = element<HTMLOutputElement>('scan-terrain-pattern-brightness-value');
+  private readonly scanTerrainPatternPersistence = element<HTMLInputElement>('scan-terrain-pattern-persistence');
+  private readonly scanTerrainPatternPersistenceValue = element<HTMLOutputElement>('scan-terrain-pattern-persistence-value');
+  private readonly scanTerrainFrontWidth = element<HTMLInputElement>('scan-terrain-front-width');
+  private readonly scanTerrainFrontWidthValue = element<HTMLOutputElement>('scan-terrain-front-width-value');
+  private readonly scanTerrainFrontColor = element<HTMLInputElement>('scan-terrain-front-color');
+  private readonly scanTerrainFrontBrightness = element<HTMLInputElement>('scan-terrain-front-brightness');
+  private readonly scanTerrainFrontBrightnessValue = element<HTMLOutputElement>('scan-terrain-front-brightness-value');
+  private readonly scanTerrainTrailColor = element<HTMLInputElement>('scan-terrain-trail-color');
+  private readonly scanTerrainTrailLength = element<HTMLInputElement>('scan-terrain-trail-length');
+  private readonly scanTerrainTrailLengthValue = element<HTMLOutputElement>('scan-terrain-trail-length-value');
+  private readonly scanTerrainTrailFalloff = element<HTMLInputElement>('scan-terrain-trail-falloff');
+  private readonly scanTerrainTrailFalloffValue = element<HTMLOutputElement>('scan-terrain-trail-falloff-value');
   private readonly scanGlassFlutter = element<HTMLInputElement>('scan-glass-flutter');
   private readonly scanGlassFlutterValue = element<HTMLOutputElement>('scan-glass-flutter-value');
   private readonly scanGlassFlutterRate = element<HTMLInputElement>('scan-glass-flutter-rate');
@@ -307,6 +342,19 @@ export class SettingsPanel {
       terrainDotDensityPer100M2: this.terrainDotDensity.valueAsNumber,
       terrainColor: this.terrainColor.value,
       planeColor: this.planeColor.value,
+      scanTerrainSpeed: this.scanTerrainSpeed.valueAsNumber,
+      scanTerrainPattern: this.scanTerrainPattern.value as VisualSettings['scanTerrainPattern'],
+      scanTerrainPatternSpacing: this.scanTerrainPatternSpacing.valueAsNumber,
+      scanTerrainPatternSize: this.scanTerrainPatternSize.valueAsNumber,
+      scanTerrainPatternColor: this.scanTerrainPatternColor.value,
+      scanTerrainPatternBrightness: this.scanTerrainPatternBrightness.valueAsNumber,
+      scanTerrainPatternPersistence: this.scanTerrainPatternPersistence.valueAsNumber,
+      scanTerrainFrontWidth: this.scanTerrainFrontWidth.valueAsNumber,
+      scanTerrainFrontColor: this.scanTerrainFrontColor.value,
+      scanTerrainFrontBrightness: this.scanTerrainFrontBrightness.valueAsNumber,
+      scanTerrainTrailColor: this.scanTerrainTrailColor.value,
+      scanTerrainTrailLength: this.scanTerrainTrailLength.valueAsNumber,
+      scanTerrainTrailFalloff: this.scanTerrainTrailFalloff.valueAsNumber,
       scanGlassEnabled: this.scanGlassEnabled.checked,
       scanGlassFlutter: this.scanGlassFlutter.valueAsNumber,
       scanGlassFlutterRate: this.scanGlassFlutterRate.valueAsNumber,
@@ -443,6 +491,21 @@ export class SettingsPanel {
       this.restoreRange(this.terrainDotDensity, saved.terrainDotDensityPer100M2);
       this.restoreColor(this.terrainColor, this.migrateColor(saved.terrainColor, '#b7bdbb', '#c8c8c8'));
       this.restoreColor(this.planeColor, this.migrateColor(saved.planeColor, '#b7bdbb', '#e6e6e6'));
+      this.restoreRange(this.scanTerrainSpeed, saved.scanTerrainSpeed);
+      if (saved.scanTerrainPattern === 'dot' || saved.scanTerrainPattern === 'plus') {
+        this.scanTerrainPattern.value = saved.scanTerrainPattern;
+      }
+      this.restoreRange(this.scanTerrainPatternSpacing, saved.scanTerrainPatternSpacing);
+      this.restoreRange(this.scanTerrainPatternSize, saved.scanTerrainPatternSize);
+      this.restoreColor(this.scanTerrainPatternColor, saved.scanTerrainPatternColor);
+      this.restoreRange(this.scanTerrainPatternBrightness, saved.scanTerrainPatternBrightness);
+      this.restoreRange(this.scanTerrainPatternPersistence, saved.scanTerrainPatternPersistence);
+      this.restoreRange(this.scanTerrainFrontWidth, saved.scanTerrainFrontWidth);
+      this.restoreColor(this.scanTerrainFrontColor, saved.scanTerrainFrontColor);
+      this.restoreRange(this.scanTerrainFrontBrightness, saved.scanTerrainFrontBrightness);
+      this.restoreColor(this.scanTerrainTrailColor, saved.scanTerrainTrailColor);
+      this.restoreRange(this.scanTerrainTrailLength, saved.scanTerrainTrailLength);
+      this.restoreRange(this.scanTerrainTrailFalloff, saved.scanTerrainTrailFalloff);
       this.restoreColor(this.autopilotGuideColor, saved.autopilotGuideColor);
       this.restoreRange(this.windStreakCount, saved.windStreakCount);
       this.restoreRange(this.windStreakLength, saved.windStreakLength);
@@ -565,6 +628,15 @@ export class SettingsPanel {
     this.dangerSizeFalloffValue.textContent = this.dangerSizeFalloff.valueAsNumber.toFixed(2);
     this.terrainDotRadiusValue.textContent = `${this.terrainDotRadiusM.valueAsNumber.toFixed(2)} M`;
     this.terrainDotDensityValue.textContent = `${this.terrainDotDensity.valueAsNumber.toFixed(2)} / 100 M²`;
+    this.scanTerrainSpeedValue.textContent = `${this.scanTerrainSpeed.valueAsNumber.toFixed(0)} M/S`;
+    this.scanTerrainPatternSpacingValue.textContent = `${this.scanTerrainPatternSpacing.valueAsNumber.toFixed(0)} M`;
+    this.scanTerrainPatternSizeValue.textContent = `${this.scanTerrainPatternSize.valueAsNumber.toFixed(1)} M`;
+    this.scanTerrainPatternBrightnessValue.textContent = this.scanTerrainPatternBrightness.valueAsNumber.toFixed(2);
+    this.scanTerrainPatternPersistenceValue.textContent = `${this.scanTerrainPatternPersistence.valueAsNumber.toFixed(1)} S`;
+    this.scanTerrainFrontWidthValue.textContent = `${this.scanTerrainFrontWidth.valueAsNumber.toFixed(1)} M`;
+    this.scanTerrainFrontBrightnessValue.textContent = this.scanTerrainFrontBrightness.valueAsNumber.toFixed(2);
+    this.scanTerrainTrailLengthValue.textContent = `${this.scanTerrainTrailLength.valueAsNumber.toFixed(0)} M`;
+    this.scanTerrainTrailFalloffValue.textContent = this.scanTerrainTrailFalloff.valueAsNumber.toFixed(2);
     this.windStreakCountValue.textContent = this.windStreakCount.valueAsNumber.toFixed(0);
     this.windStreakLengthValue.textContent = `${this.windStreakLength.valueAsNumber.toFixed(0)} M`;
     this.windSpeedThresholdValue.textContent = `${this.windSpeedThreshold.valueAsNumber.toFixed(0)} M/S`;

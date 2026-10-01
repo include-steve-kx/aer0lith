@@ -5,6 +5,7 @@ import { TerrainManager } from '../src/world/TerrainManager.ts';
 import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 import type { TerrainWorkerRequest, TerrainWorkerResponse } from '../src/world/TerrainWorkerProtocol.ts';
 import { densityLatticeLength } from '../src/world/VolumeMesher.ts';
+import type { VisualSettings } from '../src/ui/SettingsPanel.ts';
 
 class WallTerrain extends ProceduralTerrain {
   override baseDensityAt(x: number): number { return x; }
@@ -221,6 +222,72 @@ test('Pulse beam and traveling electric lights reach both terrain render modes',
   assert.equal(uniforms.uPulseBeamRange.value, 300);
   assert.equal(uniforms.uPulseElectricPower.value, 900);
   assert.equal(uniforms.uPulseElectricRange.value, 90);
+  manager.dispose();
+});
+
+test('terrain scan uses a configurable sparse plus pattern and independent front stripe', () => {
+  const manager = new TerrainManager(new Scene(), new AirTerrain('probe-pattern'));
+  manager.applyVisualSettings({
+    terrainRenderingMode: 'mesh',
+    dangerDistance: 96,
+    dangerSizeMultiplier: 3,
+    dangerSizeFalloff: 1.2,
+    terrainDotRadiusM: 0.14,
+    terrainDotDensityPer100M2: 4,
+    terrainColor: '#c8c8c8',
+    meshColor: '#363d3e',
+    dangerColor: '#ff0000',
+    scanTerrainSpeed: 260,
+    scanTerrainPattern: 'plus',
+    scanTerrainPatternSpacing: 14,
+    scanTerrainPatternSize: 2.2,
+    scanTerrainPatternColor: '#22ccff',
+    scanTerrainPatternBrightness: 1.75,
+    scanTerrainPatternPersistence: 6,
+    scanTerrainFrontWidth: 8,
+    scanTerrainFrontColor: '#44aaff',
+    scanTerrainFrontBrightness: 2.25,
+    scanTerrainTrailColor: '#337799',
+    scanTerrainTrailLength: 180,
+    scanTerrainTrailFalloff: 3.5,
+    pulseTerrainTintWidth: 18,
+    pulseTerrainTintStrength: 0.55,
+  } as VisualSettings);
+  const internal = manager as unknown as {
+    dotMaterial: { uniforms: Record<string, { value: unknown }>; fragmentShader: string };
+  };
+  const { uniforms, fragmentShader } = internal.dotMaterial;
+  assert.equal(uniforms.uProbeSpeed.value, 260);
+  assert.equal(uniforms.uProbePatternType.value, 1);
+  assert.equal(uniforms.uProbePatternSpacing.value, 14);
+  assert.equal(uniforms.uProbePatternSize.value, 2.2);
+  assert.equal((uniforms.uProbePatternColor.value as Color).getHexString(), '22ccff');
+  assert.equal(uniforms.uProbePatternBrightness.value, 1.75);
+  assert.equal(uniforms.uProbeAfterglowDuration.value, 6);
+  assert.equal(uniforms.uProbeFrontWidth.value, 8);
+  assert.equal(uniforms.uProbeLineWidth.value, 1.6,
+    'stripe width does not change the narrow vertex displacement core');
+  assert.equal((uniforms.uProbeFrontColor.value as Color).getHexString(), '44aaff');
+  assert.equal(uniforms.uProbeFrontBrightness.value, 2.25);
+  assert.equal((uniforms.uProbeTrailColor.value as Color).getHexString(), '337799');
+  assert.equal(uniforms.uProbeTrailLength.value, 180);
+  assert.equal(uniforms.uProbeTrailFalloff.value, 3.5);
+  assert.match(fragmentShader, /float scanPattern2d\(vec2 coordinate\)/);
+  assert.match(fragmentShader, /float plusDistanceM = min/);
+  assert.match(fragmentShader, /float patternMask = triplanarScanPattern\(faceNormal\) \* afterglowMask/);
+  assert.match(fragmentShader, /float probeTrailMask\(\)/);
+  assert.match(fragmentShader, /color = mix\(color, trailColor, trailMask\)/);
+  assert.doesNotMatch(fragmentShader, /probeSurfaceMix|meshReveal|dotReveal/,
+    'the bounded trail does not restore the old whole-volume reveal');
+
+  manager.triggerProbe(new Vector3());
+  manager.updateProbe(1, new Vector3());
+  assert.equal(manager.currentProbeRadius, 260, 'configured scan speed drives propagation');
+  manager.updateProbe(10, new Vector3());
+  manager.updateProbe(4, new Vector3());
+  assert.equal(manager.isProbeActive, true, 'configured marker persistence outlives the former fixed duration');
+  manager.updateProbe(2.1, new Vector3());
+  assert.equal(manager.isProbeActive, false);
   manager.dispose();
 });
 

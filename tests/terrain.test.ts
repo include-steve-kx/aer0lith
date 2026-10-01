@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Scene, Vector3 } from 'three';
-import { TERRAIN } from '../src/core/config.ts';
+import { PROBE, TERRAIN } from '../src/core/config.ts';
 import { hashString, SeededNoise } from '../src/world/Noise.ts';
 import { dotSpacingFromDensity, TerrainManager } from '../src/world/TerrainManager.ts';
 import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
@@ -113,13 +113,13 @@ test('terrain chunk recycling and probe state stay bounded', () => {
 
   manager.triggerProbe(new Vector3());
   manager.updateProbe(0.5, origin);
-  assert.equal(manager.currentProbeRadius, 80);
+  assert.equal(manager.currentProbeRadius, PROBE.speed * 0.5);
   assert.equal(manager.isProbeActive, true);
   manager.updateProbe(10, origin);
   assert.equal(manager.currentProbeRadius, 720);
   assert.equal(manager.isProbeExpanding, false);
   assert.equal(manager.isProbeActive, true);
-  manager.updateProbe(3.6, origin);
+  manager.updateProbe(PROBE.afterglowDuration + 0.1, origin);
   assert.equal(manager.isProbeActive, false);
 });
 
