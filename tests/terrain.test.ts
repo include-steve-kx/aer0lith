@@ -100,7 +100,7 @@ test('collision interpolation matches the polygonizer tetrahedral field', () => 
 test('terrain chunk recycling and probe state stay bounded', () => {
   const scene = new Scene();
   const terrain = new ProceduralTerrain('mesh-pool');
-  const manager = new TerrainManager(scene, terrain);
+  const manager = new TerrainManager(scene, terrain, { synchronousBudget: Number.POSITIVE_INFINITY });
   const origin = new Vector3();
   const expectedCount = TERRAIN.columns * TERRAIN.verticalLayers * TERRAIN.rows;
 
@@ -121,6 +121,32 @@ test('terrain chunk recycling and probe state stay bounded', () => {
   assert.equal(manager.isProbeActive, true);
   manager.updateProbe(3.6, origin);
   assert.equal(manager.isProbeActive, false);
+});
+
+test('active terrain chunks remesh in place at the latest coalesced carve revision', () => {
+  class WallTerrain extends ProceduralTerrain {
+    override baseDensityAt(x: number): number { return x; }
+  }
+  const scene = new Scene();
+  const terrain = new WallTerrain('remesh-in-place');
+  const manager = new TerrainManager(scene, terrain, { synchronousBudget: Number.POSITIVE_INFINITY });
+  const position = new Vector3();
+  manager.update(position, position);
+  const active = (manager as unknown as { active: Map<string, { revision: number }> }).active;
+  const chunk = active.get('0,0,0');
+  assert.ok(chunk);
+  const initialRevision = chunk.revision;
+
+  assert.equal(manager.applyPulseCarve(new Vector3(-8, 0, -20), new Vector3(-8, 0, 20), 16).applied, true);
+  assert.equal(manager.applyPulseCarve(new Vector3(-8, 20, -20), new Vector3(-8, 20, 20), 16).applied, true);
+  assert.equal(chunk.revision, initialRevision, 'old visible mesh stays installed until regeneration');
+  assert.ok(manager.generationStats.coalescedRequests > 0);
+
+  manager.update(position, position);
+  assert.equal(active.get('0,0,0'), chunk);
+  assert.ok(chunk.revision > initialRevision);
+  assert.equal(manager.generationStats.queued, 0);
+  manager.dispose();
 });
 
 test('route center has meaningful absolute altitude variation', () => {

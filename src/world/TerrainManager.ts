@@ -14,11 +14,18 @@ import {
 import { PALETTE, PROBE, TERRAIN } from '../core/config.ts';
 import type { VisualSettings } from '../ui/SettingsPanel.ts';
 import type { ProceduralTerrain } from './TerrainModel.ts';
+import { applyCarveSnapshotToLattice, type TerrainCarveResult } from './TerrainCarve.ts';
+import type { TerrainWorkerRequest, TerrainWorkerResponse } from './TerrainWorkerProtocol.ts';
 import {
+  densityLatticeLength,
   Float32MeshBuffer,
-  polygonizeDensityChunk,
+  latticeMaximum,
+  polygonizeDensityLattice,
+  sampleDensityLattice,
   type VolumeChunkCoordinate,
 } from './VolumeMesher.ts';
+
+const MAX_CARVE_MASKS = 8;
 
 /** Converts projected dots per 100 m² into shader-grid spacing in meters. */
 export function dotSpacingFromDensity(densityPer100M2: number): number {
@@ -33,6 +40,7 @@ class TerrainChunk {
   worldCX = Number.NaN;
   worldCY = Number.NaN;
   worldCZ = Number.NaN;
+  revision = 0;
   active = false;
 
   constructor(terrainMaterial: ShaderMaterial) {
@@ -53,11 +61,13 @@ class TerrainChunk {
     worldCZ: number,
     origin: Vector3,
     vertices: Float32Array,
+    revision: number,
   ): void {
     this.worldCX = worldCX;
     this.worldCY = worldCY;
     this.worldCZ = worldCZ;
     this.active = true;
+    this.revision = revision;
     this.group.visible = true;
     this.updateRenderPosition(origin);
 
@@ -97,9 +107,19 @@ class TerrainChunk {
     this.group.visible = false;
     this.mesh.visible = false;
   }
+
+  advanceRevision(revision: number): void {
+    this.revision = Math.max(this.revision, revision);
+  }
+
+  dispose(): void {
+    this.geometry.dispose();
+  }
 }
 
 function createTerrainMaterial(): ShaderMaterial {
+  const carveStarts = Array.from({ length: MAX_CARVE_MASKS }, () => new Vector3());
+  const carveEnds = Array.from({ length: MAX_CARVE_MASKS }, () => new Vector3());
   return new ShaderMaterial({
     uniforms: {
       uAircraftPosition: { value: new Vector3() },
@@ -128,6 +148,10 @@ function createTerrainMaterial(): ShaderMaterial {
       uProbeColor: { value: new Color(PROBE.color) },
       fogColor: { value: new Color(PALETTE.fog) },
       fogDensity: { value: 0.00165 },
+      uCarveMaskCount: { value: 0 },
+      uCarveStarts: { value: carveStarts },
+      uCarveEnds: { value: carveEnds },
+      uCarveRadiusSquared: { value: new Float32Array(MAX_CARVE_MASKS) },
     },
     side: DoubleSide,
     transparent: false,
@@ -205,10 +229,22 @@ function createTerrainMaterial(): ShaderMaterial {
       uniform float uProbeSpeed;
       uniform float uProbeAfterglowDuration;
       uniform vec3 uProbeColor;
+      uniform float uCarveMaskCount;
+      uniform vec3 uCarveStarts[8];
+      uniform vec3 uCarveEnds[8];
+      uniform float uCarveRadiusSquared[8];
       varying vec3 vTerrainWorldPosition;
       varying float vAlert;
       varying float vProbeInfluence;
       varying float vProbeCore;
+
+      float segmentDistanceSquared(vec3 p, vec3 a, vec3 b) {
+        vec3 ab = b - a;
+        float denominator = dot(ab, ab);
+        float t = denominator > 0.000001 ? clamp(dot(p - a, ab) / denominator, 0.0, 1.0) : 0.0;
+        vec3 delta = p - (a + ab * t);
+        return dot(delta, delta);
+      }
 
       float latticeDot(vec2 coordinate, float radiusM) {
         vec2 gridCoord = coordinate / max(uDotSpacingM, 0.0001);
@@ -268,6 +304,11 @@ function createTerrainMaterial(): ShaderMaterial {
       }
 
       void main() {
+        for (int i = 0; i < 8; i++) {
+          if (float(i) >= uCarveMaskCount) break;
+          if (segmentDistanceSquared(vTerrainWorldPosition, uCarveStarts[i], uCarveEnds[i])
+            <= uCarveRadiusSquared[i]) discard;
+        }
         vec3 faceNormal = normalize(cross(dFdx(vTerrainWorldPosition), dFdy(vTerrainWorldPosition)));
         if (!gl_FrontFacing) faceNormal = -faceNormal;
         vec3 lightDirection = normalize(vec3(-0.42, 0.82, -0.38));
@@ -336,17 +377,34 @@ interface ChunkGenerationRequest {
   key: string;
   chunk: VolumeChunkCoordinate;
   priority: number;
+  revision: number;
+  carve: boolean;
 }
 
-interface ChunkGenerationResponse {
-  requestId: number;
+interface InFlightRequest {
+  key: string;
   chunk: VolumeChunkCoordinate;
-  vertices: ArrayBuffer;
+  revision: number;
 }
 
 interface TerrainWorkerSlot {
   worker: Worker;
   busy: boolean;
+  requestId?: number;
+}
+
+interface CompletedChunkResult {
+  key: string;
+  chunk: VolumeChunkCoordinate;
+  revision: number;
+  vertices: Float32Array;
+}
+
+interface PendingCarveMask {
+  readonly start: Vector3;
+  readonly end: Vector3;
+  readonly radius: number;
+  readonly requiredByKey: Map<string, number>;
 }
 
 export class TerrainManager {
@@ -358,9 +416,16 @@ export class TerrainManager {
   private readonly chunks: TerrainChunk[];
   private readonly active = new Map<string, TerrainChunk>();
   private readonly workers: TerrainWorkerSlot[] = [];
-  private readonly queuedKeys = new Set<string>();
-  private readonly inFlight = new Map<number, string>();
+  private readonly queuedByKey = new Map<string, ChunkGenerationRequest>();
+  private readonly inFlight = new Map<number, InFlightRequest>();
+  private readonly inFlightByKey = new Map<string, number>();
+  private readonly requiredRevisionByKey = new Map<string, number>();
+  private readonly baseDensityByKey = new Map<string, Float32Array>();
+  private readonly baseMaximumByKey = new Map<string, number>();
   private readonly syncBuffer = new Float32MeshBuffer();
+  private readonly syncCarvedDensity = new Float32Array(densityLatticeLength());
+  private readonly completedResults: CompletedChunkResult[] = [];
+  private readonly pendingCarveMasks: PendingCarveMask[] = [];
   private generationQueue: ChunkGenerationRequest[] = [];
   private desiredKeys = new Set<string>();
   private readonly currentRenderOrigin = new Vector3();
@@ -373,8 +438,16 @@ export class TerrainManager {
   private lastCenterX = Number.NaN;
   private lastCenterY = Number.NaN;
   private lastCenterZ = Number.NaN;
+  private readonly synchronousBudget: number;
+  private disposed = false;
+  private staleResultCount = 0;
+  private coalescedRequestCount = 0;
 
-  constructor(scene: Scene, terrain: ProceduralTerrain) {
+  constructor(
+    scene: Scene,
+    terrain: ProceduralTerrain,
+    options: { synchronousBudget?: number } = {},
+  ) {
     this.terrain = terrain;
     this.dotMaterial = createTerrainMaterial();
     this.meshMaterial = this.dotMaterial.clone();
@@ -382,6 +455,7 @@ export class TerrainManager {
     this.meshMaterial.uniforms = this.dotMaterial.uniforms;
     this.meshMaterial.needsUpdate = true;
     this.terrainMaterial = this.dotMaterial;
+    this.synchronousBudget = Math.max(1, options.synchronousBudget ?? 1);
 
     const supportsWorkers = typeof Worker !== 'undefined';
     // One spare Z slab lets newly generated terrain become visible before the
@@ -402,58 +476,74 @@ export class TerrainManager {
           worker: new Worker(new URL('./TerrainWorker.ts', import.meta.url), { type: 'module' }),
           busy: false,
         };
-        slot.worker.onmessage = (event: MessageEvent<ChunkGenerationResponse>): void => {
+        slot.worker.onmessage = (event: MessageEvent<TerrainWorkerResponse>): void => {
           this.acceptWorkerResult(slot, event.data);
         };
+        slot.worker.onerror = (): void => this.handleWorkerFailure(slot);
+        slot.worker.onmessageerror = (): void => this.handleWorkerFailure(slot);
         this.workers.push(slot);
       }
     }
   }
 
   update(worldPosition: Vector3, renderOrigin: Vector3): void {
+    if (this.disposed) return;
     this.currentRenderOrigin.copy(renderOrigin);
+    this.drainCompletedResults();
+    this.retireSettledCarveMasks();
     const centerX = Math.floor(worldPosition.x / TERRAIN.chunkSize);
     const centerY = Math.floor(worldPosition.y / TERRAIN.chunkSize);
     const centerZ = Math.floor(worldPosition.z / TERRAIN.chunkSize);
-    if (
+    const centerChanged = !(
       centerX === this.lastCenterX
       && centerY === this.lastCenterY
       && centerZ === this.lastCenterZ
-    ) return;
-    this.lastCenterX = centerX;
-    this.lastCenterY = centerY;
-    this.lastCenterZ = centerZ;
+    );
+    if (centerChanged) {
+      this.lastCenterX = centerX;
+      this.lastCenterY = centerY;
+      this.lastCenterZ = centerZ;
 
-    const desired: ChunkGenerationRequest[] = [];
-    const verticalHalf = Math.floor(TERRAIN.verticalLayers / 2);
-    for (let dz = -TERRAIN.rowsBehind; dz < TERRAIN.rows - TERRAIN.rowsBehind; dz += 1) {
-      for (let dy = -verticalHalf; dy <= verticalHalf; dy += 1) {
-        for (let dx = -Math.floor(TERRAIN.columns / 2); dx <= Math.floor(TERRAIN.columns / 2); dx += 1) {
-          const chunk = { x: centerX + dx, y: centerY + dy, z: centerZ + dz };
-          desired.push({
-            key: `${chunk.x},${chunk.y},${chunk.z}`,
-            chunk,
-            // Populate the immediate flight envelope first, with a slight bias
-            // toward terrain in front of the aircraft.
-            priority: dx * dx + dy * dy * 1.35 + dz * dz * 0.72 - (dz > 0 ? 0.2 : 0),
-          });
+      const desired: ChunkGenerationRequest[] = [];
+      const verticalHalf = Math.floor(TERRAIN.verticalLayers / 2);
+      for (let dz = -TERRAIN.rowsBehind; dz < TERRAIN.rows - TERRAIN.rowsBehind; dz += 1) {
+        for (let dy = -verticalHalf; dy <= verticalHalf; dy += 1) {
+          for (let dx = -Math.floor(TERRAIN.columns / 2); dx <= Math.floor(TERRAIN.columns / 2); dx += 1) {
+            const chunk = { x: centerX + dx, y: centerY + dy, z: centerZ + dz };
+            desired.push({
+              key: chunkKey(chunk),
+              chunk,
+              // Populate the immediate flight envelope first, with a slight bias
+              // toward terrain in front of the aircraft.
+              priority: dx * dx + dy * dy * 1.35 + dz * dz * 0.72 - (dz > 0 ? 0.2 : 0),
+              revision: this.terrain.carveRevisionForChunk(chunk),
+              carve: false,
+            });
+          }
         }
       }
-    }
-    desired.sort((a, b) => a.priority - b.priority);
-    this.desiredKeys = new Set(desired.map(({ key }) => key));
-    this.generationQueue = this.generationQueue.filter(({ key }) => this.desiredKeys.has(key));
-    this.queuedKeys.clear();
-    for (const request of this.generationQueue) this.queuedKeys.add(request.key);
-
-    for (const request of desired) {
-      if (
-        this.active.has(request.key)
-        || this.queuedKeys.has(request.key)
-        || [...this.inFlight.values()].includes(request.key)
-      ) continue;
-      this.generationQueue.push(request);
-      this.queuedKeys.add(request.key);
+      desired.sort((a, b) => a.priority - b.priority);
+      this.desiredKeys = new Set(desired.map(({ key }) => key));
+      this.generationQueue = this.generationQueue.filter(({ key }) => this.desiredKeys.has(key));
+      this.rebuildQueuedIndex();
+      for (const key of this.requiredRevisionByKey.keys()) {
+        if (!this.desiredKeys.has(key) && !this.inFlightByKey.has(key)) {
+          this.requiredRevisionByKey.delete(key);
+        }
+      }
+      for (const key of this.baseDensityByKey.keys()) {
+        if (!this.desiredKeys.has(key) && !this.active.has(key) && !this.inFlightByKey.has(key)) {
+          this.baseDensityByKey.delete(key);
+          this.baseMaximumByKey.delete(key);
+        }
+      }
+      for (const request of desired) {
+        this.requiredRevisionByKey.set(request.key, request.revision);
+        const active = this.active.get(request.key);
+        if (active && active.revision >= request.revision) continue;
+        if (this.inFlightByKey.has(request.key)) continue;
+        this.enqueue(request);
+      }
     }
 
     if (this.workers.length === 0) this.generateSynchronously();
@@ -461,13 +551,29 @@ export class TerrainManager {
   }
 
   private generateSynchronously(): void {
-    for (const request of this.generationQueue) {
-      polygonizeDensityChunk(request.chunk, this.terrain, this.syncBuffer);
+    let generated = 0;
+    while (generated < this.synchronousBudget) {
+      const request = this.generationQueue.shift();
+      if (!request) break;
+      this.queuedByKey.delete(request.key);
+      let baseDensity = this.baseDensityByKey.get(request.key);
+      if (!baseDensity) {
+        baseDensity = sampleDensityLattice(request.chunk, {
+          densityAt: this.terrain.baseDensityAt.bind(this.terrain),
+        });
+        this.baseDensityByKey.set(request.key, baseDensity);
+        this.baseMaximumByKey.set(request.key, latticeMaximum(baseDensity));
+        this.terrain.primeCollisionBaseLattice(request.chunk, baseDensity);
+      }
+      const carves = this.terrain.carveSnapshotForChunk(request.chunk);
+      const density = carves.length === 0 ? baseDensity : applyCarveSnapshotToLattice(
+        request.chunk, baseDensity, carves, this.syncCarvedDensity,
+      );
+      polygonizeDensityLattice(density, this.syncBuffer);
       const vertices = this.syncBuffer.data.slice(0, this.syncBuffer.length);
-      this.installGeneratedChunk(request.key, request.chunk, vertices);
+      this.installGeneratedChunk(request.key, request.chunk, vertices, request.revision);
+      generated += 1;
     }
-    this.generationQueue = [];
-    this.queuedKeys.clear();
     this.releaseRetiredChunks();
   }
 
@@ -476,53 +582,132 @@ export class TerrainManager {
       if (slot.busy) continue;
       const request = this.generationQueue.shift();
       if (!request) break;
-      this.queuedKeys.delete(request.key);
+      this.queuedByKey.delete(request.key);
       const requestId = this.nextRequestId;
       this.nextRequestId += 1;
       slot.busy = true;
-      this.inFlight.set(requestId, request.key);
-      slot.worker.postMessage({
+      slot.requestId = requestId;
+      this.inFlight.set(requestId, {
+        key: request.key,
+        chunk: request.chunk,
+        revision: request.revision,
+      });
+      this.inFlightByKey.set(request.key, requestId);
+      const carves = this.terrain.carveSnapshotForChunk(request.chunk);
+      const baseDensity = this.baseDensityByKey.get(request.key);
+      if (baseDensity) this.baseDensityByKey.delete(request.key);
+      const message: TerrainWorkerRequest = {
         requestId,
         seed: this.terrain.seedText,
         chunk: request.chunk,
-      });
+        revision: request.revision,
+        carves,
+        baseDensity,
+      };
+      const transfer: Transferable[] = [carves.buffer];
+      if (baseDensity) transfer.push(baseDensity.buffer);
+      slot.worker.postMessage(message, transfer);
     }
   }
 
   private paused = false;
-  private readonly deferredResults: Array<[TerrainWorkerSlot, ChunkGenerationResponse]> = [];
+  private readonly deferredResults: Array<[TerrainWorkerSlot, TerrainWorkerResponse]> = [];
 
   setPaused(paused: boolean): void {
     this.paused = paused;
     if (!paused) {
       for (const [slot, response] of this.deferredResults.splice(0)) this.acceptWorkerResult(slot, response);
+      this.drainCompletedResults();
     }
   }
 
-  private acceptWorkerResult(slot: TerrainWorkerSlot, response: ChunkGenerationResponse): void {
+  private acceptWorkerResult(slot: TerrainWorkerSlot, response: TerrainWorkerResponse): void {
+    if (this.disposed) return;
     if (this.paused) {
       this.deferredResults.push([slot, response]);
       return;
     }
+    const expectedRequestId = slot.requestId;
     slot.busy = false;
-    const key = this.inFlight.get(response.requestId);
-    this.inFlight.delete(response.requestId);
-    if (key && this.desiredKeys.has(key) && !this.active.has(key)) {
-      this.installGeneratedChunk(
-        key,
-        response.chunk,
-        new Float32Array(response.vertices),
-      );
+    slot.requestId = undefined;
+    const request = expectedRequestId === undefined
+      ? undefined
+      : this.inFlight.get(expectedRequestId);
+    if (expectedRequestId !== undefined) this.inFlight.delete(expectedRequestId);
+    if (request) this.inFlightByKey.delete(request.key);
+    const valid = request
+      && response
+      && response.requestId === expectedRequestId
+      && response.chunk
+      && response.chunk.x === request.chunk.x
+      && response.chunk.y === request.chunk.y
+      && response.chunk.z === request.chunk.z
+      && response.revision === request.revision
+      && response.vertices instanceof ArrayBuffer
+      && response.vertices.byteLength % (Float32Array.BYTES_PER_ELEMENT * 3) === 0
+      && response.vertices.byteLength <= maximumChunkVertexBytes()
+      && response.baseDensity instanceof ArrayBuffer
+      && response.baseDensity.byteLength === densityLatticeLength() * Float32Array.BYTES_PER_ELEMENT
+      && Number.isFinite(response.baseMaximum);
+    if (valid && this.desiredKeys.has(request.key)) {
+      const baseDensity = new Float32Array(response.baseDensity);
+      this.baseDensityByKey.set(request.key, baseDensity);
+      this.baseMaximumByKey.set(request.key, response.baseMaximum);
+      this.terrain.primeCollisionBaseLattice(response.chunk, baseDensity);
+      const requiredRevision = this.requiredRevisionByKey.get(request.key) ?? 0;
+      if (response.revision >= requiredRevision) {
+        this.completedResults.push({
+          key: request.key,
+          chunk: response.chunk,
+          revision: response.revision,
+          vertices: new Float32Array(response.vertices),
+        });
+      } else {
+        this.staleResultCount += 1;
+        this.enqueueLatest(request.key, request.chunk, true);
+      }
+    } else if (request && this.desiredKeys.has(request.key)) {
+      this.enqueueLatest(request.key, request.chunk, true);
     }
     this.releaseRetiredChunks();
     this.dispatchWorkers();
+  }
+
+  /** Install at most one completed geometry per update. */
+  private drainCompletedResults(): void {
+    while (this.completedResults.length > 0) {
+      const result = this.completedResults.shift()!;
+      if (!this.desiredKeys.has(result.key)) continue;
+      const requiredRevision = this.requiredRevisionByKey.get(result.key) ?? 0;
+      if (result.revision < requiredRevision) {
+        this.staleResultCount += 1;
+        if (!this.inFlightByKey.has(result.key)) this.enqueueLatest(result.key, result.chunk, true);
+        continue;
+      }
+      this.installGeneratedChunk(result.key, result.chunk, result.vertices, result.revision);
+      this.releaseRetiredChunks();
+      break;
+    }
   }
 
   private installGeneratedChunk(
     key: string,
     coordinate: VolumeChunkCoordinate,
     vertices: Float32Array,
+    revision: number,
   ): void {
+    const activeChunk = this.active.get(key);
+    if (activeChunk) {
+      activeChunk.assignGenerated(
+        coordinate.x,
+        coordinate.y,
+        coordinate.z,
+        this.currentRenderOrigin,
+        vertices,
+        revision,
+      );
+      return;
+    }
     let chunk = this.chunks.find((candidate) => !candidate.active);
     if (!chunk) {
       const retiredEntry = [...this.active.entries()].find(([activeKey]) => (
@@ -540,8 +725,137 @@ export class TerrainManager {
       coordinate.z,
       this.currentRenderOrigin,
       vertices,
+      revision,
     );
     this.active.set(key, chunk);
+  }
+
+  get canAcceptPulseCarve(): boolean {
+    if (this.disposed) return false;
+    this.retireSettledCarveMasks();
+    return this.pendingCarveMasks.length < MAX_CARVE_MASKS;
+  }
+
+  applyPulseCarve(start: Vector3, end: Vector3, radius: number): TerrainCarveResult {
+    if (this.disposed || this.pendingCarveMasks.length >= MAX_CARVE_MASKS) {
+      return { applied: false, affectedChunks: [] };
+    }
+    const result = this.terrain.applyCarveCapsule(start, end, radius);
+    if (!result.applied) return result;
+    const requiredByKey = new Map<string, number>();
+    for (const chunk of result.affectedChunks) {
+      const key = chunkKey(chunk);
+      const revision = this.terrain.carveRevisionForChunk(chunk);
+      if (this.desiredKeys.has(key)) {
+        this.requiredRevisionByKey.set(key, revision);
+        const active = this.active.get(key);
+        if (active) requiredByKey.set(key, revision);
+        if (active && (this.baseMaximumByKey.get(key) ?? 0) < 0) {
+          active.advanceRevision(revision);
+          continue;
+        }
+        if (!this.inFlightByKey.has(key)) {
+          const cx = (chunk.x + 0.5) * TERRAIN.chunkSize;
+          const cy = (chunk.y + 0.5) * TERRAIN.chunkSize;
+          const cz = (chunk.z + 0.5) * TERRAIN.chunkSize;
+          const distance = Math.hypot(cx - start.x, cy - start.y, cz - start.z);
+          this.enqueue({ key, chunk, priority: -10_000 + distance * 0.001, revision, carve: true });
+        }
+      }
+    }
+    if (requiredByKey.size > 0) {
+      this.pendingCarveMasks.push({
+        start: start.clone(), end: end.clone(), radius, requiredByKey,
+      });
+      this.syncCarveMaskUniforms();
+    }
+    if (this.workers.length > 0) this.dispatchWorkers();
+    return result;
+  }
+
+  private enqueue(request: ChunkGenerationRequest): void {
+    const queued = this.queuedByKey.get(request.key);
+    if (queued) {
+      queued.priority = Math.min(queued.priority, request.priority);
+      queued.revision = Math.max(queued.revision, request.revision);
+      queued.carve ||= request.carve;
+      this.coalescedRequestCount += 1;
+    } else {
+      this.generationQueue.push(request);
+      this.queuedByKey.set(request.key, request);
+    }
+    this.generationQueue.sort((a, b) => (
+      Number(b.carve) - Number(a.carve) || a.priority - b.priority
+    ));
+  }
+
+  private enqueueLatest(key: string, chunk: VolumeChunkCoordinate, carve: boolean): void {
+    this.enqueue({
+      key,
+      chunk,
+      priority: carve ? -10_000 : 0,
+      revision: this.requiredRevisionByKey.get(key) ?? this.terrain.carveRevisionForChunk(chunk),
+      carve,
+    });
+  }
+
+  private rebuildQueuedIndex(): void {
+    this.queuedByKey.clear();
+    for (const request of this.generationQueue) this.queuedByKey.set(request.key, request);
+  }
+
+  private handleWorkerFailure(slot: TerrainWorkerSlot): void {
+    if (this.disposed) return;
+    const index = this.workers.indexOf(slot);
+    if (index < 0) return;
+    const requestId = slot.requestId;
+    const request = requestId === undefined ? undefined : this.inFlight.get(requestId);
+    if (requestId !== undefined && request) {
+      this.inFlight.delete(requestId);
+      this.inFlightByKey.delete(request.key);
+      if (this.desiredKeys.has(request.key)) this.enqueueLatest(request.key, request.chunk, true);
+    }
+    for (let deferred = this.deferredResults.length - 1; deferred >= 0; deferred -= 1) {
+      if (this.deferredResults[deferred][0] === slot) this.deferredResults.splice(deferred, 1);
+    }
+    slot.worker.terminate();
+    this.workers.splice(index, 1);
+    if (this.workers.length === 0) this.generateSynchronously();
+    else this.dispatchWorkers();
+  }
+
+  private retireSettledCarveMasks(): void {
+    let changed = false;
+    for (let index = this.pendingCarveMasks.length - 1; index >= 0; index -= 1) {
+      const mask = this.pendingCarveMasks[index];
+      const settled = [...mask.requiredByKey].every(([key, revision]) => (
+        !this.desiredKeys.has(key) || (this.active.get(key)?.revision ?? -1) >= revision
+      ));
+      if (!settled) continue;
+      this.pendingCarveMasks.splice(index, 1);
+      changed = true;
+    }
+    if (changed) this.syncCarveMaskUniforms();
+  }
+
+  private syncCarveMaskUniforms(): void {
+    const uniforms = this.dotMaterial.uniforms;
+    const starts = uniforms.uCarveStarts.value as Vector3[];
+    const ends = uniforms.uCarveEnds.value as Vector3[];
+    const radiusSquared = uniforms.uCarveRadiusSquared.value as Float32Array;
+    uniforms.uCarveMaskCount.value = this.pendingCarveMasks.length;
+    for (let index = 0; index < MAX_CARVE_MASKS; index += 1) {
+      const mask = this.pendingCarveMasks[index];
+      if (mask) {
+        starts[index].copy(mask.start).sub(this.currentRenderOrigin);
+        ends[index].copy(mask.end).sub(this.currentRenderOrigin);
+        radiusSquared[index] = mask.radius * mask.radius;
+      } else {
+        starts[index].set(0, 0, 0);
+        ends[index].set(0, 0, 0);
+        radiusSquared[index] = 0;
+      }
+    }
   }
 
   private releaseRetiredChunks(): void {
@@ -558,6 +872,7 @@ export class TerrainManager {
   updateRenderOrigin(origin: Vector3): void {
     this.currentRenderOrigin.copy(origin);
     for (const chunk of this.active.values()) chunk.updateRenderPosition(origin);
+    this.syncCarveMaskUniforms();
   }
 
   updateBoostLight(position: Vector3, color: Color, intensity: number): void {
@@ -647,4 +962,57 @@ export class TerrainManager {
   get currentProbeWorldCenter(): Vector3 {
     return this.probeWorldCenter;
   }
+
+  get generationStats(): Readonly<{
+    queued: number;
+    inFlight: number;
+    ready: number;
+    staleResults: number;
+    coalescedRequests: number;
+    carveEvents: number;
+    carveIndexReferences: number;
+    carveMasks: number;
+  }> {
+    return {
+      queued: this.generationQueue.length,
+      inFlight: this.inFlight.size,
+      ready: this.completedResults.length,
+      staleResults: this.staleResultCount,
+      coalescedRequests: this.coalescedRequestCount,
+      carveEvents: this.terrain.carveEventCount,
+      carveIndexReferences: this.terrain.carveIndexReferenceCount,
+      carveMasks: this.pendingCarveMasks.length,
+    };
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const slot of this.workers) slot.worker.terminate();
+    this.workers.length = 0;
+    this.generationQueue.length = 0;
+    this.queuedByKey.clear();
+    this.inFlight.clear();
+    this.inFlightByKey.clear();
+    this.requiredRevisionByKey.clear();
+    this.baseDensityByKey.clear();
+    this.baseMaximumByKey.clear();
+    this.completedResults.length = 0;
+    this.pendingCarveMasks.length = 0;
+    this.deferredResults.length = 0;
+    for (const chunk of this.chunks) chunk.dispose();
+    this.dotMaterial.dispose();
+    this.meshMaterial.dispose();
+    this.group.removeFromParent();
+  }
+}
+
+function chunkKey(chunk: VolumeChunkCoordinate): string {
+  return `${chunk.x},${chunk.y},${chunk.z}`;
+}
+
+function maximumChunkVertexBytes(): number {
+  const cells = TERRAIN.segments ** 3;
+  const maximumVertices = cells * 6 * 2 * 3;
+  return maximumVertices * 3 * Float32Array.BYTES_PER_ELEMENT;
 }
