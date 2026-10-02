@@ -196,6 +196,8 @@
             </label>
             <label for="boost-exhaust-strength"><span>EXHAUST + LIGHT</span><output id="boost-exhaust-strength-value">2</output></label>
             <input id="boost-exhaust-strength" type="range" min="0" max="4" step="0.05" value="2" />
+            <label for="boost-idle-amount"><span>DEFAULT VISUAL BOOST</span><output id="boost-idle-amount-value">20%</output></label>
+            <input id="boost-idle-amount" type="range" min="0" max="1" step="0.01" value="0.2" />
             <label for="boost-exhaust-length"><span>EXHAUST LENGTH</span><output id="boost-exhaust-length-value">54 M</output></label>
             <input id="boost-exhaust-length" type="range" min="5" max="120" step="1" value="54" />
             <label for="boost-exhaust-width"><span>EXHAUST WIDTH</span><output id="boost-exhaust-width-value">0.45×</output></label>
@@ -229,6 +231,13 @@
             <input id="boost-shake-strength" type="range" min="0" max="2" step="0.05" value="1.3" />
             <label for="boost-shake-frequency"><span>SHAKE FREQUENCY</span><output id="boost-shake-frequency-value">20 HZ</output></label>
             <input id="boost-shake-frequency" type="range" min="4" max="30" step="1" value="20" />
+            <h3>BOOST WING FOLD</h3>
+            <label for="wing-sweep-back"><span>BACKWARD TURN</span><output id="wing-sweep-back-value">28°</output></label>
+            <input id="wing-sweep-back" type="range" min="0" max="60" step="1" value="28" />
+            <label for="wing-tuck-in"><span>CENTERWARD TURN</span><output id="wing-tuck-in-value">18°</output></label>
+            <input id="wing-tuck-in" type="range" min="0" max="45" step="1" value="18" />
+            <label for="wing-fold-speed"><span>ANIMATION SPEED</span><output id="wing-fold-speed-value">1.00×</output></label>
+            <input id="wing-fold-speed" type="range" min="0.1" max="4" step="0.05" value="1" />
             <h3>SIDE WAKES</h3>
             <label class="toggle-setting" for="wing-warp-enabled">
               <span>SIDE WAKE SHEETS</span><input id="wing-warp-enabled" type="checkbox" checked />

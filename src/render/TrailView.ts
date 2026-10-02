@@ -10,6 +10,7 @@ import {
 } from 'three';
 import { TRAIL_ANCHORS } from '../core/aircraftGeometry.ts';
 import { PALETTE } from '../core/config.ts';
+import { WingPose } from '../flight/WingPose.ts';
 
 const MAX_POINTS = 512;
 const MAX_TRAIL_DISTANCE = 360;
@@ -20,6 +21,7 @@ export interface TrailSample {
   across: Vector3;
   left: Vector3;
   right: Vector3;
+  rootHeight: number;
   distance: number;
   up: Vector3;
 }
@@ -32,13 +34,15 @@ export class TrailView {
   private readonly strengths = ANCHORS.map(() => new Float32Array(MAX_POINTS));
   private readonly samples: TrailSample[] = [];
   private readonly lastPoint = new Vector3(Number.POSITIVE_INFINITY, 0, 0);
+  private readonly wings: WingPose;
   private distanceTravelled = 0;
   private hasLiveHead = false;
   revision = 0;
 
   get pathSamples(): readonly TrailSample[] { return this.samples; }
 
-  constructor() {
+  constructor(wings = new WingPose()) {
+    this.wings = wings;
     this.material = new ShaderMaterial({
       uniforms: {
         uBright: { value: new Color(PALETTE.offWhite) },
@@ -100,13 +104,16 @@ export class TrailView {
     }
     this.hasLiveHead = !commit;
     const headDistance = this.distanceTravelled + (commit ? 0 : distance);
-    const tips = ANCHORS.map(anchor => anchor.clone().applyQuaternion(orientation).add(worldPosition));
+    const tips = this.wings.trailAnchors.map(anchor => anchor.clone().applyQuaternion(orientation).add(worldPosition));
     // Side sheets span the upper/lower trails, with one sheet per wing pair.
     const left = tips[0].clone().lerp(tips[1], 0.5);
     const right = tips[2].clone().lerp(tips[3], 0.5);
-    this.samples.push({ tips, left, right, distance: headDistance,
-      across: new Vector3(1, 0, 0).applyQuaternion(orientation),
-      up: new Vector3(0, 1, 0).applyQuaternion(orientation) });
+    const up = tips[1].clone().sub(tips[0]);
+    const rootHeight = up.length();
+    if (rootHeight > 1e-8) up.divideScalar(rootHeight);
+    else up.set(0, 1, 0).applyQuaternion(orientation);
+    this.samples.push({ tips, left, right, rootHeight, distance: headDistance,
+      across: right.clone().sub(left).normalize(), up });
     while (
       this.samples.length > 1
       && (

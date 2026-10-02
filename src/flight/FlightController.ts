@@ -2,7 +2,6 @@ import { Euler, Quaternion, Vector3 } from 'three';
 import {
   COLLISION_CONFIRM_TIME,
   COLLISION_DEEP_PENETRATION,
-  COLLISION_PROBES,
   COLLISION_TOLERANCE,
   FLIGHT,
 } from '../core/config.ts';
@@ -10,6 +9,7 @@ import { COCKPIT_COLLISION_PROBES } from '../core/aircraftGeometry.ts';
 import type { FlightInput, FlightMode, SafeCheckpoint } from '../core/types.ts';
 import type { DynamicObstacleProvider } from '../combat/types.ts';
 import type { ProceduralTerrain } from '../world/TerrainModel.ts';
+import { WingPose } from './WingPose.ts';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -25,6 +25,7 @@ function wrapAngle(value: number): number {
 }
 
 export class FlightController {
+  readonly wings = new WingPose();
   readonly position = new Vector3();
   readonly orientation = new Quaternion();
   readonly cameraOrientation = new Quaternion();
@@ -63,7 +64,7 @@ export class FlightController {
     return true;
   }
   private checkBlastTerrain(): void {
-    const probes = this.cockpitCollision ? COCKPIT_COLLISION_PROBES : COLLISION_PROBES;
+    const probes = this.cockpitCollision ? COCKPIT_COLLISION_PROBES : this.wings.collisionProbes;
     const travel = this.previousPosition.distanceTo(this.position) + this.previousOrientation.angleTo(this.orientation) * 7;
     const steps = Math.max(1, Math.ceil(travel));
     if (steps > 16) { this.beginCrash(); return; }
@@ -71,7 +72,9 @@ export class FlightController {
       this.blastPose.slerpQuaternions(this.previousOrientation, this.orientation, i / steps);
       this.blastPosition.lerpVectors(this.previousPosition, this.position, i / steps);
       for (const p of probes) {
-        this.samplePoint.set(...p).applyQuaternion(this.blastPose).add(this.blastPosition);
+        if (p instanceof Vector3) this.samplePoint.copy(p);
+        else this.samplePoint.set(...p);
+        this.samplePoint.applyQuaternion(this.blastPose).add(this.blastPosition);
         if (this.terrain.collisionDensityAt(this.samplePoint.x, this.samplePoint.y, this.samplePoint.z) > 0) { this.beginCrash(); return; }
       }
     }
@@ -88,6 +91,8 @@ export class FlightController {
   onRecovery?: () => void;
   readonly previousPosition = new Vector3();
   private readonly previousOrientation = new Quaternion();
+  private readonly previousCameraOrientation = new Quaternion();
+  private previousRollAngle = 0;
   private readonly avoidanceTarget = new Vector3();
   private readonly avoidanceOffset = new Vector3();
   onCrash: (() => void) | undefined;
@@ -110,6 +115,9 @@ export class FlightController {
     this.yaw = Math.atan2(start.tangentX, 1);
     this.pitch = -Math.atan(start.tangentY);
     this.syncOrientation();
+    this.previousPosition.copy(this.position);
+    this.previousOrientation.copy(this.orientation);
+    this.previousCameraOrientation.copy(this.cameraOrientation);
     this.initialCheckpoint = this.captureCheckpoint();
     this.checkpoint = this.captureCheckpoint();
     this.setMode('autopilot');
@@ -117,19 +125,23 @@ export class FlightController {
 
   update(dt: number, input: FlightInput): void {
     if (dt <= 0 || this.mode === 'paused' || this.mode === 'loading') return;
+    this.previousPosition.copy(this.position);
+    this.previousOrientation.copy(this.orientation);
+    this.previousCameraOrientation.copy(this.cameraOrientation);
+    this.previousRollAngle = this.rollAngle;
     if (this.mode === 'crashed') {
       this.crashElapsed += dt;
+      this.wings.update(dt, (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed));
       if (this.crashElapsed >= FLIGHT.crashDuration) this.restoreCheckpoint();
       return;
     }
 
-    this.previousPosition.copy(this.position);
-    this.previousOrientation.copy(this.orientation);
     if (input.pitch !== 0 || input.roll !== 0 || input.yaw !== 0) this.takeManualControl();
     this.rollCooldown = Math.max(0, this.rollCooldown - dt);
     if (this.isRolling) { this.updateThrottle(dt, input.throttle); this.updateRoll(dt); }
     else if (this.mode === 'autopilot') this.updateAutopilot(dt, input.throttle);
     else this.updateManual(dt, input);
+    this.wings.update(dt, this.throttle);
 
     this.syncOrientation();
     this.forward.set(0, 0, 1).applyQuaternion(this.orientation).normalize();
@@ -166,6 +178,28 @@ export class FlightController {
 
   get isRolling(): boolean { return this.rollDirection !== 0; }
   get maneuverRollAngle(): number { return this.rollAngle; }
+
+  /** Smooth render-only pose between fixed simulation states. Physics stays authoritative. */
+  sampleRenderPose(
+    alpha: number,
+    position: Vector3,
+    orientation: Quaternion,
+    cameraOrientation: Quaternion,
+  ): number {
+    const amount = clamp(alpha, 0, 1);
+    position.lerpVectors(this.previousPosition, this.position, amount);
+    orientation.slerpQuaternions(this.previousOrientation, this.orientation, amount);
+    cameraOrientation.slerpQuaternions(
+      this.previousCameraOrientation,
+      this.cameraOrientation,
+      amount,
+    );
+    let currentRoll = this.rollAngle;
+    if (currentRoll === 0 && Math.abs(this.previousRollAngle) > Math.PI) {
+      currentRoll = Math.sign(this.previousRollAngle) * Math.PI * 2;
+    }
+    return this.previousRollAngle + (currentRoll - this.previousRollAngle) * amount;
+  }
 
   startRoll(direction: -1 | 1): boolean {
     if (this.isRolling || this.rollCooldown > 0 || !['manual', 'autopilot'].includes(this.mode)) return false;
@@ -270,10 +304,12 @@ export class FlightController {
 
   private checkCollision(dt: number): void {
     let deepestPenetration = 0;
-    const probes = this.cockpitCollision ? COCKPIT_COLLISION_PROBES : COLLISION_PROBES;
+    const probes = this.cockpitCollision ? COCKPIT_COLLISION_PROBES : this.wings.collisionProbes;
     const orientation = this.orientation;
     for (const offset of probes) {
-      this.samplePoint.set(offset[0], offset[1], offset[2]).applyQuaternion(orientation).add(this.position);
+      if (offset instanceof Vector3) this.samplePoint.copy(offset);
+      else this.samplePoint.set(offset[0], offset[1], offset[2]);
+      this.samplePoint.applyQuaternion(orientation).add(this.position);
       const collisionDensity = this.terrain.collisionDensityAt?.(
         this.samplePoint.x,
         this.samplePoint.y,
@@ -348,8 +384,13 @@ export class FlightController {
     this.speed = checkpoint.speed;
     this.actualSpeed = this.speed;
     this.throttle = checkpoint.throttle;
+    this.wings.reset(this.throttle);
     this.collisionContactTime = 0;
     this.syncOrientation();
+    this.previousPosition.copy(this.position);
+    this.previousOrientation.copy(this.orientation);
+    this.previousCameraOrientation.copy(this.cameraOrientation);
+    this.previousRollAngle = this.rollAngle;
   }
 
   private restoreCheckpoint(): void {

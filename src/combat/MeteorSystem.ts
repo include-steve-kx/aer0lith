@@ -1,9 +1,10 @@
 import { Quaternion, Vector3 } from 'three';
 import { explosionImpulse } from './ExplosionForce.ts';
 import {
-  AIRCRAFT_PARTS,
   COCKPIT_COLLISION_POINTS,
+  HULL_POINTS,
 } from '../core/aircraftGeometry.ts';
+import { WingPose } from '../flight/WingPose.ts';
 import type { FlightPath, TerrainSampler } from '../core/types.ts';
 import {
   COMBAT_LIMITS,
@@ -11,7 +12,7 @@ import {
   type CombatSettings,
 } from './settings.ts';
 import { CombatRandom } from './random.ts';
-import { convexShape, hullGeometry, RockLibrary } from './geometry.ts';
+import { convexShape, hullGeometry, RockLibrary, triangleShape, updateTriangleShape } from './geometry.ts';
 import {
   segmentConvex,
   segmentSphere,
@@ -238,6 +239,8 @@ export class MeteorSystem implements DynamicObstacleProvider {
   private readonly rockP = new Vector3();
   private readonly rockQ = new Quaternion();
   private readonly shipShapes: ShapePose[];
+  private readonly wings: WingPose;
+  private readonly wingSweepTriangles: Vector3[][];
   private readonly cockpit: ShapePose;
   private readonly cockpitParts: ShapePose[];
   private readonly rockPoses: ShapePose[];
@@ -247,17 +250,18 @@ export class MeteorSystem implements DynamicObstacleProvider {
     terrain: TerrainSampler & FlightPath,
     library: RockLibrary,
     seed: string,
+    wings = new WingPose(),
   ) {
+    this.wings = wings;
     this.terrain = terrain;
     this.library = library;
     this.random = new CombatRandom(`${seed}:meteors`);
     this.fuseRandom = new CombatRandom(`${seed}:meteor-fuses`);
-    this.shipShapes = AIRCRAFT_PARTS.map((points) => {
-      const g = hullGeometry(points),
-        s = new ShapePose(convexShape(g));
-      g.dispose();
-      return s;
-    });
+    const hull = hullGeometry(HULL_POINTS);
+    this.shipShapes = [new ShapePose(convexShape(hull)),
+      ...this.wings.triangles.map(points => new ShapePose(triangleShape(points)))];
+    this.wingSweepTriangles = this.wings.triangles.map(points => points.map(() => new Vector3()));
+    hull.dispose();
     const g = hullGeometry(COCKPIT_COLLISION_POINTS);
     this.cockpit = new ShapePose(convexShape(g));
     this.cockpitParts = [this.cockpit];
@@ -533,13 +537,22 @@ export class MeteorSystem implements DynamicObstacleProvider {
         from.distanceTo(to) +
         m.previous.distanceTo(m.position) +
         fromQ.angleTo(toQ) * 8 +
-        m.previousQ.angleTo(m.orientation) * m.radius;
-      for (const part of parts) {
+        m.previousQ.angleTo(m.orientation) * m.radius +
+        Math.abs(this.wings.fold - this.wings.previousFold) * 12;
+      for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+        const part = parts[partIndex];
         let t = 0,
           done = false;
         for (let iteration = 0; iteration < 16; iteration++) {
           this.position.lerpVectors(from, to, t);
           this.orientation.slerpQuaternions(fromQ, toQ, t);
+          if (!cockpit && partIndex > 0) {
+            const fold = this.wings.previousFold
+              + (this.wings.fold - this.wings.previousFold) * t;
+            const triangle = this.wings.sampleTriangle(partIndex - 1, fold,
+              this.wingSweepTriangles[partIndex - 1]);
+            updateTriangleShape(part.shape, triangle);
+          }
           part.set(this.position, this.orientation, 1);
           this.rockP.lerpVectors(m.previous, m.position, t);
           this.rockQ.slerpQuaternions(m.previousQ, m.orientation, t);

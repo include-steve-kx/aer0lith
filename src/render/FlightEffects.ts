@@ -6,10 +6,12 @@ import { refractionOutput } from './RefractionShader.ts';
 import { WakeSheetGeometry } from './WakeSheetGeometry.ts';
 import type { TrailView } from './TrailView.ts';
 import { BoostEnvelope } from './BoostEnvelope.ts';
+import type { WingPoseSettings } from '../flight/WingPose.ts';
 
-export interface FlightEffectSettings {
+export interface FlightEffectSettings extends WingPoseSettings {
   boostExhaustEnabled: boolean;
   boostExhaustStrength: number;
+  boostIdleAmount: number;
   boostExhaustLength: number;
   boostExhaustWidth: number;
   boostGlassWidth: number;
@@ -37,7 +39,9 @@ export interface FlightEffectSettings {
 }
 
 export const DEFAULT_FLIGHT_EFFECTS: FlightEffectSettings = {
-  boostExhaustEnabled: true, boostExhaustStrength: 2, boostExhaustLength: 54, boostExhaustWidth: 0.45,
+  boostExhaustEnabled: true, boostExhaustStrength: 2, boostIdleAmount: 0.2,
+  wingSweepBack: 28, wingTuckIn: 18, wingFoldSpeed: 1,
+  boostExhaustLength: 54, boostExhaustWidth: 0.45,
   boostGlassWidth: 0.55, boostGlassLength: 1, boostGlassDebug: false, boostFadeDuration: 3.6,
   boostExhaustColor: '#8ab7ff', wingWarpEnabled: true, wingWarpStrength: 1.75,
   wingWarpLength: 120, wingWarpHeight: 3.5, wingWarpThickness: 0.08,
@@ -76,6 +80,7 @@ export class FlightEffects {
   private readonly pathOrigin = new Vector3(Infinity, 0, 0);
   private shapeDirty = true;
   private cockpit = false;
+  private crashed = false;
 
   constructor() {
     this.group.name = 'boost exhaust and light';
@@ -276,8 +281,14 @@ export class FlightEffects {
     this.refresh();
   }
 
+  private get visualBoostAmount(): number {
+    if (this.crashed) return 0;
+    const idle = Math.min(1, Math.max(0, this.settings.boostIdleAmount));
+    return idle + (1 - idle) * this.burst.intensity;
+  }
+
   get lightIntensity(): number {
-    return this.settings.boostExhaustEnabled ? this.burst.intensity * this.settings.boostExhaustStrength : 0;
+    return this.settings.boostExhaustEnabled ? this.visualBoostAmount * this.settings.boostExhaustStrength : 0;
   }
 
   private get sideGlassVisible(): boolean {
@@ -316,6 +327,7 @@ export class FlightEffects {
 
   update(dt: number, pressed: boolean, speed: number, crashed = false): void {
     this.elapsed += Math.max(0, dt);
+    this.crashed = crashed;
     this.speed = crashed ? 0 : speed;
     // Integrate each control separately. Editing a speed while paused must not
     // rescale accumulated phase or make the surface jump.
@@ -351,17 +363,19 @@ export class FlightEffects {
   }
 
   reset(): void {
+    this.crashed = false;
     this.burst.reset();
     this.refresh();
   }
 
   private refresh(): void {
+    const visualBoostAmount = this.visualBoostAmount;
     const power = this.lightIntensity;
     this.exhaustGroup.visible = power > 0.001 && !this.cockpit && !this.settings.boostGlassDebug;
     this.exhaustMaterial.uniforms.uPower.value = power;
     this.exhaustMaterial.uniforms.uTime.value = this.elapsed;
     this.exhaustMaterial.uniforms.uLength.value = this.settings.boostExhaustLength
-      * (0.25 + 0.75 * this.burst.intensity);
+      * (0.25 + 0.75 * visualBoostAmount);
     this.exhaustMaterial.uniforms.uShellScale.value = this.settings.boostExhaustWidth;
     this.boostGlassMaterial.uniforms.uShellScale.value = this.settings.boostGlassWidth;
     const preview = this.settings.boostGlassDebug && power <= 0.001;

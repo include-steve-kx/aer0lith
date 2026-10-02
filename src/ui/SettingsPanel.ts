@@ -167,6 +167,8 @@ export class SettingsPanel {
   private wakeDebugEnabled = false;
   private readonly boostFadeDuration = element<HTMLInputElement>('boost-fade-duration');
   private readonly boostFadeDurationValue = element<HTMLOutputElement>('boost-fade-duration-value');
+  private readonly boostIdleAmount = element<HTMLInputElement>('boost-idle-amount');
+  private readonly boostIdleAmountValue = element<HTMLOutputElement>('boost-idle-amount-value');
   private readonly scanGlassStrength = element<HTMLInputElement>('scan-glass-strength');
   private readonly scanGlassStrengthValue = element<HTMLOutputElement>('scan-glass-strength-value');
   private readonly scanGlassDispersion = element<HTMLInputElement>('scan-glass-dispersion');
@@ -203,6 +205,12 @@ export class SettingsPanel {
   private readonly boostShakeStrengthValue = element<HTMLOutputElement>('boost-shake-strength-value');
   private readonly boostShakeFrequency = element<HTMLInputElement>('boost-shake-frequency');
   private readonly boostShakeFrequencyValue = element<HTMLOutputElement>('boost-shake-frequency-value');
+  private readonly wingSweepBack = element<HTMLInputElement>('wing-sweep-back');
+  private readonly wingSweepBackValue = element<HTMLOutputElement>('wing-sweep-back-value');
+  private readonly wingTuckIn = element<HTMLInputElement>('wing-tuck-in');
+  private readonly wingTuckInValue = element<HTMLOutputElement>('wing-tuck-in-value');
+  private readonly wingFoldSpeed = element<HTMLInputElement>('wing-fold-speed');
+  private readonly wingFoldSpeedValue = element<HTMLOutputElement>('wing-fold-speed-value');
   private readonly scanGlassPersistence = element<HTMLInputElement>('scan-glass-persistence');
   private readonly scanGlassPersistenceValue = element<HTMLOutputElement>('scan-glass-persistence-value');
   private readonly shipGhostColor = element<HTMLInputElement>('ship-ghost-color');
@@ -379,6 +387,7 @@ export class SettingsPanel {
       scanGlassFlutterRate: this.scanGlassFlutterRate.valueAsNumber,
       wakeDebugEnabled: this.wakeDebugEnabled,
       boostFadeDuration: this.boostFadeDuration.valueAsNumber,
+      boostIdleAmount: this.boostIdleAmount.valueAsNumber,
       scanGlassStrength: this.scanGlassStrength.valueAsNumber,
       scanGlassDispersion: this.scanGlassDispersion.valueAsNumber,
       boostGlassEnabled: this.boostGlassEnabled.checked,
@@ -398,6 +407,9 @@ export class SettingsPanel {
       boostFlutterRate: this.boostFlutterRate.valueAsNumber,
       boostShakeStrength: this.boostShakeStrength.valueAsNumber,
       boostShakeFrequency: this.boostShakeFrequency.valueAsNumber,
+      wingSweepBack: this.wingSweepBack.valueAsNumber,
+      wingTuckIn: this.wingTuckIn.valueAsNumber,
+      wingFoldSpeed: this.wingFoldSpeed.valueAsNumber,
       scanGlassPersistence: this.scanGlassPersistence.valueAsNumber,
       shipGhostOpacity: this.shipGhostOpacity.valueAsNumber,
       shipGhostColor: this.shipGhostColor.value,
@@ -561,6 +573,7 @@ export class SettingsPanel {
       this.restoreRange(this.crtDither, saved.crtDither);
       if (typeof saved.scanGlassEnabled === 'boolean') this.scanGlassEnabled.checked = saved.scanGlassEnabled;
       this.restoreRange(this.boostFadeDuration, saved.boostFadeDuration);
+      this.restoreRange(this.boostIdleAmount, saved.boostIdleAmount);
       this.restoreRange(this.scanGlassFlutter, saved.scanGlassFlutter);
       this.restoreRange(this.scanGlassFlutterRate, saved.scanGlassFlutterRate);
       this.restoreRange(this.scanGlassStrength, saved.scanGlassStrength);
@@ -581,6 +594,9 @@ export class SettingsPanel {
       this.restoreRange(this.boostFlutterRate, saved.boostFlutterRate);
       this.restoreRange(this.boostShakeStrength, saved.boostExhaustWidth === undefined && saved.boostShakeStrength === 0.35 ? 0.65 : saved.boostShakeStrength);
       this.restoreRange(this.boostShakeFrequency, saved.boostShakeFrequency);
+      this.restoreRange(this.wingSweepBack, saved.wingSweepBack);
+      this.restoreRange(this.wingTuckIn, saved.wingTuckIn);
+      this.restoreRange(this.wingFoldSpeed, saved.wingFoldSpeed);
       this.restoreRange(this.scanGlassPersistence, saved.scanGlassPersistence);
       // Upgrade the previous faint default once; preserve explicit custom opacity.
       this.restoreRange(this.shipGhostOpacity, saved.shipGhostColor === undefined && saved.shipGhostOpacity === 0.13 ? 0.5 : saved.shipGhostOpacity);
@@ -697,6 +713,7 @@ export class SettingsPanel {
     this.wakeDebugButton.setAttribute('aria-pressed', String(this.wakeDebugEnabled));
     this.wakeDebugButton.setAttribute('aria-label', this.wakeDebugEnabled ? 'Hide opaque wake geometry' : 'Show opaque wake geometry');
     this.boostFadeDurationValue.textContent = this.boostFadeDuration.valueAsNumber.toFixed(2) + ' S';
+    this.boostIdleAmountValue.textContent = `${Math.round(this.boostIdleAmount.valueAsNumber * 100)}%`;
     this.scanGlassFlutterValue.textContent = (this.scanGlassFlutter.valueAsNumber * 100).toFixed(1) + '%';
     this.scanGlassFlutterRateValue.textContent = this.scanGlassFlutterRate.valueAsNumber.toFixed(2) + '×';
     this.scanGlassStrengthValue.textContent = this.scanGlassStrength.valueAsNumber.toFixed(2) + '';
@@ -718,6 +735,9 @@ export class SettingsPanel {
     this.boostFlutterRateValue.textContent = this.boostFlutterRate.valueAsNumber.toFixed(2) + '×';
     this.boostShakeStrengthValue.textContent = this.boostShakeStrength.valueAsNumber.toFixed(2) + '';
     this.boostShakeFrequencyValue.textContent = this.boostShakeFrequency.valueAsNumber.toFixed(0) + ' HZ';
+    this.wingSweepBackValue.textContent = this.wingSweepBack.valueAsNumber.toFixed(0) + '°';
+    this.wingTuckInValue.textContent = this.wingTuckIn.valueAsNumber.toFixed(0) + '°';
+    this.wingFoldSpeedValue.textContent = this.wingFoldSpeed.valueAsNumber.toFixed(2) + '×';
     this.scanGlassPersistenceValue.textContent = this.scanGlassPersistence.valueAsNumber.toFixed(2) + ' S';
     this.shipGhostOpacityValue.textContent = (this.shipGhostOpacity.valueAsNumber * 100).toFixed(0) + '%';
     this.boostExhaustLengthValue.textContent = this.boostExhaustLength.valueAsNumber.toFixed(0) + ' m';

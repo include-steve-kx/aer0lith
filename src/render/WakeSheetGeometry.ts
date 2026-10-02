@@ -1,11 +1,9 @@
 import { BufferAttribute, BufferGeometry, DynamicDrawUsage, Vector3 } from 'three';
-import { WING_TIPS } from '../core/aircraftGeometry.ts';
 import type { TrailSample } from './TrailView.ts';
 
 const MAX_RINGS = 512;
 const HEIGHT_SEGMENTS = 8;
 const RING_SIZE = 2 * (HEIGHT_SEGMENTS + 1);
-const ROOT_HEIGHT = Math.abs(WING_TIPS[1][1] - WING_TIPS[0][1]);
 
 /** An extruded ribbon centered on the exact world-space wing trail samples. */
 export class WakeSheetGeometry extends BufferGeometry {
@@ -50,7 +48,8 @@ export class WakeSheetGeometry extends BufferGeometry {
       this.point.subVectors(newer.right, newer.left).normalize();
       this.across.subVectors(sample.right, sample.left).normalize().lerp(this.point, mix).normalize();
       const distance = Math.min(age, length);
-      const rootHeight = Math.min(height, ROOT_HEIGHT);
+      const sampleHeight = sample.rootHeight + (newer.rootHeight - sample.rootHeight) * mix;
+      const rootHeight = Math.min(height, sampleHeight);
       const sheetHeight = rootHeight + (height - rootHeight) * Math.min(1, distance / 12);
       for (let vertex = 0; vertex < RING_SIZE; vertex++) {
         const front = vertex <= HEIGHT_SEGMENTS;

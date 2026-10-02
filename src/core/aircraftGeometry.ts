@@ -7,7 +7,7 @@ export const HULL_POINTS: AircraftPoint[] = [...HULL_REAR, [0, 0.05, 6.3]];
 export const WING_PARTS: AircraftPoint[][] = [-1, 1].flatMap(side => [-1, 1].map(tier =>
   ([
     [0.28, 0.05, 1.35], [0.35, 0.08, -3.4],
-    [6, 1.9, -2.9], [1.8, 0.9, -1.6],
+    [6, 1.9, -2.9],
   ] as AircraftPoint[]).map(([x, y, z]): AircraftPoint => [x * side, y * tier, z]),
 ));
 export const AIRCRAFT_PARTS = [HULL_POINTS, ...WING_PARTS];
@@ -31,7 +31,7 @@ export const COCKPIT_COLLISION_PROBES: AircraftPoint[] = [...COCKPIT_COLLISION_P
 
 // Sample each individual convex part, not a hull spanning the empty spaces
 // between wings. Vertices cover the extremities; midpoints cover long edges.
-export const AIRCRAFT_COLLISION_PROBES: AircraftPoint[] = AIRCRAFT_PARTS.flatMap(part => {
+export function collisionProbesForPart(part: readonly AircraftPoint[]): AircraftPoint[] {
   const points = part.map(p => [...p] as AircraftPoint);
   for (let i = 0; i < part.length; i++) {
     for (let j = i + 1; j < part.length; j++) {
@@ -40,4 +40,7 @@ export const AIRCRAFT_COLLISION_PROBES: AircraftPoint[] = AIRCRAFT_PARTS.flatMap
   }
   points.push([0, 1, 2].map(axis => part.reduce((sum, p) => sum + p[axis], 0) / part.length) as AircraftPoint);
   return points;
-});
+}
+
+export const HULL_COLLISION_PROBES = collisionProbesForPart(HULL_POINTS);
+export const AIRCRAFT_COLLISION_PROBES: AircraftPoint[] = AIRCRAFT_PARTS.flatMap(collisionProbesForPart);

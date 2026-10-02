@@ -37,6 +37,33 @@ test('release duration is adjustable and pause freezes both ignition and release
   assert.equal(slow.intensity, 0);
 });
 
+test('idle visual boost stays on without physical boost and release returns to its configured baseline', () => {
+  const effects = new FlightEffects();
+  const settings = { ...DEFAULT_FLIGHT_EFFECTS, boostIdleAmount: 0.2, wingWarpEnabled: false };
+  effects.configure(settings);
+  effects.update(1, false, 55);
+  const flame = effects.group.children[0].children[0] as Mesh<BufferGeometry, ShaderMaterial>;
+  assert.equal(effects.burst.intensity, 0, 'the physical boost input remains inactive');
+  assert.equal(effects.lightIntensity, settings.boostExhaustStrength * 0.2);
+  assert.equal(effects.group.children[0].visible, true);
+  assert.equal(flame.material.uniforms.uPower.value, settings.boostExhaustStrength * 0.2);
+  assert.ok(Math.abs(flame.material.uniforms.uLength.value - 54 * 0.4) < 1e-8);
+
+  effects.update(0.065, true, 55);
+  assert.ok(effects.lightIntensity > settings.boostExhaustStrength * 0.9);
+  effects.update(0.5, false, 55);
+  assert.ok(effects.lightIntensity > settings.boostExhaustStrength * 0.2);
+  effects.update(settings.boostFadeDuration, false, 55);
+  assert.equal(effects.lightIntensity, settings.boostExhaustStrength * 0.2);
+
+  effects.configure({ ...settings, boostIdleAmount: 0 });
+  assert.equal(effects.lightIntensity, 0, 'zero restores the previous fully-off idle behavior');
+  effects.configure(settings);
+  effects.update(0.016, false, 55, true);
+  assert.equal(effects.lightIntensity, 0, 'a crashed aircraft never shows idle thrust');
+  effects.dispose();
+});
+
 test('effects follow rotation and floating origin without moving on a paused appearance edit', () => {
   const effects = new FlightEffects();
   const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2);
@@ -119,7 +146,7 @@ test('wake length clips the shared path and live shape edits do not advance the 
   effects.syncWake(trail, new Vector3());
   assert.equal(effects.wakeGroup.visible, false);
   effects.reset();
-  assert.equal(effects.hasWake, false);
+  assert.equal(effects.hasWake, true, 'the idle booster glass remains visible without side wakes');
   effects.dispose();
 });
 
@@ -189,7 +216,7 @@ test('live trail endpoints stay attached between history samples without accumul
   assert.ok(Math.abs(trail.distanceSpan - 1.8) < 1e-8);
 });
 
-test('slender flames and compact glass have independent geometry controls and a pooled opaque preview', () => {
+test('slender flames and compact glass have independent geometry controls and a pooled opaque inspection view', () => {
   const effects = new FlightEffects();
   effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, wingWarpEnabled: false });
   effects.update(.065, true, 80);
@@ -214,8 +241,9 @@ test('slender flames and compact glass have independent geometry controls and a 
   assert.equal(glass.material.uniforms.uShellScale.value, .8);
   assert.ok(Math.abs(glass.material.uniforms.uLength.value - 54 * .4) < 1e-8);
   effects.reset();
-  assert.equal(debugGroup.visible, true, 'preview remains inspectable without holding boost');
-  assert.equal(debug.material.uniforms.uPower.value, 1);
+  assert.equal(debugGroup.visible, true, 'idle baseline remains inspectable without holding boost');
+  assert.equal(debug.material.uniforms.uPower.value,
+    DEFAULT_FLIGHT_EFFECTS.boostExhaustStrength * DEFAULT_FLIGHT_EFFECTS.boostIdleAmount);
   effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, wingWarpEnabled: false });
   assert.equal(debugGroup.visible, false); assert.equal(glass.geometry, geometry);
   effects.dispose();

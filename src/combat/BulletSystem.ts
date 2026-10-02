@@ -1,5 +1,6 @@
 import { Camera, Quaternion, Vector3 } from "three";
-import { AIRCRAFT_PARTS, WING_TIPS } from "../core/aircraftGeometry.ts";
+import { HULL_POINTS, WING_TIPS } from "../core/aircraftGeometry.ts";
+import { WingPose } from '../flight/WingPose.ts';
 import {
   COMBAT_LIMITS,
   DEFAULT_COMBAT,
@@ -159,7 +160,7 @@ export class BulletSystem implements ProjectileOwner {
   private readonly identity = new Quaternion();
   private readonly zero = new Vector3();
   private readonly eligible = new Int8Array(4);
-  private readonly shapes = AIRCRAFT_PARTS.map((points) => {
+  private readonly shapes = [HULL_POINTS].map((points) => {
     const g = hullGeometry(points),
       s = convexShape(g);
     g.dispose();
@@ -167,7 +168,9 @@ export class BulletSystem implements ProjectileOwner {
   });
   private sparkCursor = 0;
   private disposed = false;
-  constructor(meteors: MeteorSystem, seed: string) {
+  private readonly wings: WingPose;
+  constructor(meteors: MeteorSystem, seed: string, wings = new WingPose()) {
+    this.wings = wings;
     this.resolver = new ProjectileResolver(meteors);
     this.launcher = new CombatRandom(`${seed}:bullet-wings`);
     this.cadence = new CombatRandom(`${seed}:bullet-cadence`);
@@ -185,7 +188,7 @@ export class BulletSystem implements ProjectileOwner {
   sync(ship: Vector3, q: Quaternion): void {
     for (let i = 0; i < 4; i++)
       this.muzzles[i]
-        .set(...WING_TIPS[i])
+        .copy(this.wings.tips[i])
         .applyQuaternion(q)
         .add(ship);
     this.aim.update(
@@ -229,7 +232,7 @@ export class BulletSystem implements ProjectileOwner {
         .subVectors(this.target, this.muzzles[i])
         .normalize()
         .applyQuaternion(this.inverse);
-      this.localFrom.set(...WING_TIPS[i]).addScaledVector(this.direction, 0.02);
+      this.localFrom.copy(this.wings.tips[i]).addScaledVector(this.direction, 0.02);
       this.localTo.copy(this.localFrom).addScaledVector(this.direction, 15);
       let blocked = false;
       for (const shape of this.shapes)

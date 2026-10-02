@@ -1,11 +1,13 @@
-import { Color, EdgesGeometry, GreaterDepth, NotEqualStencilFunc, ReplaceStencilOp, Group, LineSegments, Mesh, MeshStandardMaterial, ShaderMaterial } from 'three';
+import { Color, DoubleSide, GreaterDepth, NotEqualStencilFunc, ReplaceStencilOp, Group, LineSegments, Mesh, MeshStandardMaterial, ShaderMaterial } from 'three';
 import { PALETTE } from '../core/config.ts';
-import { createAircraftGeometry } from './createAircraftGeometry.ts';
+import { WingPose } from '../flight/WingPose.ts';
+import { createAircraftEdgeGeometry, createAircraftGeometry } from './createAircraftGeometry.ts';
 
 export class AircraftView {
   readonly group = new Group();
   private readonly bodyMaterial = new MeshStandardMaterial({
     color: PALETTE.plane, roughness: 0.78, metalness: 0.12, flatShading: true,
+    side: DoubleSide,
     stencilWrite: true, stencilRef: 1, stencilZPass: ReplaceStencilOp,
   });
 
@@ -29,6 +31,7 @@ export class AircraftView {
         gl_FragColor = vec4(uColor * facet, uOpacity);
       }`,
     transparent: true, depthWrite: false, depthFunc: GreaterDepth,
+    side: DoubleSide,
     stencilWrite: true, stencilWriteMask: 0, stencilFunc: NotEqualStencilFunc, stencilRef: 1,
   });
   private readonly outlineMaterial = new ShaderMaterial({
@@ -46,20 +49,35 @@ export class AircraftView {
     stencilWrite: true, stencilWriteMask: 0, stencilFunc: NotEqualStencilFunc, stencilRef: 1,
   });
 
-  constructor() {
+  private readonly geometry;
+  private readonly edgeGeometry;
+  private readonly wings: WingPose;
+  private wingRevision = -1;
+
+  constructor(wings = new WingPose()) {
+    this.wings = wings;
     this.group.name = 'Lance / minimal X-wing';
-    const geometry = createAircraftGeometry();
-    const mesh = new Mesh(geometry, this.bodyMaterial);
+    this.geometry = createAircraftGeometry(wings);
+    this.edgeGeometry = createAircraftEdgeGeometry(wings);
+    const mesh = new Mesh(this.geometry, this.bodyMaterial);
     mesh.name = 'monochrome hull and four blades';
     // Terrain is order 1 and flocks are order 2. Draw after both before marking
     // visible pixels; sharing terrain order lets material sorting mask the ghost.
     mesh.renderOrder = 3;
     this.group.add(mesh, this.ghostGroup);
-    const ghost = new Mesh(geometry, this.ghostMaterial);
-    const outline = new LineSegments(new EdgesGeometry(geometry, 18), this.outlineMaterial);
+    const ghost = new Mesh(this.geometry, this.ghostMaterial);
+    const outline = new LineSegments(this.edgeGeometry, this.outlineMaterial);
     ghost.name = 'occluded ship silhouette'; outline.name = 'occluded ship edges';
     ghost.renderOrder = 8; outline.renderOrder = 9;
     this.ghostGroup.add(ghost, outline);
+    this.syncWings();
+  }
+
+  syncWings(): void {
+    if (this.wingRevision === this.wings.revision) return;
+    this.wingRevision = this.wings.revision;
+    this.geometry.sync(this.wings);
+    this.edgeGeometry.sync(this.wings);
   }
 
   setColor(value: string): void {

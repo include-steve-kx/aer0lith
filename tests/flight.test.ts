@@ -1,11 +1,49 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { Quaternion, Vector3 } from 'three';
 import { FLIGHT } from '../src/core/config.ts';
 import { FlightController } from '../src/flight/FlightController.ts';
 import { flightInputFromKeys, joystickInputFromOffset } from '../src/flight/InputManager.ts';
 import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 
 const neutral = { pitch: 0, roll: 0, yaw: 0, throttle: 0 };
+
+function openTerrain(): ProceduralTerrain {
+  return {
+    sample: () => ({ x: 0, y: 50, floorY: -150, tangentX: 0, tangentY: 0,
+      width: 200, height: 200, openness: 1 }),
+    densityAt: () => -100,
+    collisionDensityAt: () => -100,
+  } as unknown as ProceduralTerrain;
+}
+
+test('render pose interpolates fixed physics steps without visible position stair-steps', () => {
+  const flight = new FlightController(openTerrain());
+  flight.takeManualControl();
+  const rendered = new Vector3(), orientation = new Quaternion(), camera = new Quaternion();
+  let accumulator = 0;
+  const positions: number[] = [];
+  for (let frame = 0; frame < 180; frame++) {
+    accumulator += 1 / 144;
+    while (accumulator >= FLIGHT.fixedStep) {
+      flight.update(FLIGHT.fixedStep, neutral);
+      accumulator -= FLIGHT.fixedStep;
+    }
+    flight.sampleRenderPose(accumulator / FLIGHT.fixedStep, rendered, orientation, camera);
+    positions.push(rendered.z);
+  }
+  const deltas = positions.slice(4).map((position, index) => position - positions[index + 3]);
+  const expected = FLIGHT.nominalSpeed / 144;
+  for (const delta of deltas) assert.ok(Math.abs(delta - expected) < 1e-8, `${delta} != ${expected}`);
+});
+
+test('render interpolation preserves the final degrees of a complete cockpit roll', () => {
+  const flight = new FlightController(openTerrain());
+  flight.startRoll(1);
+  while (flight.isRolling) flight.update(FLIGHT.fixedStep, neutral);
+  const angle = flight.sampleRenderPose(0.5, new Vector3(), new Quaternion(), new Quaternion());
+  assert.ok(angle > Math.PI * 1.9, `roll wrapped backward through ${angle}`);
+});
 
 test('keyboard directions map to the intended flight axes', () => {
   assert.equal(flightInputFromKeys(new Set(['KeyW'])).pitch, -1);

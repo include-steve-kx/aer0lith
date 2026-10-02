@@ -1,5 +1,6 @@
 import { Quaternion, Vector3 } from 'three';
 import { WING_TIPS } from '../core/aircraftGeometry.ts';
+import { WingPose } from '../flight/WingPose.ts';
 import {
   COMBAT_LIMITS,
   DEFAULT_COMBAT,
@@ -70,7 +71,9 @@ export class MissileSystem implements ProjectileOwner {
   private readonly hit: MeteorHandle = { slot: -1, generation: 0 };
   private readonly z = new Vector3(0, 0, 1);
   readonly meteors: MeteorSystem;
-  constructor(meteors: MeteorSystem, seed: string) {
+  private readonly wings: WingPose;
+  constructor(meteors: MeteorSystem, seed: string, wings = new WingPose()) {
+    this.wings = wings;
     this.meteors = meteors;
     this.resolver = new ProjectileResolver(meteors);
     this.launcher = new CombatRandom(`${seed}:launchers`);
@@ -89,9 +92,9 @@ export class MissileSystem implements ProjectileOwner {
     if (wasEnabled && !settings.missileEnabled) this.clearFlights();
   }
   syncMuzzles(ship: Vector3, q: Quaternion): void {
-    WING_TIPS.forEach((tip, i) =>
+    this.wings.tips.forEach((tip, i) =>
       this.muzzle[i]
-        .set(...tip)
+        .copy(tip)
         .applyQuaternion(q)
         .add(ship),
     );

@@ -14,6 +14,7 @@ import {
   Color,
   DirectionalLight,
   FogExp2,
+  Quaternion,
   Scene,
   SRGBColorSpace,
   Vector3,
@@ -69,14 +70,14 @@ export class App {
   private crtCurvature = 0;
   private readonly flocks: FlockSystem;
   private readonly flight: FlightController;
-  private readonly aircraft = new AircraftView();
+  private readonly aircraft: AircraftView;
   private readonly flightEffects = new FlightEffects();
   private readonly cockpitRoll = new CockpitRoll();
   private readonly boostShake = new BoostCameraShake();
   private readonly pulseShake = new BoostCameraShake();
   private readonly pulseShakeEnvelope = new BoostEnvelope();
-  private readonly collisionDebug = new CollisionDebugView();
-  private readonly trail = new TrailView();
+  private readonly collisionDebug: CollisionDebugView;
+  private readonly trail: TrailView;
   private readonly wind = new WindView();
   private readonly route: RouteGuide;
   private readonly cameraRig: CameraRig;
@@ -87,10 +88,15 @@ export class App {
   private readonly input: InputManager;
   private readonly probeScheduler = new ProbeScheduler();
   private readonly renderOrigin = new Vector3();
+  private readonly renderPlaneWorldPosition = new Vector3();
   private readonly renderPlanePosition = new Vector3();
+  private readonly renderAircraftOrientation = new Quaternion();
+  private readonly renderCameraOrientation = new Quaternion();
+  private renderManeuverRollAngle = 0;
   private readonly originShift = new Vector3();
   private readonly blurVelocity = new Vector3();
   private accumulator = 0;
+  private renderInterpolationReady = false;
   private lastTime = performance.now();
   private elapsed = 0;
   private lastHudUpdate = 0;
@@ -134,12 +140,15 @@ export class App {
     this.terrain = new TerrainManager(this.scene, this.terrainModel);
     this.flocks = new FlockSystem(this.scene, this.terrainModel, seed);
     this.flight = new FlightController(this.terrainModel);
+    this.aircraft = new AircraftView(this.flight.wings);
+    this.collisionDebug = new CollisionDebugView(this.flight.wings);
+    this.trail = new TrailView(this.flight.wings);
     this.rocks = new RockLibrary(seed);
-    this.meteors = new MeteorSystem(this.terrainModel, this.rocks, seed);
+    this.meteors = new MeteorSystem(this.terrainModel, this.rocks, seed, this.flight.wings);
     this.impacts = new ImpactSystem(this.rocks, seed);
-    this.missiles = new MissileSystem(this.meteors, seed);
+    this.missiles = new MissileSystem(this.meteors, seed, this.flight.wings);
     this.combatView = new CombatView(this.meteors, this.missiles, this.impacts);
-    this.bullets = new BulletSystem(this.meteors, seed);
+    this.bullets = new BulletSystem(this.meteors, seed, this.flight.wings);
     this.bulletView = new BulletView(this.bullets);
     this.pulseView = new PulseCannonView(this.pulse, seed);
     this.meteors.onDestroyed = (rock, _point, direction) => {
@@ -166,9 +175,10 @@ export class App {
       this.route.line,
       this.wind.group,
     );
+    this.updateRenderPose(1);
     this.terrain.update(this.flight.position, this.renderOrigin);
     this.route.update(this.flight.position, this.renderOrigin);
-    this.trail.add(this.flight.position, this.flight.orientation, this.renderOrigin, true);
+    this.trail.add(this.renderPlaneWorldPosition, this.renderAircraftOrientation, this.renderOrigin, true);
 
     this.flight.onCrash = () => {
       this.resetCombat();
@@ -244,6 +254,9 @@ export class App {
       this.pulseShake.frequency = settings.pulseShakeFrequency;
       this.pulseShakeEnvelope.fadeDuration = settings.pulseShakeDuration;
       this.flightEffects.configure(settings);
+      this.flight.wings.configure(settings);
+      this.aircraft.syncWings();
+      this.collisionDebug.syncWings();
       this.post.setScanSettings(settings.scanGlassEnabled, settings.scanGlassStrength, settings.scanGlassDispersion, settings.scanGlassPersistence,
         settings.scanGlassFlutter, settings.scanGlassFlutterRate, settings.scanTerrainSpeed);
       this.route.setColor(settings.autopilotGuideColor);
@@ -293,6 +306,7 @@ export class App {
     document.addEventListener('visibilitychange', () => {
       this.lastTime = performance.now();
       this.accumulator = 0;
+      this.renderInterpolationReady = false;
     });
     document.addEventListener('fullscreenchange', () => this.hud.setFullscreen(Boolean(document.fullscreenElement)));
     this.resize();
@@ -344,13 +358,22 @@ export class App {
         this.accumulator -= FLIGHT.fixedStep;
         substeps += 1;
       }
-      if (substeps === FLIGHT.maxSubsteps) this.accumulator = 0;
+      const droppedSimulationTime = substeps === FLIGHT.maxSubsteps;
+      if (droppedSimulationTime) {
+        this.accumulator = 0;
+        this.renderInterpolationReady = false;
+      } else if (substeps > 0) {
+        this.renderInterpolationReady = true;
+      }
 
       this.maybeRebase();
+      this.updateRenderPose(this.renderInterpolationReady
+        ? this.accumulator / FLIGHT.fixedStep
+        : 1);
       this.terrain.update(this.flight.position, this.renderOrigin);
 
       this.hud.setProbeActive(this.terrain.isProbeActive);
-      this.trail.add(this.flight.position, this.flight.orientation, this.renderOrigin);
+      this.trail.add(this.renderPlaneWorldPosition, this.renderAircraftOrientation, this.renderOrigin);
       const throttleActive = frameInput.throttle > 0
         && this.flight.mode !== 'paused'
         && this.flight.mode !== 'crashed';
@@ -369,7 +392,7 @@ export class App {
       this.wind.update(
         rawDelta,
         this.renderPlanePosition,
-        this.flight.orientation,
+        this.renderAircraftOrientation,
         this.flight.speed,
         throttleActive,
         this.flight.mode === 'paused' || this.flight.mode === 'crashed',
@@ -394,7 +417,7 @@ export class App {
       this.syncViews();
     }
     this.hud.setBoostState(this.input.boost.active, this.input.boost.locked);
-    this.cameraRig.update(rawDelta, this.renderPlanePosition, this.flight.cameraOrientation,
+    this.cameraRig.update(rawDelta, this.renderPlanePosition, this.renderCameraOrientation,
       this.flight.crashIntensity, this.throttleActive, this.paused);
     this.terrain.updateBoostLight(this.flightEffects.lightPosition,
       this.flightEffects.lightColor, this.flightEffects.lightIntensity);
@@ -408,14 +431,14 @@ export class App {
       this.lastHudUpdate = this.renderElapsed;
     }
     this.blurVelocity.set(0, 0, this.flight.mode === 'crashed' ? 0 : this.flight.speed)
-      .applyQuaternion(this.flight.orientation);
+      .applyQuaternion(this.renderAircraftOrientation);
     this.post.setScanWave(this.terrain.currentProbeWorldCenter, this.renderOrigin,
       this.terrain.currentProbeRadius, this.terrain.isProbeExpanding);
     this.boostShake.update(this.paused ? 0 : rawDelta, this.flightEffects.burst.shakeIntensity);
-    this.cockpitRoll.apply(this.cameraRig.camera, this.flight.cameraOrientation,
-      this.cameraRig.mode === 'cockpit' ? this.flight.maneuverRollAngle : 0);
-    this.bullets.setCamera(this.cameraRig.camera, this.renderOrigin, this.flight.position);
-    this.bullets.sync(this.flight.position, this.flight.orientation);
+    this.cockpitRoll.apply(this.cameraRig.camera, this.renderCameraOrientation,
+      this.cameraRig.mode === 'cockpit' ? this.renderManeuverRollAngle : 0);
+    this.bullets.setCamera(this.cameraRig.camera, this.renderOrigin, this.renderPlaneWorldPosition);
+    this.bullets.sync(this.renderPlaneWorldPosition, this.renderAircraftOrientation);
     this.pulseMuzzle.set(...PULSE_MUZZLE)
       .applyQuaternion(this.flight.orientation)
       .add(this.flight.position);
@@ -437,10 +460,10 @@ export class App {
     this.boostShake.apply(this.cameraRig.camera, this.flight.speed, this.impacts.shakeTranslation, this.impacts.shakeRotation);
     this.pulseShake.apply(this.cameraRig.camera, this.flight.speed);
     try {
-      this.missiles.syncMuzzles(this.flight.position, this.flight.orientation);
+      this.missiles.syncMuzzles(this.renderPlaneWorldPosition, this.renderAircraftOrientation);
       this.combatHud.update(this.cameraRig.camera, this.renderOrigin, this.meteors, this.missiles,
-        this.missiles.settings, this.cameraRig.mode === 'cockpit', this.experienceMode === 'analysis', this.crtCurvature, this.flight.orientation, this.bullets.settings.bulletEnabled ? this.bullets.aim.point : undefined);
-      this.bulletView.sync(this.renderOrigin, this.cameraRig.camera, this.flight.orientation);
+        this.missiles.settings, this.cameraRig.mode === 'cockpit', this.experienceMode === 'analysis', this.crtCurvature, this.renderAircraftOrientation, this.bullets.settings.bulletEnabled ? this.bullets.aim.point : undefined);
+      this.bulletView.sync(this.renderOrigin, this.cameraRig.camera, this.renderAircraftOrientation);
       this.combatView.sync(this.renderOrigin, this.cameraRig.camera,
         this.experienceMode === 'analysis', this.collisionDebugEnabled && this.experienceMode === 'analysis');
       this.post.render(
@@ -462,20 +485,31 @@ export class App {
   };
 
   private syncViews(): void {
-    this.renderPlanePosition.copy(this.flight.position).sub(this.renderOrigin);
+    this.aircraft.syncWings();
+    this.collisionDebug.syncWings();
     this.aircraft.group.position.copy(this.renderPlanePosition);
-    this.aircraft.group.quaternion.copy(this.flight.orientation);
+    this.aircraft.group.quaternion.copy(this.renderAircraftOrientation);
     this.collisionDebug.group.position.copy(this.renderPlanePosition);
     const cockpit = this.cameraRig.mode === 'cockpit';
     this.flight.setCockpitCollision(cockpit);
     this.collisionDebug.setCockpitMode(cockpit);
-    this.collisionDebug.group.quaternion.copy(this.flight.orientation);
+    this.collisionDebug.group.quaternion.copy(this.renderAircraftOrientation);
     this.collisionDebug.setColliding(this.flight.hasTerrainContact);
     this.collisionDebug.group.visible = this.collisionDebugEnabled && this.experienceMode === 'analysis';
     this.aircraft.setCockpitMode(cockpit);
-    this.flightEffects.sync(this.renderPlanePosition, this.flight.orientation, cockpit);
+    this.flightEffects.sync(this.renderPlanePosition, this.renderAircraftOrientation, cockpit);
     this.flightEffects.syncWake(this.trail, this.renderOrigin);
     this.route.setPresentationVisible(true);
+  }
+
+  private updateRenderPose(alpha: number): void {
+    this.renderManeuverRollAngle = this.flight.sampleRenderPose(
+      alpha,
+      this.renderPlaneWorldPosition,
+      this.renderAircraftOrientation,
+      this.renderCameraOrientation,
+    );
+    this.renderPlanePosition.copy(this.renderPlaneWorldPosition).sub(this.renderOrigin);
   }
 
   private maybeRebase(): void {
@@ -587,10 +621,11 @@ export class App {
     this.input.boost.reset();
     this.flight.reset();
     this.flightEffects.reset();
+    this.renderInterpolationReady = false;
+    this.updateRenderPose(1);
     this.trail.clear();
-    this.trail.add(this.flight.position, this.flight.orientation, this.renderOrigin, true);
-    this.renderPlanePosition.copy(this.flight.position).sub(this.renderOrigin);
-    this.wind.reset(this.renderPlanePosition, this.flight.orientation);
+    this.trail.add(this.renderPlaneWorldPosition, this.renderAircraftOrientation, this.renderOrigin, true);
+    this.wind.reset(this.renderPlanePosition, this.renderAircraftOrientation);
   }
 
   private newSeed(): void {

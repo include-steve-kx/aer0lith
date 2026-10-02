@@ -26,6 +26,7 @@ export interface RockVariant {
 }
 const key = (v: Vector3) =>
   `${v.x.toFixed(6)},${v.y.toFixed(6)},${v.z.toFixed(6)}`;
+const triangleCross = new Vector3();
 export function convexShape(geometry: BufferGeometry): ConvexShape {
   const p = geometry.getAttribute('position'),
     vertices: Vector3[] = [],
@@ -65,6 +66,34 @@ export function convexShape(geometry: BufferGeometry): ConvexShape {
     addAxis(edges, edge.subVectors(a, c));
   }
   return { vertices, normals, edges, planes, radius };
+}
+
+/** Mutable zero-thickness triangle used for the four visible wing collision surfaces. */
+export function triangleShape(points: readonly Vector3[]): ConvexShape {
+  const shape: ConvexShape = {
+    vertices: Array.from({ length: 3 }, () => new Vector3()),
+    normals: [new Vector3(), new Vector3()],
+    edges: Array.from({ length: 3 }, () => new Vector3()),
+    planes: [0, 0],
+    radius: 0,
+  };
+  updateTriangleShape(shape, points);
+  return shape;
+}
+
+export function updateTriangleShape(shape: ConvexShape, points: readonly Vector3[]): void {
+  let radius = 0;
+  for (let i = 0; i < 3; i++) {
+    shape.vertices[i].copy(points[i]);
+    radius = Math.max(radius, points[i].length());
+    shape.edges[i].subVectors(points[(i + 1) % 3], points[i]).normalize();
+  }
+  shape.normals[0].subVectors(points[1], points[0])
+    .cross(triangleCross.subVectors(points[2], points[0])).normalize();
+  shape.normals[1].copy(shape.normals[0]).negate();
+  shape.planes[0] = shape.normals[0].dot(points[0]);
+  shape.planes[1] = shape.normals[1].dot(points[0]);
+  shape.radius = radius;
 }
 export function hullGeometry(
   points: readonly (readonly number[])[],
