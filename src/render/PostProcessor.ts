@@ -31,6 +31,7 @@ export class PostProcessor {
   private target: WebGLRenderTarget;
   private processedTarget: WebGLRenderTarget;
   private readonly wakeTarget: WebGLRenderTarget;
+  private readonly crystalTarget: WebGLRenderTarget;
   private readonly savedClearColor = new Color();
   private readonly neutralRefraction = new Color(128 / 255, 128 / 255, 0);
   private width = 1;
@@ -51,8 +52,18 @@ export class PostProcessor {
     this.target.stencilBuffer = true;
     this.target.depthTexture = new DepthTexture(1, 1, UnsignedInt248Type);
     this.target.depthTexture.format = DepthStencilFormat;
+    // Keep the established glass effects on their original single-output
+    // framebuffer. Their shaders only declare location 0 and must never be
+    // rendered while a second color attachment is active.
     this.wakeTarget = this.createTarget(1, 1);
+    this.wakeTarget.texture.name = 'refraction-vectors';
     this.wakeTarget.depthTexture = new DepthTexture(1, 1);
+    // Crystal owns this MRT target: its shader explicitly writes both
+    // attachments, so there are no undefined outputs from legacy glass.
+    this.crystalTarget = this.createTarget(1, 1, 2);
+    this.crystalTarget.textures[0].name = 'crystal-refraction-vectors';
+    this.crystalTarget.textures[1].name = 'crystal-body';
+    this.crystalTarget.depthTexture = new DepthTexture(1, 1);
     this.material = new ShaderMaterial({
       uniforms: {
         tDiffuse: { value: this.target.texture },
@@ -60,7 +71,11 @@ export class PostProcessor {
         tDepth: { value: this.target.depthTexture },
         tWake: { value: this.wakeTarget.texture },
         tWakeDepth: { value: this.wakeTarget.depthTexture },
+        tCrystalWake: { value: this.crystalTarget.textures[0] },
+        tCrystalBody: { value: this.crystalTarget.textures[1] },
+        tCrystalDepth: { value: this.crystalTarget.depthTexture },
         uWakeEnabled: { value: 0 },
+        uCrystalEnabled: { value: 0 },
         uProjection: { value: new Matrix4() },
         uProjectionInverse: { value: new Matrix4() },
         uTravelView: { value: new Vector3() },
@@ -90,7 +105,8 @@ export class PostProcessor {
         uniform vec2 uResolution;
         uniform sampler2D tDepth;
         uniform sampler2D tWake, tWakeDepth;
-        uniform float uWakeEnabled;
+        uniform sampler2D tCrystalWake, tCrystalBody, tCrystalDepth;
+        uniform float uWakeEnabled, uCrystalEnabled;
         uniform mat4 uProjection;
         uniform mat4 uProjectionInverse;
         uniform vec3 uTravelView;
@@ -163,6 +179,61 @@ export class PostProcessor {
           // the wake, especially the ship's sharp wing silhouette.
           return texture2D(tDepth, candidate).r < glassDepth - 0.000001 ? uv : candidate;
         }
+        vec2 glassOffset(vec4 glass) {
+          return ((glass.rg * 255.0 - 128.0) / 127.0) * 84.0
+            * (uResolution.y / 1080.0) / uResolution;
+        }
+        float glassSheen(vec4 glass) {
+          return max(0.0, (glass.a * 255.0 - 1.0) / 254.0);
+        }
+        vec3 applyGlassOptics(
+          vec3 color,
+          vec2 surfaceUv,
+          vec2 centerUv,
+          vec2 offset,
+          float dispersion,
+          float sheen,
+          float depth
+        ) {
+          if (dispersion > 0.001) {
+            vec3 base = texture2D(tDiffuse, centerUv).rgb;
+            color.r += texture2D(
+              tDiffuse, refractedUv(surfaceUv, offset * (1.0 + dispersion), depth)
+            ).r - base.r;
+            color.b += texture2D(
+              tDiffuse, refractedUv(surfaceUv, offset * (1.0 - dispersion), depth)
+            ).b - base.b;
+          }
+          return mix(color, vec3(0.8, 0.9, 1.0), sheen);
+        }
+        vec3 resolveWakeBehind(vec2 surfaceUv, float frontDepth) {
+          if (uWakeEnabled < 0.5) return motionSample(surfaceUv);
+          vec4 wake = texture2D(tWake, surfaceUv);
+          if (wake.a <= 0.001) return motionSample(surfaceUv);
+          float depth = texture2D(tWakeDepth, surfaceUv).r;
+          if (depth <= frontDepth + 0.000001) return motionSample(surfaceUv);
+          vec2 offset = glassOffset(wake);
+          vec2 centerUv = refractedUv(surfaceUv, offset, depth);
+          return applyGlassOptics(
+            motionSample(centerUv), surfaceUv, centerUv, offset,
+            wake.b, glassSheen(wake), depth
+          );
+        }
+        vec3 resolveCrystalBehind(vec2 surfaceUv, float frontDepth) {
+          if (uCrystalEnabled < 0.5) return motionSample(surfaceUv);
+          vec4 crystalWake = texture2D(tCrystalWake, surfaceUv);
+          if (crystalWake.a <= 0.001) return motionSample(surfaceUv);
+          float depth = texture2D(tCrystalDepth, surfaceUv).r;
+          if (depth <= frontDepth + 0.000001) return motionSample(surfaceUv);
+          vec2 offset = glassOffset(crystalWake);
+          vec2 centerUv = refractedUv(surfaceUv, offset, depth);
+          vec3 color = applyGlassOptics(
+            motionSample(centerUv), surfaceUv, centerUv, offset,
+            crystalWake.b, glassSheen(crystalWake), depth
+          );
+          vec4 body = texture2D(tCrystalBody, surfaceUv);
+          return body.a > 0.001 ? mix(color, body.rgb, body.a) : color;
+        }
         void main() {
           vec2 curved = vUv * 2.0 - 1.0;
           curved *= 1.0 + dot(curved, curved) * uCurvature * uCrtEnabled;
@@ -181,30 +252,48 @@ export class PostProcessor {
             0.0
           );
           vec2 originalUv = uv;
-          vec2 wakeOffset = vec2(0.0);
-          float dispersion = 0.0;
-          float sheen = 0.0;
-          float glassDepth = 1.0;
+          vec4 wake = vec4(0.0);
+          vec4 crystalWake = vec4(0.0);
+          float wakeDepth = 1.0;
+          float crystalDepth = 1.0;
+          bool hasWake = false;
+          bool hasCrystal = false;
           if (uWakeEnabled > 0.5) {
-            vec4 wake = texture2D(tWake, uv);
-            if (wake.a > 0.001) {
-              wakeOffset = ((wake.rg * 255.0 - 128.0) / 127.0) * 84.0
-                * (uResolution.y / 1080.0) / uResolution;
-              dispersion = wake.b;
-              sheen = max(0.0, (wake.a * 255.0 - 1.0) / 254.0);
-              glassDepth = texture2D(tWakeDepth, originalUv).r;
+            wake = texture2D(tWake, originalUv);
+            hasWake = wake.a > 0.001;
+            if (hasWake) wakeDepth = texture2D(tWakeDepth, originalUv).r;
+          }
+          if (uCrystalEnabled > 0.5) {
+            crystalWake = texture2D(tCrystalWake, originalUv);
+            hasCrystal = crystalWake.a > 0.001;
+            if (hasCrystal) crystalDepth = texture2D(tCrystalDepth, originalUv).r;
+          }
+          vec3 color;
+          if (hasWake && (!hasCrystal || wakeDepth <= crystalDepth)) {
+            vec2 offset = glassOffset(wake);
+            uv = refractedUv(originalUv, offset, wakeDepth);
+            color = resolveCrystalBehind(uv, wakeDepth);
+            color = applyGlassOptics(
+              color, originalUv, uv, offset, wake.b, glassSheen(wake), wakeDepth
+            );
+          } else if (hasCrystal) {
+            vec2 offset = glassOffset(crystalWake);
+            uv = refractedUv(originalUv, offset, crystalDepth);
+            color = resolveWakeBehind(uv, crystalDepth);
+            color = applyGlassOptics(
+              color, originalUv, uv, offset, crystalWake.b,
+              glassSheen(crystalWake), crystalDepth
+            );
+            vec4 crystalBody = texture2D(tCrystalBody, originalUv);
+            if (crystalBody.a > 0.001) {
+              color = mix(color, crystalBody.rgb, crystalBody.a);
             }
+          } else {
+            color = motionSample(originalUv);
           }
-          uv = refractedUv(originalUv, wakeOffset, glassDepth);
           vec3 base = texture2D(tDiffuse, uv).rgb;
-          vec3 color = motionSample(uv);
-          if (dispersion > 0.001) {
-            color.r += texture2D(tDiffuse, refractedUv(originalUv, wakeOffset * (1.0 + dispersion), glassDepth)).r - base.r;
-            color.b += texture2D(tDiffuse, refractedUv(originalUv, wakeOffset * (1.0 - dispersion), glassDepth)).b - base.b;
-          }
           color.r += texture2D(tDiffuse, uv + aberration).r - base.r;
           color.b += texture2D(tDiffuse, uv - aberration).b - base.b;
-          color = mix(color, vec3(0.8, 0.9, 1.0), sheen);
           float scanWave = sin(uv.y * uResolution.y * 3.14159);
           float scan = 1.0 - 0.12 * uScanlineStrength * uCrtEnabled * (1.0 - scanWave);
           float phosphorColumn = mod(floor(uv.x * uResolution.x), 3.0);
@@ -279,11 +368,12 @@ export class PostProcessor {
     this.glowScene.add(new Mesh(new PlaneGeometry(2, 2), this.glowMaterial));
   }
 
-  private createTarget(width: number, height: number): WebGLRenderTarget {
+  private createTarget(width: number, height: number, count = 1): WebGLRenderTarget {
     const target = new WebGLRenderTarget(width, height, {
       minFilter: LinearFilter,
       magFilter: LinearFilter,
       depthBuffer: true,
+      count,
     });
     return target;
   }
@@ -297,6 +387,7 @@ export class PostProcessor {
     this.target.setSize(renderWidth, renderHeight);
     this.processedTarget.setSize(renderWidth, renderHeight);
     this.wakeTarget.setSize(renderWidth, renderHeight);
+    this.crystalTarget.setSize(renderWidth, renderHeight);
     this.material.uniforms.uResolution.value.set(renderWidth, renderHeight);
     this.glowMaterial.uniforms.uTexel.value.set(1 / renderWidth, 1 / renderHeight);
   }
@@ -367,10 +458,14 @@ export class PostProcessor {
   }
 
   render(scene: Scene, camera: OrthographicCamera | import('three').PerspectiveCamera, time: number, crash: number,
-    velocity = new Vector3(), shipPosition = new Vector3(), flightEffects?: FlightEffects, contributors: readonly RefractionContributor[] = []): void {
+    velocity = new Vector3(), shipPosition = new Vector3(), flightEffects?: FlightEffects,
+    contributors: readonly RefractionContributor[] = [], crystalContributor?: RefractionContributor): void {
     const wakeActive = flightEffects?.hasWake ?? false;
-    const refractionActive = wakeActive || this.scanGlass.active || contributors.some(c => c.active);
-    this.material.uniforms.uWakeEnabled.value = refractionActive ? 1 : 0;
+    const glassActive = wakeActive || this.scanGlass.active || contributors.some(c => c.active);
+    const crystalActive = crystalContributor?.active ?? false;
+    const refractionActive = glassActive || crystalActive;
+    this.material.uniforms.uWakeEnabled.value = glassActive ? 1 : 0;
+    this.material.uniforms.uCrystalEnabled.value = crystalActive ? 1 : 0;
     const exposure = this.motionBlurEnabled
       ? motionBlurExposure(velocity.length(), this.motionBlurStrength, this.motionBlurStartSpeed) : 0;
     this.material.uniforms.uBlurPixels.value = this.motionBlurEnabled
@@ -395,21 +490,31 @@ export class PostProcessor {
       const autoClear = this.renderer.autoClear;
       try {
         this.renderer.setClearColor(this.neutralRefraction, 0);
-        this.renderer.setRenderTarget(this.wakeTarget);
-        this.renderer.clear();
         this.renderer.autoClear = false;
-        if (this.scanGlass.active) {
-          this.scanGlass.prepare(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height, time);
-          this.renderer.render(this.scanGlass.scene, camera);
+        if (glassActive) {
+          this.renderer.setRenderTarget(this.wakeTarget);
+          this.renderer.clear();
+          if (this.scanGlass.active) {
+            this.scanGlass.prepare(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height, time);
+            this.renderer.render(this.scanGlass.scene, camera);
+          }
+          if (wakeActive && flightEffects) {
+            flightEffects.prepareWake(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height);
+            this.renderer.render(flightEffects.wakeScene, camera);
+          }
+          for (const contributor of contributors) {
+            if (!contributor.active) continue;
+            contributor.prepare(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height, time);
+            this.renderer.render(contributor.scene, camera);
+          }
         }
-        if (wakeActive && flightEffects) {
-          flightEffects.prepareWake(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height);
-          this.renderer.render(flightEffects.wakeScene, camera);
-        }
-        for (const contributor of contributors) {
-          if (!contributor.active) continue;
-          contributor.prepare(this.target.depthTexture!, this.wakeTarget.width, this.wakeTarget.height, time);
-          this.renderer.render(contributor.scene, camera);
+        if (crystalActive && crystalContributor) {
+          this.renderer.setRenderTarget(this.crystalTarget);
+          this.renderer.clear();
+          crystalContributor.prepare(
+            this.target.depthTexture!, this.crystalTarget.width, this.crystalTarget.height, time,
+          );
+          this.renderer.render(crystalContributor.scene, camera);
         }
       } finally {
         this.renderer.autoClear = autoClear;
@@ -435,6 +540,7 @@ export class PostProcessor {
     this.target.dispose();
     this.processedTarget.dispose();
     this.wakeTarget.dispose();
+    this.crystalTarget.dispose();
   }
 
 }

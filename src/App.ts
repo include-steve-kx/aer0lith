@@ -452,6 +452,7 @@ export class App {
         this.renderPlanePosition,
         this.flightEffects,
         this.refractionContributors,
+        this.terrain.crystalRefraction,
       );
     } finally {
       this.pulseShake.restore(this.cameraRig.camera);
