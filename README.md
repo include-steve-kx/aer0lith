@@ -89,6 +89,9 @@ Bullets damage meteors without scanning. At default durability, 6 / 12 / 18 m me
 
 See [bullet architecture and validation](docs/bullets.md) for budgets, lifecycle rules, test scenarios, and measured performance.
 
+Terrain can also mix deterministic rock and semi-transparent crystal without
+changing collision or carving. See [crystal terrain architecture and validation](docs/crystal-terrain.md).
+
 ## Run on an iPhone with Capacitor
 
 The native app supports **landscape left and landscape right only**. This is a build setting in `ios/App/App/Info.plist`, not a runtime visual toggle. The ordinary browser version follows its browser window size. See [orientation configuration](SETUP.md#landscape-only-native-app) and the [complete phone deployment commands](SETUP.md#copy-paste-build-install-and-launch-on-steves-iphone).
