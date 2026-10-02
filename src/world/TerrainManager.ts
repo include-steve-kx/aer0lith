@@ -4,13 +4,18 @@ import {
   Color,
   DoubleSide,
   DynamicDrawUsage,
+  GLSL3,
   Group,
   Mesh,
+  NoBlending,
   Scene,
   ShaderMaterial,
   Sphere,
+  Texture,
+  Vector2,
   Vector3,
 } from 'three';
+import type { RefractionContributor } from '../combat/types.ts';
 import { PALETTE, PROBE, TERRAIN } from '../core/config.ts';
 import type { VisualSettings } from '../ui/SettingsPanel.ts';
 import type { ProceduralTerrain } from './TerrainModel.ts';
@@ -21,6 +26,7 @@ import {
   Float32MeshBuffer,
   latticeMaximum,
   polygonizeDensityLattice,
+  sampleCrystalLattice,
   sampleDensityLattice,
   type VolumeChunkCoordinate,
 } from './VolumeMesher.ts';
@@ -38,13 +44,14 @@ class TerrainChunk {
   private readonly geometry = new BufferGeometry();
   private readonly vertices = new Float32MeshBuffer();
   private readonly mesh: Mesh;
+  private readonly crystalMesh: Mesh;
   worldCX = Number.NaN;
   worldCY = Number.NaN;
   worldCZ = Number.NaN;
   revision = 0;
   active = false;
 
-  constructor(terrainMaterial: ShaderMaterial) {
+  constructor(terrainMaterial: ShaderMaterial, crystalMaterial: ShaderMaterial, crystalScene: Scene) {
     this.geometry.setAttribute(
       'position',
       new BufferAttribute(this.vertices.data, 3).setUsage(DynamicDrawUsage),
@@ -53,6 +60,10 @@ class TerrainChunk {
     this.mesh.renderOrder = 1;
     this.mesh.visible = false;
     this.group.add(this.mesh);
+    this.crystalMesh = new Mesh(this.geometry, crystalMaterial);
+    this.crystalMesh.renderOrder = 1;
+    this.crystalMesh.visible = false;
+    crystalScene.add(this.crystalMesh);
     this.group.visible = false;
   }
 
@@ -62,6 +73,7 @@ class TerrainChunk {
     worldCZ: number,
     origin: Vector3,
     vertices: Float32Array,
+    crystal: Uint8Array,
     revision: number,
   ): void {
     this.worldCX = worldCX;
@@ -73,7 +85,8 @@ class TerrainChunk {
     this.updateRenderPosition(origin);
 
     const previousBuffer = (this.geometry.getAttribute('position') as BufferAttribute).array;
-    this.vertices.copyFrom(vertices);
+    const previousCrystal = this.geometry.getAttribute('crystalField')?.array;
+    this.vertices.copyFrom(vertices, crystal);
     if (previousBuffer !== this.vertices.data) {
       this.geometry.setAttribute(
         'position',
@@ -82,6 +95,14 @@ class TerrainChunk {
     } else {
       this.geometry.getAttribute('position').needsUpdate = true;
     }
+    if (previousCrystal !== this.vertices.crystal) {
+      this.geometry.setAttribute(
+        'crystalField',
+        new BufferAttribute(this.vertices.crystal, 1, true).setUsage(DynamicDrawUsage),
+      );
+    } else {
+      this.geometry.getAttribute('crystalField').needsUpdate = true;
+    }
     this.geometry.setDrawRange(0, this.vertices.vertexCount);
     const half = TERRAIN.chunkSize * 0.5;
     this.geometry.boundingSphere = new Sphere(
@@ -89,6 +110,7 @@ class TerrainChunk {
       Math.sqrt(3) * half + PROBE.lift,
     );
     this.mesh.visible = this.vertices.vertexCount > 0;
+    this.crystalMesh.visible = this.vertices.vertexCount > 0;
   }
 
   updateRenderPosition(origin: Vector3): void {
@@ -97,16 +119,19 @@ class TerrainChunk {
       this.worldCY * TERRAIN.chunkSize - origin.y,
       this.worldCZ * TERRAIN.chunkSize - origin.z,
     );
+    this.crystalMesh.position.copy(this.group.position);
   }
 
-  setMaterial(material: ShaderMaterial): void {
+  setMaterials(material: ShaderMaterial, crystalMaterial: ShaderMaterial): void {
     this.mesh.material = material;
+    this.crystalMesh.material = crystalMaterial;
   }
 
   release(): void {
     this.active = false;
     this.group.visible = false;
     this.mesh.visible = false;
+    this.crystalMesh.visible = false;
   }
 
   advanceRevision(revision: number): void {
@@ -114,11 +139,12 @@ class TerrainChunk {
   }
 
   dispose(): void {
+    this.crystalMesh.removeFromParent();
     this.geometry.dispose();
   }
 }
 
-function createTerrainMaterial(): ShaderMaterial {
+function createTerrainMaterial(crystalPass = false): ShaderMaterial {
   const carveStarts = Array.from({ length: MAX_CARVE_MASKS }, () => new Vector3());
   const carveEnds = Array.from({ length: MAX_CARVE_MASKS }, () => new Vector3());
   const pulseScarStarts = Array.from({ length: MAX_PULSE_SCARS }, () => new Vector3());
@@ -181,13 +207,24 @@ function createTerrainMaterial(): ShaderMaterial {
       uPulseScarRadiusSquared: { value: new Float32Array(MAX_PULSE_SCARS) },
       uPulseScarOuterRadiusSquared: { value: new Float32Array(MAX_PULSE_SCARS) },
       uPulseScarStrength: { value: 0.55 },
+      uCrystalAmount: { value: 0.1 },
+      uCrystalOpacity: { value: 0.65 },
+      uCrystalRefraction: { value: 1.1 },
+      uCrystalDispersion: { value: 0.18 },
+      uCrystalColor: { value: new Color(0x8fefff) },
+      tDepth: { value: null },
+      uResolution: { value: new Vector2(1, 1) },
     },
     side: DoubleSide,
     transparent: false,
     depthWrite: true,
     depthTest: true,
     fog: true,
-    defines: { TERRAIN_DOT_MODE: 1 },
+    defines: crystalPass
+      ? { TERRAIN_DOT_MODE: 1, TERRAIN_CRYSTAL_PASS: 1 }
+      : { TERRAIN_DOT_MODE: 1 },
+    glslVersion: GLSL3,
+    blending: NoBlending,
     vertexShader: `
       #include <common>
       #include <fog_pars_vertex>
@@ -201,12 +238,15 @@ function createTerrainMaterial(): ShaderMaterial {
       uniform float uProbeLineWidth;
       uniform float uProbeInfluenceWidth;
       uniform float uProbeLift;
+      attribute float crystalField;
       varying vec3 vTerrainWorldPosition;
       varying float vAlert;
       varying float vProbeInfluence;
       varying float vProbeCore;
+      varying float vCrystalField;
 
       void main() {
+        vCrystalField = crystalField;
         vec4 baseWorld = modelMatrix * vec4(position, 1.0);
         float proximity = 1.0 - smoothstep(
           5.0,
@@ -239,6 +279,13 @@ function createTerrainMaterial(): ShaderMaterial {
       }
     `,
     fragmentShader: `
+      #ifdef TERRAIN_CRYSTAL_PASS
+        layout(location = 0) out vec4 terrainRefractionOutput;
+        layout(location = 1) out vec4 terrainColorOutput;
+      #else
+        layout(location = 0) out vec4 terrainColorOutput;
+      #endif
+      #define gl_FragColor terrainColorOutput
       #include <common>
       #include <fog_pars_fragment>
       uniform vec3 uBoostPosition, uBoostColor;
@@ -283,10 +330,18 @@ function createTerrainMaterial(): ShaderMaterial {
       uniform float uPulseScarRadiusSquared[8];
       uniform float uPulseScarOuterRadiusSquared[8];
       uniform float uPulseScarStrength;
+      uniform float uCrystalAmount;
+      uniform float uCrystalOpacity;
+      uniform float uCrystalRefraction;
+      uniform float uCrystalDispersion;
+      uniform vec3 uCrystalColor;
+      uniform sampler2D tDepth;
+      uniform vec2 uResolution;
       varying vec3 vTerrainWorldPosition;
       varying float vAlert;
       varying float vProbeInfluence;
       varying float vProbeCore;
+      varying float vCrystalField;
 
       float segmentDistanceSquared(vec3 p, vec3 a, vec3 b) {
         vec3 ab = b - a;
@@ -416,6 +471,13 @@ function createTerrainMaterial(): ShaderMaterial {
       }
 
       void main() {
+        float crystalThreshold = 1.0 - clamp(uCrystalAmount, 0.0, 1.0);
+        #ifdef TERRAIN_CRYSTAL_PASS
+          if (uCrystalAmount <= 0.0 || vCrystalField < crystalThreshold) discard;
+          if (gl_FragCoord.z > texture2D(tDepth, gl_FragCoord.xy / uResolution).r + 0.000001) discard;
+        #else
+          if (uCrystalAmount > 0.0 && vCrystalField >= crystalThreshold) discard;
+        #endif
         for (int i = 0; i < 8; i++) {
           if (float(i) >= uCarveMaskCount) break;
           if (segmentDistanceSquared(vTerrainWorldPosition, uCarveStarts[i], uCarveEnds[i])
@@ -500,7 +562,22 @@ function createTerrainMaterial(): ShaderMaterial {
         color += uBoostColor * uBoostPower * boostFalloff * (0.2 + boostDiffuse * 1.4);
         color += pulseLight(uPulseBeamPosition, uPulseBeamColor, uPulseBeamPower, uPulseBeamRange, faceNormal);
         color += pulseLight(uPulseElectricPosition, uPulseElectricColor, uPulseElectricPower, uPulseElectricRange, faceNormal);
-        gl_FragColor = vec4(color, 1.0);
+        #ifdef TERRAIN_CRYSTAL_PASS
+          float crystalCue = clamp(max(max(dangerMix, ringMask), max(patternMask, trailMask))
+            + min(1.0, pulseScarMix) + min(1.0, uBoostPower * boostFalloff * 0.01), 0.0, 1.0);
+          vec3 crystalBase = uCrystalColor * (0.46 + diffuse * 0.48 + axialVariation * 0.1);
+          vec3 crystalBody = mix(crystalBase, color, max(0.18, crystalCue));
+          gl_FragColor = vec4(crystalBody, clamp(uCrystalOpacity + crystalCue * 0.2, 0.0, 1.0));
+          float grazing = pow(1.0 - abs(dot(faceNormal, normalize(cameraPosition - vTerrainWorldPosition))), 2.0);
+          vec2 offset = faceNormal.xy * (uCrystalRefraction / 3.0);
+          terrainRefractionOutput = vec4(
+            vec2(128.0 / 255.0) + offset * (127.0 / 255.0),
+            uCrystalDispersion * (0.3 + grazing * 0.7),
+            (1.0 + (0.045 + grazing * 0.075) * 254.0) / 255.0
+          );
+        #else
+          gl_FragColor = vec4(color, 1.0);
+        #endif
         #include <fog_fragment>
       }
     `,
@@ -532,6 +609,7 @@ interface CompletedChunkResult {
   chunk: VolumeChunkCoordinate;
   revision: number;
   vertices: Float32Array;
+  crystal: Uint8Array;
 }
 
 interface PendingCarveMask {
@@ -551,10 +629,15 @@ interface PulseTerrainScar {
 
 export class TerrainManager {
   readonly group = new Group();
+  readonly crystalScene = new Scene();
+  readonly crystalRefraction: RefractionContributor;
   private readonly terrain: ProceduralTerrain;
   private terrainMaterial: ShaderMaterial;
   private readonly dotMaterial: ShaderMaterial;
   private readonly meshMaterial: ShaderMaterial;
+  private readonly crystalDotMaterial: ShaderMaterial;
+  private readonly crystalMeshMaterial: ShaderMaterial;
+  private crystalMaterial: ShaderMaterial;
   private readonly chunks: TerrainChunk[];
   private readonly active = new Map<string, TerrainChunk>();
   private readonly workers: TerrainWorkerSlot[] = [];
@@ -563,6 +646,7 @@ export class TerrainManager {
   private readonly inFlightByKey = new Map<string, number>();
   private readonly requiredRevisionByKey = new Map<string, number>();
   private readonly baseDensityByKey = new Map<string, Float32Array>();
+  private readonly baseCrystalByKey = new Map<string, Uint8Array>();
   private readonly baseMaximumByKey = new Map<string, number>();
   private readonly syncBuffer = new Float32MeshBuffer();
   private readonly syncCarvedDensity = new Float32Array(densityLatticeLength());
@@ -589,6 +673,8 @@ export class TerrainManager {
   private disposed = false;
   private staleResultCount = 0;
   private coalescedRequestCount = 0;
+  private crystalAmount = 0.1;
+  private crystalOpacity = 0.65;
 
   constructor(
     scene: Scene,
@@ -601,7 +687,28 @@ export class TerrainManager {
     this.meshMaterial.defines = { TERRAIN_MESH_MODE: 1 };
     this.meshMaterial.uniforms = this.dotMaterial.uniforms;
     this.meshMaterial.needsUpdate = true;
+    this.crystalDotMaterial = createTerrainMaterial(true);
+    this.crystalDotMaterial.uniforms = this.dotMaterial.uniforms;
+    this.crystalMeshMaterial = this.crystalDotMaterial.clone();
+    this.crystalMeshMaterial.defines = { TERRAIN_MESH_MODE: 1, TERRAIN_CRYSTAL_PASS: 1 };
+    this.crystalMeshMaterial.uniforms = this.dotMaterial.uniforms;
+    this.crystalMeshMaterial.needsUpdate = true;
     this.terrainMaterial = this.dotMaterial;
+    this.crystalMaterial = this.crystalDotMaterial;
+    const manager = this;
+    this.crystalRefraction = {
+      get active(): boolean {
+        return manager.crystalAmount > 0
+          && (manager.crystalOpacity > 0
+            || manager.dotMaterial.uniforms.uCrystalRefraction.value > 0)
+          && manager.active.size > 0;
+      },
+      scene: this.crystalScene,
+      prepare(depth: Texture, width: number, height: number): void {
+        manager.dotMaterial.uniforms.tDepth.value = depth;
+        manager.dotMaterial.uniforms.uResolution.value.set(width, height);
+      },
+    };
     this.synchronousBudget = Math.max(1, options.synchronousBudget ?? 1);
 
     const supportsWorkers = typeof Worker !== 'undefined';
@@ -611,7 +718,7 @@ export class TerrainManager {
     const spareChunks = supportsWorkers ? TERRAIN.columns * TERRAIN.verticalLayers : 0;
     this.chunks = Array.from(
       { length: TERRAIN.columns * TERRAIN.verticalLayers * TERRAIN.rows + spareChunks },
-      () => new TerrainChunk(this.terrainMaterial),
+      () => new TerrainChunk(this.terrainMaterial, this.crystalMaterial, this.crystalScene),
     );
     for (const chunk of this.chunks) this.group.add(chunk.group);
     scene.add(this.group);
@@ -682,6 +789,7 @@ export class TerrainManager {
       for (const key of this.baseDensityByKey.keys()) {
         if (!this.desiredKeys.has(key) && !this.active.has(key) && !this.inFlightByKey.has(key)) {
           this.baseDensityByKey.delete(key);
+          this.baseCrystalByKey.delete(key);
           this.baseMaximumByKey.delete(key);
         }
       }
@@ -713,13 +821,19 @@ export class TerrainManager {
         this.baseMaximumByKey.set(request.key, latticeMaximum(baseDensity));
         this.terrain.primeCollisionBaseLattice(request.chunk, baseDensity);
       }
+      let baseCrystal = this.baseCrystalByKey.get(request.key);
+      if (!baseCrystal) {
+        baseCrystal = sampleCrystalLattice(request.chunk, this.terrain);
+        this.baseCrystalByKey.set(request.key, baseCrystal);
+      }
       const carves = this.terrain.carveSnapshotForChunk(request.chunk);
       const density = carves.length === 0 ? baseDensity : applyCarveSnapshotToLattice(
         request.chunk, baseDensity, carves, this.syncCarvedDensity,
       );
-      polygonizeDensityLattice(density, this.syncBuffer);
+      polygonizeDensityLattice(density, this.syncBuffer, baseCrystal);
       const vertices = this.syncBuffer.data.slice(0, this.syncBuffer.length);
-      this.installGeneratedChunk(request.key, request.chunk, vertices, request.revision);
+      const crystal = this.syncBuffer.crystal.slice(0, this.syncBuffer.vertexCount);
+      this.installGeneratedChunk(request.key, request.chunk, vertices, crystal, request.revision);
       generated += 1;
     }
     this.releaseRetiredChunks();
@@ -744,6 +858,8 @@ export class TerrainManager {
       const carves = this.terrain.carveSnapshotForChunk(request.chunk);
       const baseDensity = this.baseDensityByKey.get(request.key);
       if (baseDensity) this.baseDensityByKey.delete(request.key);
+      const baseCrystal = this.baseCrystalByKey.get(request.key);
+      if (baseCrystal) this.baseCrystalByKey.delete(request.key);
       const message: TerrainWorkerRequest = {
         requestId,
         seed: this.terrain.seedText,
@@ -751,9 +867,11 @@ export class TerrainManager {
         revision: request.revision,
         carves,
         baseDensity,
+        baseCrystal,
       };
       const transfer: Transferable[] = [carves.buffer];
       if (baseDensity) transfer.push(baseDensity.buffer);
+      if (baseCrystal) transfer.push(baseCrystal.buffer);
       slot.worker.postMessage(message, transfer);
     }
   }
@@ -796,10 +914,15 @@ export class TerrainManager {
       && response.vertices.byteLength <= maximumChunkVertexBytes()
       && response.baseDensity instanceof ArrayBuffer
       && response.baseDensity.byteLength === densityLatticeLength() * Float32Array.BYTES_PER_ELEMENT
+      && response.baseCrystal instanceof ArrayBuffer
+      && response.baseCrystal.byteLength === densityLatticeLength() * Uint8Array.BYTES_PER_ELEMENT
+      && response.crystal instanceof ArrayBuffer
+      && response.crystal.byteLength === response.vertices.byteLength / (Float32Array.BYTES_PER_ELEMENT * 3)
       && Number.isFinite(response.baseMaximum);
     if (valid && this.desiredKeys.has(request.key)) {
       const baseDensity = new Float32Array(response.baseDensity);
       this.baseDensityByKey.set(request.key, baseDensity);
+      this.baseCrystalByKey.set(request.key, new Uint8Array(response.baseCrystal));
       this.baseMaximumByKey.set(request.key, response.baseMaximum);
       this.terrain.primeCollisionBaseLattice(response.chunk, baseDensity);
       const requiredRevision = this.requiredRevisionByKey.get(request.key) ?? 0;
@@ -809,6 +932,7 @@ export class TerrainManager {
           chunk: response.chunk,
           revision: response.revision,
           vertices: new Float32Array(response.vertices),
+          crystal: new Uint8Array(response.crystal),
         });
       } else {
         this.staleResultCount += 1;
@@ -832,7 +956,7 @@ export class TerrainManager {
         if (!this.inFlightByKey.has(result.key)) this.enqueueLatest(result.key, result.chunk, true);
         continue;
       }
-      this.installGeneratedChunk(result.key, result.chunk, result.vertices, result.revision);
+      this.installGeneratedChunk(result.key, result.chunk, result.vertices, result.crystal, result.revision);
       this.releaseRetiredChunks();
       break;
     }
@@ -842,6 +966,7 @@ export class TerrainManager {
     key: string,
     coordinate: VolumeChunkCoordinate,
     vertices: Float32Array,
+    crystal: Uint8Array,
     revision: number,
   ): void {
     const activeChunk = this.active.get(key);
@@ -852,6 +977,7 @@ export class TerrainManager {
         coordinate.z,
         this.currentRenderOrigin,
         vertices,
+        crystal,
         revision,
       );
       return;
@@ -873,6 +999,7 @@ export class TerrainManager {
       coordinate.z,
       this.currentRenderOrigin,
       vertices,
+      crystal,
       revision,
     );
     this.active.set(key, chunk);
@@ -1144,9 +1271,13 @@ export class TerrainManager {
     const nextMaterial = settings.terrainRenderingMode === 'mesh'
       ? this.meshMaterial
       : this.dotMaterial;
-    if (nextMaterial !== this.terrainMaterial) {
+    const nextCrystalMaterial = settings.terrainRenderingMode === 'mesh'
+      ? this.crystalMeshMaterial
+      : this.crystalDotMaterial;
+    if (nextMaterial !== this.terrainMaterial || nextCrystalMaterial !== this.crystalMaterial) {
       this.terrainMaterial = nextMaterial;
-      for (const chunk of this.chunks) chunk.setMaterial(nextMaterial);
+      this.crystalMaterial = nextCrystalMaterial;
+      for (const chunk of this.chunks) chunk.setMaterials(nextMaterial, nextCrystalMaterial);
     }
     this.terrainMaterial.uniforms.uDangerDistance.value = settings.dangerDistance;
     this.terrainMaterial.uniforms.uDangerSizeMultiplier.value = settings.dangerSizeMultiplier;
@@ -1158,6 +1289,13 @@ export class TerrainManager {
     this.terrainMaterial.uniforms.uDotColor.value.set(settings.terrainColor);
     this.terrainMaterial.uniforms.uMeshColor.value.set(settings.meshColor);
     this.terrainMaterial.uniforms.uAlertColor.value.set(settings.dangerColor);
+    this.crystalAmount = settings.terrainCrystalAmount;
+    this.crystalOpacity = settings.terrainCrystalOpacity;
+    this.terrainMaterial.uniforms.uCrystalAmount.value = settings.terrainCrystalAmount;
+    this.terrainMaterial.uniforms.uCrystalOpacity.value = settings.terrainCrystalOpacity;
+    this.terrainMaterial.uniforms.uCrystalRefraction.value = settings.terrainCrystalRefraction;
+    this.terrainMaterial.uniforms.uCrystalDispersion.value = settings.terrainCrystalDispersion;
+    this.terrainMaterial.uniforms.uCrystalColor.value.set(settings.terrainCrystalColor);
     this.probeSpeed = settings.scanTerrainSpeed;
     this.terrainMaterial.uniforms.uProbeSpeed.value = settings.scanTerrainSpeed;
     this.terrainMaterial.uniforms.uProbePatternType.value = settings.scanTerrainPattern === 'plus' ? 1 : 0;
@@ -1239,6 +1377,7 @@ export class TerrainManager {
     this.inFlightByKey.clear();
     this.requiredRevisionByKey.clear();
     this.baseDensityByKey.clear();
+    this.baseCrystalByKey.clear();
     this.baseMaximumByKey.clear();
     this.completedResults.length = 0;
     this.pendingCarveMasks.length = 0;
@@ -1247,6 +1386,9 @@ export class TerrainManager {
     for (const chunk of this.chunks) chunk.dispose();
     this.dotMaterial.dispose();
     this.meshMaterial.dispose();
+    this.crystalDotMaterial.dispose();
+    this.crystalMeshMaterial.dispose();
+    this.crystalScene.clear();
     this.group.removeFromParent();
   }
 }

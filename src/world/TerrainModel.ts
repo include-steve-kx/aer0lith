@@ -28,6 +28,7 @@ function smoothstep(edge0: number, edge1: number, value: number): number {
  */
 export class ProceduralTerrain implements TerrainSampler, FlightPath {
   readonly noise: SeededNoise;
+  private readonly crystalNoise: SeededNoise;
   readonly seedText: string;
   // Workers only polygonize; allocate the collision cache on first query.
   private collisionCache?: DensityLatticeCache;
@@ -52,6 +53,22 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
   constructor(seed: string) {
     this.seedText = seed;
     this.noise = new SeededNoise(seed);
+    this.crystalNoise = new SeededNoise(`${seed}:crystal`);
+  }
+
+  /** Stable, independent material field. Zero is rock and one is crystal. */
+  crystalFieldAt(worldX: number, worldY: number, worldZ: number): number {
+    const broad = this.crystalNoise.noise3(
+      worldX / 52 + 17.1,
+      worldY / 52 - 9.7,
+      worldZ / 52 + 31.3,
+    );
+    const detail = this.crystalNoise.noise3(
+      worldX / 27 - 41.2,
+      worldY / 27 + 13.6,
+      worldZ / 27 - 7.4,
+    );
+    return smoothstep(-0.45, 0.45, broad * 0.72 + detail * 0.28);
   }
 
   primeCollisionBaseLattice(chunk: VolumeChunkCoordinate, density: Float32Array): void {

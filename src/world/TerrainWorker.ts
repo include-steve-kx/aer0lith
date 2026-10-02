@@ -5,6 +5,7 @@ import {
   latticeMaximum,
   polygonizeDensityLattice,
   sampleDensityLattice,
+  sampleCrystalLattice,
 } from './VolumeMesher.ts';
 import { applyCarveSnapshotToLattice, isValidCarveSnapshot } from './TerrainCarve.ts';
 import type { TerrainWorkerRequest, TerrainWorkerResponse } from './TerrainWorkerProtocol.ts';
@@ -42,13 +43,17 @@ workerScope.onmessage = ({ data }): void => {
     ? data.baseDensity
     : sampleDensityLattice(data.chunk, { densityAt: terrain.baseDensityAt.bind(terrain) });
   const baseMaximum = latticeMaximum(baseDensity);
+  const baseCrystal = data.baseCrystal?.length === densityLatticeLength()
+    ? data.baseCrystal
+    : sampleCrystalLattice(data.chunk, terrain);
   const density = data.carves.length === 0
     ? baseDensity
     : applyCarveSnapshotToLattice(data.chunk, baseDensity, data.carves, carvedDensity);
-  polygonizeDensityLattice(density, output);
+  polygonizeDensityLattice(density, output, baseCrystal);
   // Transfer only live vertices. The worker keeps its reusable growth buffer;
   // the render thread receives ownership without serializing a large array.
   const vertices = output.data.slice(0, output.length);
+  const crystal = output.crystal.slice(0, output.vertexCount);
   workerScope.postMessage(
     {
       requestId: data.requestId,
@@ -56,8 +61,10 @@ workerScope.onmessage = ({ data }): void => {
       revision: data.revision,
       vertices: vertices.buffer,
       baseDensity: baseDensity.buffer as ArrayBuffer,
+      baseCrystal: baseCrystal.buffer as ArrayBuffer,
+      crystal: crystal.buffer,
       baseMaximum,
     },
-    [vertices.buffer, baseDensity.buffer],
+    [vertices.buffer, crystal.buffer, baseDensity.buffer, baseCrystal.buffer],
   );
 };

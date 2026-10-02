@@ -8,7 +8,9 @@ import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 import {
   Float32MeshBuffer,
   interpolateDensityCell,
+  polygonizeDensityLattice,
   polygonizeDensityChunk,
+  sampleCrystalLattice,
 } from '../src/world/VolumeMesher.ts';
 
 test('seed hashing and 2D/3D noise are deterministic', () => {
@@ -36,6 +38,41 @@ test('density field is stable on shared 3D chunk boundaries', () => {
     const fromLeft = terrain.densityAt(TERRAIN.chunkSize, y, z);
     const fromRight = terrain.densityAt(TERRAIN.chunkSize, y, z);
     assert.equal(fromLeft, fromRight);
+  }
+});
+
+test('crystal material field is deterministic, independent, and finely mottled', () => {
+  const a = new ProceduralTerrain('crystal-field');
+  const b = new ProceduralTerrain('crystal-field');
+  const c = new ProceduralTerrain('other-crystal-field');
+  const lattice = sampleCrystalLattice({ x: 0, y: -1, z: 2 }, a);
+  assert.deepEqual(lattice, sampleCrystalLattice({ x: 0, y: -1, z: 2 }, b));
+  assert.notDeepEqual(lattice, sampleCrystalLattice({ x: 0, y: -1, z: 2 }, c));
+  const crystalSamples = lattice.reduce((count, value) => count + Number(value >= 0.9 * 255), 0);
+  assert.ok(crystalSamples > lattice.length * 0.02);
+  assert.ok(crystalSamples < lattice.length * 0.25);
+  assert.ok(new Set(lattice).size > 64, 'field is continuous rather than a binary material mask');
+});
+
+test('polygonizer interpolates the crystal field at the same density crossing', () => {
+  const points = TERRAIN.segments + 1;
+  const density = new Float32Array(points ** 3);
+  const crystal = new Uint8Array(points ** 3);
+  let index = 0;
+  for (let z = 0; z < points; z += 1) {
+    for (let y = 0; y < points; y += 1) {
+      for (let x = 0; x < points; x += 1) {
+        density[index] = x - TERRAIN.segments / 2;
+        crystal[index] = Math.round(x / TERRAIN.segments * 255);
+        index += 1;
+      }
+    }
+  }
+  const mesh = new Float32MeshBuffer();
+  polygonizeDensityLattice(density, mesh, crystal);
+  assert.ok(mesh.vertexCount > 0);
+  for (let vertex = 0; vertex < mesh.vertexCount; vertex += 1) {
+    assert.ok(Math.abs(mesh.crystal[vertex] - 128) <= 1);
   }
 });
 

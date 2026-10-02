@@ -7,6 +7,7 @@ export interface TerrainWorkerRequest {
   revision: number;
   carves: Float64Array;
   baseDensity?: Float32Array;
+  baseCrystal?: Uint8Array;
 }
 
 export interface TerrainWorkerResponse {
@@ -15,5 +16,7 @@ export interface TerrainWorkerResponse {
   revision: number;
   vertices: ArrayBuffer;
   baseDensity: ArrayBuffer;
+  baseCrystal: ArrayBuffer;
+  crystal: ArrayBuffer;
   baseMaximum: number;
 }

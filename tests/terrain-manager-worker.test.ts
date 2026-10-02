@@ -28,12 +28,16 @@ class FakeWorker {
   respond(response: Partial<TerrainWorkerResponse> = {}): void {
     const request = this.requests.at(-1)!;
     const base = new Float32Array(densityLatticeLength()).fill(1);
+    const baseCrystal = new Uint8Array(densityLatticeLength()).fill(128);
+    const vertices = response.vertices ?? new ArrayBuffer(0);
     this.onmessage?.({ data: {
       requestId: request.requestId,
       chunk: request.chunk,
       revision: request.revision,
-      vertices: new ArrayBuffer(0),
+      vertices,
+      crystal: new Uint8Array(vertices.byteLength / 12).buffer,
       baseDensity: base.buffer,
+      baseCrystal: baseCrystal.buffer,
       baseMaximum: 1,
       ...response,
     } } as MessageEvent<TerrainWorkerResponse>);
@@ -235,6 +239,11 @@ test('terrain scan uses a configurable sparse plus pattern and independent front
     terrainDotRadiusM: 0.14,
     terrainDotDensityPer100M2: 4,
     terrainColor: '#c8c8c8',
+    terrainCrystalAmount: 0.27,
+    terrainCrystalOpacity: 0.61,
+    terrainCrystalRefraction: 1.35,
+    terrainCrystalDispersion: 0.24,
+    terrainCrystalColor: '#8fefff',
     meshColor: '#363d3e',
     dangerColor: '#ff0000',
     scanTerrainSpeed: 260,
@@ -272,6 +281,11 @@ test('terrain scan uses a configurable sparse plus pattern and independent front
   assert.equal((uniforms.uProbeTrailColor.value as Color).getHexString(), '337799');
   assert.equal(uniforms.uProbeTrailLength.value, 180);
   assert.equal(uniforms.uProbeTrailFalloff.value, 3.5);
+  assert.equal(uniforms.uCrystalAmount.value, 0.27);
+  assert.equal(uniforms.uCrystalOpacity.value, 0.61);
+  assert.equal(uniforms.uCrystalRefraction.value, 1.35);
+  assert.equal(uniforms.uCrystalDispersion.value, 0.24);
+  assert.equal((uniforms.uCrystalColor.value as Color).getHexString(), '8fefff');
   assert.match(fragmentShader, /float scanPattern2d\(vec2 coordinate\)/);
   assert.match(fragmentShader, /float plusDistanceM = min/);
   assert.match(fragmentShader, /float patternMask = triplanarScanPattern\(faceNormal\) \* afterglowMask/);

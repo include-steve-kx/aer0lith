@@ -74,13 +74,14 @@ export function interpolateDensityCell(
 
 export class Float32MeshBuffer {
   data = new Float32Array(4_096);
+  crystal = new Uint8Array(Math.ceil(4_096 / 3));
   length = 0;
 
   reset(): void {
     this.length = 0;
   }
 
-  copyFrom(source: Float32Array): void {
+  copyFrom(source: Float32Array, crystal?: Uint8Array): void {
     if (this.data.length < source.length) {
       let capacity = this.data.length;
       while (capacity < source.length) capacity *= 2;
@@ -88,23 +89,42 @@ export class Float32MeshBuffer {
     }
     this.data.set(source, 0);
     this.length = source.length;
+    const vertexCount = source.length / 3;
+    if (this.crystal.length < vertexCount) {
+      let capacity = this.crystal.length;
+      while (capacity < vertexCount) capacity *= 2;
+      this.crystal = new Uint8Array(capacity);
+    }
+    if (crystal) this.crystal.set(crystal, 0);
+    else this.crystal.fill(0, 0, vertexCount);
   }
 
-  push(x: number, y: number, z: number): void {
+  push(x: number, y: number, z: number, crystalByte = 0): void {
     if (this.length + 3 > this.data.length) {
       const next = new Float32Array(this.data.length * 2);
       next.set(this.data);
       this.data = next;
     }
+    const vertexIndex = this.length / 3;
+    if (vertexIndex >= this.crystal.length) {
+      const next = new Uint8Array(this.crystal.length * 2);
+      next.set(this.crystal);
+      this.crystal = next;
+    }
     this.data[this.length] = x;
     this.data[this.length + 1] = y;
     this.data[this.length + 2] = z;
+    this.crystal[vertexIndex] = Math.round(Math.max(0, Math.min(255, crystalByte)));
     this.length += 3;
   }
 
   get vertexCount(): number {
     return this.length / 3;
   }
+}
+
+export interface CrystalFieldSampler {
+  crystalFieldAt(worldX: number, worldY: number, worldZ: number): number;
 }
 
 export interface VolumeChunkCoordinate {
@@ -141,6 +161,32 @@ export function sampleDensityLattice(
   return output;
 }
 
+export function sampleCrystalLattice(
+  chunk: VolumeChunkCoordinate,
+  terrain: CrystalFieldSampler,
+  output = new Uint8Array(densityLatticeLength()),
+): Uint8Array {
+  if (output.length !== densityLatticeLength()) throw new RangeError('Unexpected crystal lattice length');
+  const resolution = TERRAIN.segments;
+  const cellSize = TERRAIN.chunkSize / resolution;
+  const baseX = chunk.x * TERRAIN.chunkSize;
+  const baseY = chunk.y * TERRAIN.chunkSize;
+  const baseZ = chunk.z * TERRAIN.chunkSize;
+  let index = 0;
+  for (let z = 0; z <= resolution; z += 1) {
+    const worldZ = baseZ + z * cellSize;
+    for (let y = 0; y <= resolution; y += 1) {
+      const worldY = baseY + y * cellSize;
+      for (let x = 0; x <= resolution; x += 1) {
+        output[index++] = Math.round(Math.max(0, Math.min(1,
+          terrain.crystalFieldAt(baseX + x * cellSize, worldY, worldZ),
+        )) * 255);
+      }
+    }
+  }
+  return output;
+}
+
 export function latticeMaximum(density: Float32Array): number {
   let maximum = -Infinity;
   for (let index = 0; index < density.length; index += 1) maximum = Math.max(maximum, density[index]);
@@ -150,22 +196,27 @@ export function latticeMaximum(density: Float32Array): number {
 export function polygonizeDensityLattice(
   density: Float32Array,
   output: Float32MeshBuffer,
+  crystal?: Uint8Array,
 ): void {
   output.reset();
   const resolution = TERRAIN.segments;
   const pointsPerAxis = resolution + 1;
   if (density.length !== pointsPerAxis ** 3) throw new RangeError('Unexpected density lattice length');
+  if (crystal && crystal.length !== density.length) throw new RangeError('Unexpected crystal lattice length');
   const cellSize = TERRAIN.chunkSize / resolution;
   const sampleIndex = (x: number, y: number, z: number): number => x + pointsPerAxis * (y + pointsPerAxis * z);
   const cubeDensity = new Float32Array(8);
+  const cubeCrystal = crystal ? new Uint8Array(8) : undefined;
   for (let z = 0; z < resolution; z += 1) {
     for (let y = 0; y < resolution; y += 1) {
       for (let x = 0; x < resolution; x += 1) {
         let insideCount = 0;
         for (let corner = 0; corner < 8; corner += 1) {
           const offset = CUBE_CORNERS[corner];
-          const value = density[sampleIndex(x + offset[0], y + offset[1], z + offset[2])];
+          const latticeIndex = sampleIndex(x + offset[0], y + offset[1], z + offset[2]);
+          const value = density[latticeIndex];
           cubeDensity[corner] = value;
+          if (cubeCrystal) cubeCrystal[corner] = crystal![latticeIndex];
           if (value > 0) insideCount += 1;
         }
         if (insideCount === 0 || insideCount === 8) continue;
@@ -181,10 +232,14 @@ export function polygonizeDensityLattice(
             const denominator = densityA - densityB;
             const amount = Math.abs(denominator) < 1e-8 ? 0.5 : densityA / denominator;
             const a = CUBE_CORNERS[cornerA], b = CUBE_CORNERS[cornerB];
+            const crystalValue = cubeCrystal
+              ? cubeCrystal[cornerA] + (cubeCrystal[cornerB] - cubeCrystal[cornerA]) * amount
+              : 0;
             output.push(
               (x + a[0] + (b[0] - a[0]) * amount) * cellSize,
               (y + a[1] + (b[1] - a[1]) * amount) * cellSize,
               (z + a[2] + (b[2] - a[2]) * amount) * cellSize,
+              crystalValue,
             );
           }
         }

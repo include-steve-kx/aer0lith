@@ -73,6 +73,11 @@ export interface VisualSettings extends FlightEffectSettings, CombatSettings {
   terrainDotRadiusM: number;
   terrainDotDensityPer100M2: number;
   terrainColor: string;
+  terrainCrystalAmount: number;
+  terrainCrystalOpacity: number;
+  terrainCrystalRefraction: number;
+  terrainCrystalDispersion: number;
+  terrainCrystalColor: string;
   planeColor: string;
   autopilotGuideColor: string;
   windStreakCount: number;
@@ -126,6 +131,11 @@ export class SettingsPanel {
   private readonly terrainDotRadiusM = element<HTMLInputElement>('terrain-dot-radius');
   private readonly terrainDotDensity = element<HTMLInputElement>('terrain-dot-density');
   private readonly terrainColor = element<HTMLInputElement>('terrain-color');
+  private readonly terrainCrystalAmount = element<HTMLInputElement>('terrain-crystal-amount');
+  private readonly terrainCrystalOpacity = element<HTMLInputElement>('terrain-crystal-opacity');
+  private readonly terrainCrystalRefraction = element<HTMLInputElement>('terrain-crystal-refraction');
+  private readonly terrainCrystalDispersion = element<HTMLInputElement>('terrain-crystal-dispersion');
+  private readonly terrainCrystalColor = element<HTMLInputElement>('terrain-crystal-color');
   private readonly scanTerrainSpeed = element<HTMLInputElement>('scan-terrain-speed');
   private readonly scanTerrainSpeedValue = element<HTMLOutputElement>('scan-terrain-speed-value');
   private readonly scanTerrainPattern = element<HTMLSelectElement>('scan-terrain-pattern');
@@ -260,6 +270,10 @@ export class SettingsPanel {
   private readonly dangerSizeFalloffValue = element<HTMLOutputElement>('danger-size-falloff-value');
   private readonly terrainDotRadiusValue = element<HTMLOutputElement>('terrain-dot-radius-value');
   private readonly terrainDotDensityValue = element<HTMLOutputElement>('terrain-dot-density-value');
+  private readonly terrainCrystalAmountValue = element<HTMLOutputElement>('terrain-crystal-amount-value');
+  private readonly terrainCrystalOpacityValue = element<HTMLOutputElement>('terrain-crystal-opacity-value');
+  private readonly terrainCrystalRefractionValue = element<HTMLOutputElement>('terrain-crystal-refraction-value');
+  private readonly terrainCrystalDispersionValue = element<HTMLOutputElement>('terrain-crystal-dispersion-value');
   private readonly windStreakLengthValue = element<HTMLOutputElement>('wind-streak-length-value');
   private readonly windStreakCountValue = element<HTMLOutputElement>('wind-streak-count-value');
   private readonly windSpeedThresholdValue = element<HTMLOutputElement>('wind-speed-threshold-value');
@@ -341,6 +355,11 @@ export class SettingsPanel {
       terrainDotRadiusM: this.terrainDotRadiusM.valueAsNumber,
       terrainDotDensityPer100M2: this.terrainDotDensity.valueAsNumber,
       terrainColor: this.terrainColor.value,
+      terrainCrystalAmount: this.terrainCrystalAmount.valueAsNumber,
+      terrainCrystalOpacity: this.terrainCrystalOpacity.valueAsNumber,
+      terrainCrystalRefraction: this.terrainCrystalRefraction.valueAsNumber,
+      terrainCrystalDispersion: this.terrainCrystalDispersion.valueAsNumber,
+      terrainCrystalColor: this.terrainCrystalColor.value,
       planeColor: this.planeColor.value,
       scanTerrainSpeed: this.scanTerrainSpeed.valueAsNumber,
       scanTerrainPattern: this.scanTerrainPattern.value as VisualSettings['scanTerrainPattern'],
@@ -490,6 +509,11 @@ export class SettingsPanel {
       this.restoreRange(this.terrainDotRadiusM, saved.terrainDotRadiusM);
       this.restoreRange(this.terrainDotDensity, saved.terrainDotDensityPer100M2);
       this.restoreColor(this.terrainColor, this.migrateColor(saved.terrainColor, '#b7bdbb', '#c8c8c8'));
+      this.restoreRange(this.terrainCrystalAmount, saved.terrainCrystalAmount);
+      this.restoreRange(this.terrainCrystalOpacity, saved.terrainCrystalOpacity);
+      this.restoreRange(this.terrainCrystalRefraction, saved.terrainCrystalRefraction);
+      this.restoreRange(this.terrainCrystalDispersion, saved.terrainCrystalDispersion);
+      this.restoreColor(this.terrainCrystalColor, saved.terrainCrystalColor);
       this.restoreColor(this.planeColor, this.migrateColor(saved.planeColor, '#b7bdbb', '#e6e6e6'));
       this.restoreRange(this.scanTerrainSpeed, saved.scanTerrainSpeed);
       if (saved.scanTerrainPattern === 'dot' || saved.scanTerrainPattern === 'plus') {
@@ -628,6 +652,11 @@ export class SettingsPanel {
     this.dangerSizeFalloffValue.textContent = this.dangerSizeFalloff.valueAsNumber.toFixed(2);
     this.terrainDotRadiusValue.textContent = `${this.terrainDotRadiusM.valueAsNumber.toFixed(2)} M`;
     this.terrainDotDensityValue.textContent = `${this.terrainDotDensity.valueAsNumber.toFixed(2)} / 100 M²`;
+    const crystalPercent = Math.round(this.terrainCrystalAmount.valueAsNumber * 100);
+    this.terrainCrystalAmountValue.textContent = `~${100 - crystalPercent} / ${crystalPercent}`;
+    this.terrainCrystalOpacityValue.textContent = `${Math.round(this.terrainCrystalOpacity.valueAsNumber * 100)}%`;
+    this.terrainCrystalRefractionValue.textContent = this.terrainCrystalRefraction.valueAsNumber.toFixed(2);
+    this.terrainCrystalDispersionValue.textContent = this.terrainCrystalDispersion.valueAsNumber.toFixed(2);
     this.scanTerrainSpeedValue.textContent = `${this.scanTerrainSpeed.valueAsNumber.toFixed(0)} M/S`;
     this.scanTerrainPatternSpacingValue.textContent = `${this.scanTerrainPatternSpacing.valueAsNumber.toFixed(0)} M`;
     this.scanTerrainPatternSizeValue.textContent = `${this.scanTerrainPatternSize.valueAsNumber.toFixed(1)} M`;

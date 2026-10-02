@@ -145,6 +145,29 @@
                 <span>MESH COLOR</span><input id="mesh-color" type="color" value="#5e6768" />
               </label>
             </div>
+
+            <div class="conditional-settings">
+              <h3>CRYSTAL</h3>
+              <label for="terrain-crystal-amount">
+                <span>ROCK / CRYSTAL</span><output id="terrain-crystal-amount-value">~90 / 10</output>
+              </label>
+              <input id="terrain-crystal-amount" type="range" min="0" max="1" step="0.01" value="0.10" />
+              <label for="terrain-crystal-opacity">
+                <span>CRYSTAL OPACITY</span><output id="terrain-crystal-opacity-value">65%</output>
+              </label>
+              <input id="terrain-crystal-opacity" type="range" min="0" max="1" step="0.01" value="0.65" />
+              <label for="terrain-crystal-refraction">
+                <span>CRYSTAL REFRACTION</span><output id="terrain-crystal-refraction-value">1.10</output>
+              </label>
+              <input id="terrain-crystal-refraction" type="range" min="0" max="3" step="0.05" value="1.10" />
+              <label for="terrain-crystal-dispersion">
+                <span>CRYSTAL DISPERSION</span><output id="terrain-crystal-dispersion-value">0.18</output>
+              </label>
+              <input id="terrain-crystal-dispersion" type="range" min="0" max="1.2" step="0.01" value="0.18" />
+              <label class="color-setting" for="terrain-crystal-color">
+                <span>CRYSTAL COLOR</span><input id="terrain-crystal-color" type="color" value="#8fefff" />
+              </label>
+            </div>
           </section>
 
           <section class="settings-section" aria-labelledby="settings-flight-title">
