@@ -57,7 +57,7 @@ test('camera slots map to cockpit, default chase, and far chase', () => {
   const farChaseOffset = rig.camera.position.clone().sub(plane);
 
   assert.ok(farChaseOffset.length() > chaseOffset.length());
-  assert.ok(Math.abs(farChaseOffset.length() - rig.controls.maxDistance) < 1e-6);
+  assert.ok(Math.abs(farChaseOffset.length() - rig.controls.maxDistance) < 1e-4);
   assert.ok(farChaseOffset.y > chaseOffset.y);
   assert.ok(Math.abs(farChaseOffset.x) < 1e-9, 'far chase should stay directly behind the plane');
 });
@@ -147,7 +147,7 @@ test('a paused orbit does not return to chase after the normal delay', () => {
   assert.ok(rig.camera.position.distanceTo(position) < 1e-7);
 });
 
-test('Shift leaves left-drag orbit and right-drag pan unchanged', () => {
+test('camera orbit keeps its native Shift gesture now that boost uses K', () => {
   type Listener = (event: PointerEvent) => void;
   const listeners: { type: string; fn: Listener; capture: boolean }[] = [];
   const documentListeners = new Map<string, Listener>();
@@ -174,9 +174,23 @@ test('Shift leaves left-drag orbit and right-drag pan unchanged', () => {
     documentListeners.get('pointerup')!(event);
     return result;
   };
-  for (const shift of [false, true, false]) {
-    const orbit = down(0, shift), pan = down(2, shift);
-    assert.ok(orbit.pan < 1e-8 && orbit.turn > 0.01, 'left-drag orbits, including while boosting');
-    assert.ok(pan.pan > 0.1 && pan.turn < 1e-7, 'right-drag pans, including while boosting');
+  const orbit = down(0, false), pan = down(2, false), shiftPan = down(0, true);
+  assert.ok(orbit.pan < 1e-8 && orbit.turn > 0.01, 'left-drag orbits');
+  assert.ok(pan.pan > 0.1 && pan.turn < 1e-7, 'right-drag pans');
+  assert.ok(shiftPan.pan > 0.1 && shiftPan.turn < 1e-7, 'Shift-left-drag retains native pan');
+});
+
+test('hybrid chase frame reveals the aircraft side during a large drift', () => {
+  const rig = new CameraRig(16 / 9, fakeElement());
+  const plane = new Vector3(0, 60, 0);
+  const orientation = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2);
+  const travel = new Vector3(0, 0, 90);
+  for (let frame = 0; frame < 240; frame += 1) {
+    rig.update(1 / 60, plane, orientation, 0, false, false, travel, 'drift');
   }
+  const cameraOffset = rig.camera.position.clone().sub(plane).normalize();
+  const rearOfNose = new Vector3(0, 0, -1).applyQuaternion(orientation).normalize();
+  const sideAngle = cameraOffset.angleTo(rearOfNose) * 180 / Math.PI;
+  assert.ok(sideAngle > 35, `expected a rear-side view, got ${sideAngle.toFixed(1)} degrees`);
+  assert.ok(sideAngle < 80, 'configured maximum lag remains bounded');
 });

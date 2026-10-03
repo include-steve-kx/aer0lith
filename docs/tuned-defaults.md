@@ -87,4 +87,4 @@ Two fixed instanced batches cover all 48 meteors; no terrain queries are added.
 The display scale is live while paused and does not modify physical forces.
 
 `tests/fixtures/push-vectors.html` provides a paused three-size arrow scene,
-keyboard triple-tap/unlock checks, and a boosted sideways-blast speedometer check.
+keyboard drift/boost hold checks, one-kick bank checks, and a boosted sideways-blast speedometer check.

@@ -40,9 +40,11 @@
           <span class="tape-unit">M</span>
         </aside>
 
-        <div class="reticle" aria-hidden="true">
+        <div id="reticle" class="reticle" aria-hidden="true">
           <span class="reticle-horizontal"></span>
           <span class="reticle-vertical"></span>
+          <span id="drift-slip-line" class="drift-slip-line"></span>
+          <span id="drift-slip-pip" class="drift-slip-pip"></span>
         </div>
 
         <div id="horizon" class="horizon" aria-hidden="true">
@@ -59,8 +61,8 @@
             <p><kbd>W S</kbd><span>PITCH</span></p>
             <p><kbd>A D</kbd><span>ROLL + YAW</span></p>
             <p><kbd>Q / E</kbd><span>360° DODGE</span></p>
-            <p><kbd>⇧</kbd><span>BOOST</span></p>
-            <p><kbd>⇧ ×3</kbd><span>LOCK BOOST</span></p>
+            <p><kbd>J</kbd><span>DRIFT</span></p>
+            <p><kbd>K</kbd><span>BOOST</span></p>
             <p><kbd>T</kbd><span>AUTO</span></p>
             <p><kbd>SPACE</kbd><span>FIRE</span></p>
             <p><kbd>G</kbd><span>PULSE CANNON</span></p>
@@ -79,14 +81,128 @@
           <button id="audio-button" type="button" aria-label="Enable audio">AUDIO / OFF</button>
           <button id="view-button" type="button" aria-label="Enter ambient mode" title="Toggle Analysis / Ambient UI (U)">UI / ON</button>
           <button id="camera-button" type="button" aria-label="Change camera">CAM / 2</button>
-          <button id="settings-button" type="button" aria-label="Open visual settings" aria-expanded="false">SETTINGS</button>
+          <button id="settings-button" type="button" aria-label="Open game settings" aria-expanded="false">SETTINGS</button>
         </nav>
 
-        <section id="settings-panel" class="settings-panel" aria-label="Visual settings" hidden>
+        <section id="settings-panel" class="settings-panel" aria-label="Game settings" hidden>
           <header>
             <strong>SYSTEM SETTINGS</strong>
             <span>LIVE</span>
           </header>
+
+          <section class="settings-section" aria-labelledby="settings-handling-title">
+            <h2 id="settings-handling-title">FLIGHT HANDLING</h2>
+            <label for="pitch-rate"><span>PITCH RATE</span><output id="pitch-rate-value"></output></label>
+            <input id="pitch-rate" data-flight-setting="pitchRate" data-unit=" RAD/S" type="range" min="0.2" max="1.5" step="0.01" value="0.75" />
+            <label for="roll-rate"><span>ROLL RATE</span><output id="roll-rate-value"></output></label>
+            <input id="roll-rate" data-flight-setting="rollRate" data-unit=" RAD/S" type="range" min="0.5" max="4" step="0.05" value="2" />
+            <label for="yaw-rate"><span>YAW RATE</span><output id="yaw-rate-value"></output></label>
+            <input id="yaw-rate" data-flight-setting="yawRate" data-unit=" RAD/S" type="range" min="0.1" max="1.5" step="0.01" value="0.6" />
+            <label for="bank-yaw-rate"><span>BANK → YAW</span><output id="bank-yaw-rate-value"></output></label>
+            <input id="bank-yaw-rate" data-flight-setting="bankYawRate" data-unit=" RAD/S" type="range" min="0" max="1.2" step="0.01" value="0.6" />
+            <label for="pitch-auto-level"><span>PITCH AUTO-LEVEL</span><output id="pitch-auto-level-value"></output></label>
+            <input id="pitch-auto-level" data-flight-setting="pitchAutoLevel" data-unit="/S" type="range" min="0" max="0.8" step="0.01" value="0.12" />
+            <label for="roll-auto-level"><span>ROLL AUTO-LEVEL</span><output id="roll-auto-level-value"></output></label>
+            <input id="roll-auto-level" data-flight-setting="rollAutoLevel" data-unit="/S" type="range" min="0" max="1.5" step="0.01" value="0.42" />
+            <label for="normal-grip"><span>NORMAL GRIP</span><output id="normal-grip-value"></output></label>
+            <input id="normal-grip" data-flight-setting="normalGrip" data-unit="/S" type="range" min="0.1" max="12" step="0.05" value="3.5" />
+            <label for="drift-grip"><span>DRIFT GRIP</span><output id="drift-grip-value"></output></label>
+            <input id="drift-grip" data-flight-setting="driftGrip" data-unit="/S" type="range" min="0.02" max="3" step="0.01" value="0.35" />
+            <label for="normal-acceleration"><span>NORMAL ACCEL</span><output id="normal-acceleration-value"></output></label>
+            <input id="normal-acceleration" data-flight-setting="normalAcceleration" data-unit=" M/S²" data-decimals="1" type="range" min="2" max="50" step="1" value="15" />
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-drift-energy-title">
+            <h2 id="settings-drift-energy-title">DRIFT ENERGY</h2>
+            <label for="drift-min-angle"><span>MIN SLIP ANGLE</span><output id="drift-min-angle-value"></output></label>
+            <input id="drift-min-angle" data-flight-setting="driftMinAngle" data-unit="°" data-decimals="0" type="range" min="0" max="25" step="1" value="6" />
+            <label for="drift-full-angle"><span>FULL CHARGE ANGLE</span><output id="drift-full-angle-value"></output></label>
+            <input id="drift-full-angle" data-flight-setting="driftFullAngle" data-unit="°" data-decimals="0" type="range" min="15" max="90" step="1" value="45" />
+            <label for="drift-max-angle"><span>SCORING ANGLE CAP</span><output id="drift-max-angle-value"></output></label>
+            <input id="drift-max-angle" data-flight-setting="driftMaxAngle" data-unit="°" data-decimals="0" type="range" min="30" max="120" step="1" value="75" />
+            <label for="drift-charge-rate"><span>CHARGE RATE</span><output id="drift-charge-rate-value"></output></label>
+            <input id="drift-charge-rate" data-flight-setting="driftChargeRate" data-unit="/S" data-decimals="0" type="range" min="5" max="100" step="1" value="40" />
+            <label for="drift-speed-influence"><span>SPEED INFLUENCE</span><output id="drift-speed-influence-value"></output></label>
+            <input id="drift-speed-influence" data-flight-setting="driftSpeedInfluence" type="range" min="0" max="2" step="0.05" value="1" />
+            <label for="drift-grace-time"><span>DECAY GRACE</span><output id="drift-grace-time-value"></output></label>
+            <input id="drift-grace-time" data-flight-setting="driftGraceTime" data-unit=" S" type="range" min="0" max="2" step="0.05" value="0.35" />
+            <label for="drift-passive-decay"><span>PASSIVE DECAY</span><output id="drift-passive-decay-value"></output></label>
+            <input id="drift-passive-decay" data-flight-setting="driftPassiveDecay" data-unit="/S" data-decimals="0" type="range" min="0" max="50" step="1" value="16" />
+            <label for="drift-tier-two"><span>TIER II START</span><output id="drift-tier-two-value"></output></label>
+            <input id="drift-tier-two" data-flight-setting="driftTierTwo" data-unit="%" data-decimals="0" type="range" min="10" max="70" step="1" value="35" />
+            <label for="drift-tier-three"><span>TIER III START</span><output id="drift-tier-three-value"></output></label>
+            <input id="drift-tier-three" data-flight-setting="driftTierThree" data-unit="%" data-decimals="0" type="range" min="40" max="95" step="1" value="70" />
+            <label for="drift-tier-hysteresis"><span>TIER HYSTERESIS</span><output id="drift-tier-hysteresis-value"></output></label>
+            <input id="drift-tier-hysteresis" data-flight-setting="driftTierHysteresis" data-unit="%" data-decimals="0" type="range" min="0" max="8" step="1" value="2" />
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-drift-boost-title">
+            <h2 id="settings-drift-boost-title">DRIFT BOOST</h2>
+            <div class="settings-tier-grid" aria-label="Drift boost tier tuning">
+              <span></span><span>I</span><span>II</span><span>III</span>
+              <span>SPEED</span>
+              <input aria-label="Tier I speed" data-flight-setting="driftBoostSpeedOne" type="number" min="120" max="220" step="1" value="135" />
+              <input aria-label="Tier II speed" data-flight-setting="driftBoostSpeedTwo" type="number" min="120" max="220" step="1" value="155" />
+              <input aria-label="Tier III speed" data-flight-setting="driftBoostSpeedThree" type="number" min="120" max="220" step="1" value="180" />
+              <span>ACCEL</span>
+              <input aria-label="Tier I acceleration" data-flight-setting="driftBoostAccelerationOne" type="number" min="5" max="100" step="1" value="24" />
+              <input aria-label="Tier II acceleration" data-flight-setting="driftBoostAccelerationTwo" type="number" min="5" max="100" step="1" value="34" />
+              <input aria-label="Tier III acceleration" data-flight-setting="driftBoostAccelerationThree" type="number" min="5" max="100" step="1" value="45" />
+              <span>KICK</span>
+              <input aria-label="Tier I ignition kick" data-flight-setting="driftBoostKickOne" type="number" min="0" max="30" step="1" value="4" />
+              <input aria-label="Tier II ignition kick" data-flight-setting="driftBoostKickTwo" type="number" min="0" max="30" step="1" value="7" />
+              <input aria-label="Tier III ignition kick" data-flight-setting="driftBoostKickThree" type="number" min="0" max="30" step="1" value="10" />
+              <span>DRAIN</span>
+              <input aria-label="Tier I energy drain" data-flight-setting="driftBoostDrainOne" type="number" min="5" max="100" step="1" value="30" />
+              <input aria-label="Tier II energy drain" data-flight-setting="driftBoostDrainTwo" type="number" min="5" max="100" step="1" value="36" />
+              <input aria-label="Tier III energy drain" data-flight-setting="driftBoostDrainThree" type="number" min="5" max="100" step="1" value="44" />
+            </div>
+            <label for="drift-boost-nose-bias"><span>NOSE BIAS</span><output id="drift-boost-nose-bias-value"></output></label>
+            <input id="drift-boost-nose-bias" data-flight-setting="driftBoostNoseBias" data-unit="%" data-decimals="0" type="range" min="0" max="1" step="0.05" value="0.85" />
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-camera-follow-title">
+            <h2 id="settings-camera-follow-title">CAMERA FOLLOW</h2>
+            <label for="camera-position-response"><span>POSITION RESPONSE</span><output id="camera-position-response-value"></output></label>
+            <input id="camera-position-response" data-flight-setting="cameraPositionResponse" data-unit=" S" type="range" min="0.04" max="0.8" step="0.01" value="0.16" />
+            <label for="camera-heading-response"><span>HEADING RESPONSE</span><output id="camera-heading-response-value"></output></label>
+            <input id="camera-heading-response" data-flight-setting="cameraHeadingResponse" data-unit=" S" type="range" min="0.05" max="1.5" step="0.05" value="0.55" />
+            <label for="camera-recovery-response"><span>RECOVERY RESPONSE</span><output id="camera-recovery-response-value"></output></label>
+            <input id="camera-recovery-response" data-flight-setting="cameraRecoveryResponse" data-unit=" S" type="range" min="0.05" max="2" step="0.05" value="0.75" />
+            <label for="camera-travel-influence"><span>TRAVEL INFLUENCE</span><output id="camera-travel-influence-value"></output></label>
+            <input id="camera-travel-influence" data-flight-setting="cameraTravelInfluence" data-unit="%" data-decimals="0" type="range" min="0" max="1" step="0.05" value="0.85" />
+            <label for="camera-bank-response"><span>BANK RESPONSE</span><output id="camera-bank-response-value"></output></label>
+            <input id="camera-bank-response" data-flight-setting="cameraBankResponse" data-unit=" S" type="range" min="0.05" max="1.5" step="0.05" value="0.35" />
+            <label for="camera-max-lag"><span>MAX SIDE ANGLE</span><output id="camera-max-lag-value"></output></label>
+            <input id="camera-max-lag" data-flight-setting="cameraMaxLag" data-unit="°" data-decimals="0" type="range" min="10" max="110" step="1" value="75" />
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-drift-display-title">
+            <h2 id="settings-drift-display-title">DRIFT DISPLAY</h2>
+            <label class="toggle-setting" for="drift-cue-enabled"><span>SLIP CUE</span><input id="drift-cue-enabled" data-flight-setting="driftCueEnabled" type="checkbox" checked /></label>
+            <label for="drift-cue-size"><span>CUE SIZE</span><output id="drift-cue-size-value"></output></label>
+            <input id="drift-cue-size" data-flight-setting="driftCueSize" data-unit=" PX" data-decimals="0" type="range" min="12" max="72" step="1" value="34" />
+            <label for="drift-cue-opacity"><span>CUE OPACITY</span><output id="drift-cue-opacity-value"></output></label>
+            <input id="drift-cue-opacity" data-flight-setting="driftCueOpacity" type="range" min="0.1" max="1" step="0.05" value="0.72" />
+            <label class="toggle-setting" for="drift-meter-enabled"><span>ENERGY METER</span><input id="drift-meter-enabled" data-flight-setting="driftMeterEnabled" type="checkbox" checked /></label>
+            <label for="drift-meter-scale"><span>METER SCALE</span><output id="drift-meter-scale-value"></output></label>
+            <input id="drift-meter-scale" data-flight-setting="driftMeterScale" type="range" min="0.7" max="1.5" step="0.05" value="1" />
+            <label for="drift-trail-response"><span>TRAIL RESPONSE</span><output id="drift-trail-response-value"></output></label>
+            <input id="drift-trail-response" data-flight-setting="driftTrailResponse" type="range" min="0" max="2" step="0.05" value="1" />
+            <label class="toggle-setting" for="drift-tier-pulse"><span>TIER III PULSE</span><input id="drift-tier-pulse" data-flight-setting="driftTierPulse" type="checkbox" checked /></label>
+            <label for="drift-shake-strength"><span>BOOST SHAKE</span><output id="drift-shake-strength-value"></output></label>
+            <input id="drift-shake-strength" data-flight-setting="driftShakeStrength" type="range" min="0" max="1.5" step="0.05" value="0.45" />
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-touch-title">
+            <h2 id="settings-touch-title">TOUCH CONTROL</h2>
+            <label for="touch-dead-zone"><span>JOYSTICK DEADZONE</span><output id="touch-dead-zone-value"></output></label>
+            <input id="touch-dead-zone" data-flight-setting="touchDeadZone" type="range" min="0" max="0.4" step="0.01" value="0.08" />
+            <label for="touch-response-curve"><span>RESPONSE CURVE</span><output id="touch-response-curve-value"></output></label>
+            <input id="touch-response-curve" data-flight-setting="touchResponseCurve" type="range" min="0.4" max="3" step="0.05" value="1" />
+            <label for="touch-primary-scale"><span>PRIMARY BUTTON SIZE</span><output id="touch-primary-scale-value"></output></label>
+            <input id="touch-primary-scale" data-flight-setting="touchPrimaryScale" type="range" min="0.8" max="1.35" step="0.05" value="1" />
+          </section>
 
           <section class="settings-section" aria-labelledby="settings-terrain-title">
             <h2 id="settings-terrain-title">TERRAIN RENDERING</h2>
@@ -497,6 +613,25 @@
           <span id="fps-value">FPS 060</span>
         </div>
 
+        <div id="drift-cluster" class="drift-cluster">
+          <div id="drift-meter" class="drift-meter" role="progressbar" aria-label="Drift energy" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="drift-meter-header"><span>DRIFT ENERGY</span><strong id="drift-status">CRUISE</strong></div>
+            <div class="drift-meter-segments" aria-hidden="true">
+              <span><i></i></span><span><i></i></span><span><i></i></span>
+            </div>
+          </div>
+          <nav class="drift-actions" aria-label="Drift and boost actions">
+            <button id="drift-button" class="flight-action primary-flight-action" type="button" aria-label="Hold to drift" aria-pressed="false" title="Hold to drift (J)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7c4.5-3 11-2.5 14.5 1.5M17 5.5l2 3.5-4 .75" /><path d="M20 17c-4.5 3-11 2.5-14.5-1.5M7 18.5 5 15l4-.75" /></svg>
+              <span>DRIFT</span>
+            </button>
+            <button id="throttle-button" class="flight-action primary-flight-action" type="button" aria-label="Hold to boost" aria-pressed="false" title="Hold to boost (K)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5.5 15 6.5-6.5 6.5 6.5M8 19l4-4 4 4" /></svg>
+              <span>BOOST</span>
+            </button>
+          </nav>
+        </div>
+
         <nav class="flight-actions" aria-label="Flight and display actions">
           <button id="fire-button" class="flight-action" type="button" aria-label="Hold to fire bullets" title="Hold Space to fire">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -520,12 +655,6 @@
               <path d="M3.25 15.5C5.35 18.15 8.25 19.5 12 19.5s6.65-1.35 8.75-4" />
             </svg>
             <span class="sr-only">Probe</span>
-          </button>
-          <button id="throttle-button" class="flight-action" type="button" aria-label="Hold to boost; triple-tap to lock" aria-pressed="false" title="Hold to boost. Triple-tap to lock; tap again to unlock.">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m5.5 15 6.5-6.5 6.5 6.5M8 19l4-4 4 4" />
-            </svg>
-            <span class="sr-only">Boost</span>
           </button>
           <button id="fullscreen-button" class="flight-action fullscreen-button" type="button" aria-label="Enter fullscreen" title="Toggle fullscreen (Alt/Option+Enter)">
             <svg viewBox="0 0 24 24" aria-hidden="true">

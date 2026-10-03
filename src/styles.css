@@ -219,6 +219,37 @@ select {
 .reticle-horizontal { width: 28px; height: 1px; transform: translate(-50%, -50%); }
 .reticle-vertical { width: 1px; height: 28px; transform: translate(-50%, -50%); }
 
+.drift-slip-line,
+.drift-slip-pip {
+  --drift-cue-x: 0px;
+  --drift-cue-y: 0px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.drift-slip-line {
+  width: max(1px, var(--drift-cue-distance, 0px));
+  height: 1px;
+  background: currentColor;
+  transform-origin: 0 50%;
+  transform: rotate(var(--drift-cue-angle, 0rad));
+}
+
+.drift-slip-pip {
+  width: 5px;
+  height: 5px;
+  border: 1px solid currentColor;
+  transform: translate(calc(-50% + var(--drift-cue-x)), calc(-50% + var(--drift-cue-y))) rotate(45deg);
+}
+
+.reticle.has-drift-slip .drift-slip-line,
+.reticle.has-drift-slip .drift-slip-pip { opacity: var(--drift-cue-opacity, 0.72); }
+
 .horizon {
   --horizon-roll: 0rad;
   position: absolute;
@@ -521,6 +552,26 @@ kbd {
   accent-color: var(--ui-tone);
 }
 
+.settings-tier-grid {
+  display: grid;
+  grid-template-columns: 1.25fr repeat(3, 1fr);
+  align-items: center;
+  gap: 5px;
+  margin: 8px 0 10px;
+  text-align: center;
+}
+
+.settings-tier-grid span { color: rgb(215 222 215 / 58%); font-size: 8px; }
+.settings-tier-grid input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  border: 1px solid rgb(215 222 215 / 24%);
+  color: var(--ui-tone);
+  background: transparent;
+  text-align: center;
+}
+
 .settings-panel select {
   min-width: 126px;
   height: 24px;
@@ -605,6 +656,56 @@ kbd {
   gap: calc(6px * var(--ui-scale));
   pointer-events: auto;
 }
+
+.drift-cluster {
+  --primary-control-scale: 1;
+  position: absolute;
+  right: calc(18px * var(--ui-scale));
+  bottom: calc(70px * var(--ui-scale));
+  width: calc(122px * var(--ui-scale));
+  pointer-events: auto;
+}
+
+.drift-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: calc(6px * var(--ui-scale));
+}
+
+.primary-flight-action {
+  width: calc(58px * var(--ui-scale) * var(--primary-control-scale));
+  height: calc(58px * var(--ui-scale) * var(--primary-control-scale));
+  padding: calc(5px * var(--ui-scale));
+  grid-template-rows: 1fr auto;
+  gap: 2px;
+  font-size: calc(8px * var(--ui-scale));
+  letter-spacing: 0.06em;
+}
+
+.primary-flight-action svg { width: calc(25px * var(--ui-scale)); height: calc(25px * var(--ui-scale)); }
+.primary-flight-action > span { line-height: 1; }
+
+.drift-meter {
+  --meter-scale: 1;
+  margin-bottom: calc(6px * var(--ui-scale));
+  padding: calc(6px * var(--ui-scale));
+  border: 1px solid rgb(215 222 215 / 28%);
+  background: rgb(5 7 8 / 70%);
+  transform: scale(var(--meter-scale));
+  transform-origin: right bottom;
+}
+
+.drift-meter[hidden] { display: none; }
+.drift-meter-header { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; font-size: calc(7px * var(--ui-scale)); }
+.drift-meter-header strong { color: var(--ui-tone); font-weight: 400; }
+.drift-meter-segments { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; height: calc(5px * var(--ui-scale)); }
+.drift-meter-segments > span { position: relative; border: 1px solid rgb(215 222 215 / 30%); overflow: hidden; }
+.drift-meter-segments i { position: absolute; inset: 0; background: var(--ui-tone); transform: scaleX(var(--segment-fill, 0)); transform-origin: left; }
+.drift-cluster[data-tier="2"] .drift-meter { border-color: rgb(215 222 215 / 52%); }
+.drift-cluster[data-tier="3"] .drift-meter { outline: 1px solid rgb(215 222 215 / 20%); outline-offset: 2px; }
+.drift-cluster.is-tier-pulsing[data-tier="3"] .drift-meter { animation: drift-tier-pulse 900ms ease-in-out infinite alternate; }
+
+@keyframes drift-tier-pulse { from { box-shadow: 0 0 0 rgb(215 222 215 / 0%); } to { box-shadow: 0 0 14px rgb(215 222 215 / 18%); } }
 
 .pulse-button {
   --pulse-cooldown: 0%;
@@ -730,6 +831,13 @@ kbd {
   height: 44px;
   padding: 9px;
 }
+.app.is-touch-device .primary-flight-action {
+  width: calc(64px * var(--primary-control-scale));
+  height: calc(64px * var(--primary-control-scale));
+  padding: 7px;
+  font-size: 8px;
+}
+.app.is-touch-device .primary-flight-action svg { width: 27px; height: 27px; }
 
 .app.is-touch-device button:focus,
 .app.is-touch-device button:focus-visible,
@@ -879,6 +987,8 @@ kbd {
   .system-controls button { min-width: 72px; padding: 6px 4px; font-size: 8px; }
   .settings-panel { right: 8px; top: 104px; width: min(300px, calc(100vw - 16px)); max-height: calc(100vh - 120px); }
   .flight-actions { right: 8px; bottom: 8px; }
+  .drift-cluster { right: 8px; bottom: 60px; width: calc(134px * var(--primary-control-scale)); }
+  .drift-actions { gap: 6px; }
   .mode-button { left: 50%; bottom: 8px; min-width: 142px; transform: translateX(-50%); }
   .touch-joystick { width: 98px; height: 98px; }
   .touch-joystick-axis--horizontal { width: 74px; }
@@ -900,13 +1010,18 @@ kbd {
 .app.is-paused *, .app.is-paused *::before, .app.is-paused *::after { animation-play-state: paused !important; }
 button:disabled { opacity: 0.45; cursor: default; }
 
-/* Boost lock is immediate on the third tap; no charge/fill animation. */
 #throttle-button {
   position: relative;
   isolation: isolate;
 }
 #throttle-button svg { pointer-events: none; }
-#throttle-button.is-locked { background: var(--ui-tone); color: #050708; }
+#throttle-button[data-tier="1"],
+#throttle-button[data-tier="2"],
+#throttle-button[data-tier="3"] { box-shadow: inset 0 0 14px rgb(215 222 215 / 12%); }
+
+@media (prefers-reduced-motion: reduce) {
+  .drift-cluster.is-tier-pulsing[data-tier="3"] .drift-meter { animation: none; }
+}
 
 .roll-actions {
   position: absolute;

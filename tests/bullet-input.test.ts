@@ -35,8 +35,8 @@ test('fire input queues quick taps, isolates focused controls and simultaneous p
   let manual = 0, pulses = 0, probes = 0, views = 0, seeds = 0, fullscreens = 0;
   const actions = {onManualInput:()=>manual++,onRoll:()=>{},onToggleAutopilot:()=>{},onCycleCamera:()=>{},onSelectCamera:()=>{},onToggleAudio:()=>{},onReset:()=>{},onPause:()=>{},onNewSeed:()=>seeds++,onToggleExperienceMode:()=>views++,onToggleFullscreen:()=>fullscreens++,onTriggerProbe:()=>probes++,onTriggerPulse:()=>pulses++} satisfies InputActions;
   const button = () => Object.assign(new ElementStub(),{tagName:'BUTTON'});
-  const fire = button(), throttle = button(), joystick = new ElementStub();
-  const controls = { fireButton:fire, throttleButton:throttle, joystick, joystickThumb:new ElementStub(), rollLeftButton:button(), rollRightButton:button() } as unknown as PointerFlightControls;
+  const fire = button(), throttle = button(), drift = button(), joystick = new ElementStub();
+  const controls = { fireButton:fire, throttleButton:throttle, driftButton:drift, joystick, joystickThumb:new ElementStub(), rollLeftButton:button(), rollRightButton:button() } as unknown as PointerFlightControls;
   const input = new InputManager(root as unknown as HTMLElement,actions,controls);
   const key = (code: string, type='keydown', target:ElementStub=root, repeat=false) => fireEvent(win,type,{code,target,repeat});
   const pointer = (target:ElementStub,type:string,id:number) => fireEvent(target,type,{pointerId:id,pointerType:'touch',button:0,clientX:80,clientY:50});
@@ -52,6 +52,10 @@ test('fire input queues quick taps, isolates focused controls and simultaneous p
     key('ControlLeft'); assert.equal(input.read().throttle,1,'Control no longer overrides boost'); key('ControlLeft','keyup');
     pointer(fire,'pointercancel',3); assert.equal(input.consumeFire(),false); assert.equal(input.read().throttle,1,'fire cancellation preserves boost');
     pointer(joystick,'pointerup',1); pointer(throttle,'pointerup',2);
+    pointer(drift,'pointerdown',6); assert.equal(input.read().driftHeld,true); pointer(drift,'pointerup',6); assert.equal(input.read().driftHeld,false);
+    key('KeyJ'); assert.equal(input.read().driftHeld,true); key('KeyJ','keyup');
+    key('KeyK'); assert.equal(input.read().boostHeld,true); key('KeyK','keyup');
+    key('ShiftLeft'); assert.equal(input.read().boostHeld,false,'Shift is no longer boost'); key('ShiftLeft','keyup');
     pointer(fire,'pointerdown',4); pointer(fire,'pointerup',4); assert.equal(input.consumeFire(),true); assert.equal(input.consumeFire(),false);
     key('Space'); doc.hidden=true; fireEvent(doc,'visibilitychange'); assert.equal(input.consumeFire(),false);
     doc.hidden=false; key('Space','keyup'); key('Space'); fireEvent(win,'blur'); assert.equal(input.consumeFire(),false);

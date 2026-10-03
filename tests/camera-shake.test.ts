@@ -22,7 +22,7 @@ test('boost shake is bounded, deterministic while paused, and never drifts the c
   shake.restore(camera);
 });
 
-test('held or locked boost settles both shake amount and frequency to zero while flame remains lit', () => {
+test('held boost settles both shake amount and frequency to zero while flame remains lit', () => {
   const flame = new BoostEnvelope(), shake = new BoostCameraShake(), camera = new PerspectiveCamera();
   flame.fadeDuration = 2;
   flame.update(.065, true); shake.update(.065, flame.shakeIntensity);

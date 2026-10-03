@@ -1,6 +1,6 @@
 # Bullets and shared meteor destruction
 
-Space / FIRE provides unlimited hold-to-fire shooting; T toggles autopilot and I restores the checkpoint. Firing has no effect on flight mode, boost lock, or missile magazines. Settings are persisted with the existing visual settings. Muzzle debug is deliberately not persisted.
+Space / FIRE provides unlimited hold-to-fire shooting; T toggles autopilot and I restores the checkpoint. Firing has no effect on flight mode, drift/boost state, or missile magazines. Settings are persisted with the game settings. Muzzle debug is deliberately not persisted.
 
 ## Aiming and cadence
 

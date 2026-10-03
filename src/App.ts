@@ -92,6 +92,7 @@ export class App {
   private readonly renderPlanePosition = new Vector3();
   private readonly renderAircraftOrientation = new Quaternion();
   private readonly renderCameraOrientation = new Quaternion();
+  private readonly renderControlVelocity = new Vector3();
   private renderManeuverRollAngle = 0;
   private readonly originShift = new Vector3();
   private readonly blurVelocity = new Vector3();
@@ -109,6 +110,7 @@ export class App {
   private paused = false;
   private renderElapsed = 0;
   private throttleActive = false;
+  private boostShakeBaseStrength = 0.65;
   private experienceMode: ExperienceMode = 'analysis';
   private collisionDebugEnabled = false;
 
@@ -185,6 +187,7 @@ export class App {
       this.audio.crash();
       this.flightEffects.reset();
       this.input.boost.reset();
+      this.input.drift.reset();
     };
     this.flight.onModeChange = () => {
       this.audio.beep(this.flight.mode === 'autopilot' ? 690 : 510, 0.045);
@@ -210,6 +213,7 @@ export class App {
       joystick: this.hud.touchJoystick,
       joystickThumb: this.hud.touchJoystickThumb,
       throttleButton: this.hud.throttleButton,
+      driftButton: this.hud.driftButton,
       rollLeftButton: this.hud.rollLeftButton,
       rollRightButton: this.hud.rollRightButton,
     });
@@ -249,6 +253,7 @@ export class App {
       this.aircraft.setColor(settings.planeColor);
       this.aircraft.setOcclusionSettings(settings.shipGhostEnabled, settings.shipGhostOpacity, settings.shipGhostColor);
       this.boostShake.strength = settings.boostShakeStrength;
+      this.boostShakeBaseStrength = settings.boostShakeStrength;
       this.boostShake.frequency = settings.boostShakeFrequency;
       this.pulseShake.strength = settings.pulseShakeStrength;
       this.pulseShake.frequency = settings.pulseShakeFrequency;
@@ -276,6 +281,10 @@ export class App {
       this.post.setMotionBlurSettings(settings.motionBlurEnabled, settings.motionBlurStrength,
         settings.motionBlurStartSpeed, settings.motionBlurMaxPixels);
       this.post.setGlowSettings(settings.glowEnabled, settings.glowStrength, settings.glowRadius);
+      this.flight.configure(settings);
+      this.cameraRig.configure(settings);
+      this.hud.configureDrift(settings);
+      this.input.configureTouch(settings.touchDeadZone, settings.touchResponseCurve);
       document.documentElement.dataset.font = settings.fontChoice;
     };
     this.settings.onReset = () => {
@@ -374,12 +383,19 @@ export class App {
 
       this.hud.setProbeActive(this.terrain.isProbeActive);
       this.trail.add(this.renderPlaneWorldPosition, this.renderAircraftOrientation, this.renderOrigin);
-      const throttleActive = frameInput.throttle > 0
+      const throttleActive = this.flight.boostActive
         && this.flight.mode !== 'paused'
         && this.flight.mode !== 'crashed';
       this.throttleActive = throttleActive;
       this.flightEffects.update(rawDelta, throttleActive, this.flight.speed, this.flight.mode === 'crashed');
-      this.trail.update(rawDelta, throttleActive);
+      const driftVisual = this.flight.driftState === 'drift'
+        ? Math.max(0, Math.min(1,
+          (this.flight.driftAngle - this.flight.settings.driftMinAngle)
+          / Math.max(1, this.flight.settings.driftFullAngle - this.flight.settings.driftMinAngle),
+        )) * this.flight.settings.driftTrailResponse
+        : 0;
+      const flightVisualIntensity = Math.max(throttleActive ? 1 : 0, Math.min(1, driftVisual));
+      this.trail.update(rawDelta, flightVisualIntensity);
       if (this.elapsed - this.lastRouteUpdate > 0.25) {
         this.route.update(this.flight.position, this.renderOrigin);
         this.lastRouteUpdate = this.elapsed;
@@ -394,8 +410,9 @@ export class App {
         this.renderPlanePosition,
         this.renderAircraftOrientation,
         this.flight.speed,
-        throttleActive,
+        flightVisualIntensity,
         this.flight.mode === 'paused' || this.flight.mode === 'crashed',
+        this.renderControlVelocity,
       );
       this.flocks.update(
         rawDelta,
@@ -416,9 +433,9 @@ export class App {
         this.flight.speed, this.renderOrigin, true);
       this.syncViews();
     }
-    this.hud.setBoostState(this.input.boost.active, this.input.boost.locked);
     this.cameraRig.update(rawDelta, this.renderPlanePosition, this.renderCameraOrientation,
-      this.flight.crashIntensity, this.throttleActive, this.paused);
+      this.flight.crashIntensity, this.throttleActive, this.paused,
+      this.renderControlVelocity, this.flight.driftState);
     this.terrain.updateBoostLight(this.flightEffects.lightPosition,
       this.flightEffects.lightColor, this.flightEffects.lightIntensity);
     this.audio.update(this.flight.speed, this.flight.throttle, this.paused);
@@ -430,10 +447,15 @@ export class App {
       this.updateHud(this.frameAverage);
       this.lastHudUpdate = this.renderElapsed;
     }
-    this.blurVelocity.set(0, 0, this.flight.mode === 'crashed' ? 0 : this.flight.speed)
-      .applyQuaternion(this.renderAircraftOrientation);
+    this.blurVelocity.copy(this.renderControlVelocity);
+    if (this.flight.mode === 'crashed') this.blurVelocity.set(0, 0, 0);
     this.post.setScanWave(this.terrain.currentProbeWorldCenter, this.renderOrigin,
       this.terrain.currentProbeRadius, this.terrain.isProbeExpanding);
+    this.boostShake.strength = this.boostShakeBaseStrength + (
+      this.flight.driftBoostActive
+        ? this.flight.settings.driftShakeStrength * this.flight.driftTier / 3
+        : 0
+    );
     this.boostShake.update(this.paused ? 0 : rawDelta, this.flightEffects.burst.shakeIntensity);
     this.cockpitRoll.apply(this.cameraRig.camera, this.renderCameraOrientation,
       this.cameraRig.mode === 'cockpit' ? this.renderManeuverRollAngle : 0);
@@ -509,6 +531,7 @@ export class App {
       this.renderAircraftOrientation,
       this.renderCameraOrientation,
     );
+    this.flight.sampleRenderVelocity(alpha, this.renderControlVelocity);
     this.renderPlanePosition.copy(this.renderPlaneWorldPosition).sub(this.renderOrigin);
   }
 
@@ -584,6 +607,7 @@ export class App {
   private togglePause(): void {
     this.paused = !this.paused;
     this.input.clearFire();
+    this.input.clearFlightActions();
     // Never accumulate paused wall time or run a catch-up step on resume.
     this.lastTime = performance.now();
     this.terrain.setPaused(this.paused);
@@ -619,6 +643,7 @@ export class App {
   private resetFlight(): void {
     if (this.paused) return;
     this.input.boost.reset();
+    this.input.drift.reset();
     this.flight.reset();
     this.flightEffects.reset();
     this.renderInterpolationReady = false;
@@ -665,6 +690,12 @@ export class App {
       altitude: this.flight.position.y,
       seed: this.seed,
       audioEnabled: this.audio.enabled,
+      controlVelocity: this.renderControlVelocity,
+      driftAngle: this.flight.driftAngle,
+      driftEnergy: this.flight.driftEnergy,
+      driftTier: this.flight.driftTier,
+      driftState: this.flight.driftState,
+      boostKickAvailable: this.flight.boostKickAvailable,
     };
     const localDistance = Math.hypot(
       this.flight.position.x - this.renderOrigin.x,

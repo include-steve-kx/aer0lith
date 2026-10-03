@@ -1,6 +1,7 @@
-import { Euler, type Quaternion } from 'three';
-import type { CameraMode, ExperienceMode, FlightMode, FlightSnapshot } from '../core/types.ts';
+import { Euler, Quaternion, Vector3 } from 'three';
+import type { CameraMode, DriftState, ExperienceMode, FlightMode, FlightSnapshot } from '../core/types.ts';
 import { bindButtonAction } from './bindButtonAction.ts';
+import type { FlightTuningSettings } from '../flight/FlightTuning.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -52,6 +53,7 @@ export class Hud {
   readonly rollLeftButton = element<HTMLButtonElement>('roll-left-button');
   readonly rollRightButton = element<HTMLButtonElement>('roll-right-button');
   readonly throttleButton = element<HTMLButtonElement>('throttle-button');
+  readonly driftButton = element<HTMLButtonElement>('drift-button');
   readonly touchJoystick = element<HTMLElement>('touch-joystick');
   readonly touchJoystickThumb = element<HTMLElement>('touch-joystick-thumb');
   private readonly hud = element<HTMLElement>('hud');
@@ -69,7 +71,15 @@ export class Hud {
   private readonly fpsValue = element<HTMLElement>('fps-value');
   private readonly horizon = element<HTMLElement>('horizon');
   private readonly pulseStatus = element<HTMLElement>('pulse-status');
+  private readonly reticle = element<HTMLElement>('reticle');
+  private readonly driftCluster = element<HTMLElement>('drift-cluster');
+  private readonly driftMeter = element<HTMLElement>('drift-meter');
+  private readonly driftStatus = element<HTMLElement>('drift-status');
+  private readonly driftSegments = Array.from(this.driftMeter.querySelectorAll<HTMLElement>('.drift-meter-segments i'));
   private readonly attitude = new Euler(0, 0, 0, 'YXZ');
+  private readonly inverseOrientation = new Quaternion();
+  private readonly localTravel = new Vector3();
+  private driftSettings: FlightTuningSettings | undefined;
   private paused = false;
 
   constructor() {
@@ -101,6 +111,7 @@ export class Hud {
     this.horizon.style.setProperty('--horizon-roll', `${horizonRoll}rad`);
     this.fault.classList.toggle('is-active', snapshot.mode === 'crashed');
     this.fault.setAttribute('aria-hidden', String(snapshot.mode !== 'crashed'));
+    this.updateDrift(snapshot);
   }
 
   private signed(value: number): string {
@@ -144,6 +155,7 @@ export class Hud {
     this.pulseButton.disabled = paused;
     this.probeButton.disabled = paused;
     this.throttleButton.disabled = paused;
+    this.driftButton.disabled = paused;
     this.rollLeftButton.disabled = paused;
     this.rollRightButton.disabled = paused;
   }
@@ -175,15 +187,71 @@ export class Hud {
     this.pulseStatus.textContent = status;
   }
 
-  setBoostState(active: boolean, locked: boolean): void {
-    this.throttleButton.classList.toggle('is-active', active);
-    this.throttleButton.classList.toggle('is-locked', locked);
-    this.throttleButton.setAttribute('aria-pressed', String(active));
-    this.throttleButton.setAttribute('aria-label', locked ? 'Unlock boost' : 'Hold to boost; triple-tap to lock');
+  configureDrift(settings: FlightTuningSettings): void {
+    this.driftSettings = settings;
+    this.driftMeter.hidden = !settings.driftMeterEnabled;
+    this.driftMeter.style.setProperty('--meter-scale', String(settings.driftMeterScale));
+    this.reticle.style.setProperty('--drift-cue-opacity', String(settings.driftCueOpacity));
+    this.driftCluster.style.setProperty('--primary-control-scale', String(settings.touchPrimaryScale));
+    this.driftCluster.classList.toggle('is-tier-pulsing', settings.driftTierPulse);
   }
 
   setProbeActive(active: boolean): void {
     this.probeButton.classList.toggle('is-active', active);
     this.probeButton.setAttribute('aria-pressed', String(active));
+  }
+
+  private updateDrift(snapshot: FlightSnapshot): void {
+    const energy = Math.max(0, Math.min(100, snapshot.driftEnergy ?? 0));
+    const tier = snapshot.driftTier ?? 0;
+    const state = snapshot.driftState ?? 'cruise';
+    this.driftCluster.dataset.tier = String(tier);
+    this.throttleButton.dataset.tier = String(tier);
+    this.driftMeter.setAttribute('aria-valuenow', energy.toFixed(0));
+    this.driftMeter.setAttribute('aria-valuetext', `${this.driftLabel(state, tier)}, ${energy.toFixed(0)} percent`);
+    this.driftStatus.textContent = this.driftLabel(state, tier);
+    const thresholds = [0, this.driftSettings?.driftTierTwo ?? 35, this.driftSettings?.driftTierThree ?? 70, 100];
+    for (let index = 0; index < this.driftSegments.length; index += 1) {
+      const fill = Math.max(0, Math.min(1, (energy - thresholds[index]) / (thresholds[index + 1] - thresholds[index])));
+      this.driftSegments[index].style.setProperty('--segment-fill', String(fill));
+    }
+    const drifting = state === 'drift';
+    const boosting = state === 'drift-boost' || state === 'normal-boost';
+    this.driftButton.classList.toggle('is-active', drifting);
+    this.driftButton.setAttribute('aria-pressed', String(drifting));
+    this.throttleButton.classList.toggle('is-active', boosting);
+    this.throttleButton.setAttribute('aria-pressed', String(boosting));
+    this.throttleButton.setAttribute('aria-label', state === 'drift-boost'
+      ? `Hold for drift boost tier ${tier}`
+      : 'Hold to boost');
+
+    const settings = this.driftSettings;
+    const velocity = snapshot.controlVelocity;
+    const angle = snapshot.driftAngle ?? 0;
+    const cueVisible = Boolean(settings?.driftCueEnabled && velocity && velocity.lengthSq() > 1e-8
+      && angle >= settings.driftMinAngle);
+    this.reticle.classList.toggle('has-drift-slip', cueVisible);
+    if (!cueVisible || !settings || !velocity) return;
+    this.localTravel.copy(velocity).normalize().applyQuaternion(
+      this.inverseOrientation.copy(snapshot.orientation).invert(),
+    );
+    const projectedLength = Math.hypot(this.localTravel.x, this.localTravel.y);
+    const directionX = projectedLength > 1e-6 ? this.localTravel.x / projectedLength : 0;
+    const directionY = projectedLength > 1e-6 ? -this.localTravel.y / projectedLength : 0;
+    const distance = Math.min(settings.driftCueSize, settings.driftCueSize * angle / settings.cameraMaxLag);
+    const x = directionX * distance;
+    const y = directionY * distance;
+    this.reticle.style.setProperty('--drift-cue-x', `${x}px`);
+    this.reticle.style.setProperty('--drift-cue-y', `${y}px`);
+    this.reticle.style.setProperty('--drift-cue-distance', `${distance}px`);
+    this.reticle.style.setProperty('--drift-cue-angle', `${Math.atan2(y, x)}rad`);
+  }
+
+  private driftLabel(state: DriftState, tier: number): string {
+    if (state === 'drift-boost') return `BOOST ${['', 'I', 'II', 'III'][tier] ?? ''}`.trim();
+    if (state === 'normal-boost') return 'NORMAL BOOST';
+    if (state === 'drift') return 'DRIFT';
+    if (state === 'banked') return 'BANKED';
+    return 'CRUISE';
   }
 }

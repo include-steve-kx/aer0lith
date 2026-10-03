@@ -23,19 +23,14 @@ for (const [x,y,z,size] of [[-24,4,70,6],[0,14,110,12],[35,0,90,18]]) {
 const panel=document.createElement('div'); panel.style.cssText='position:fixed;z-index:500;left:20px;bottom:100px;background:#141c20;color:white;padding:12px;font:12px monospace';
 const status=document.createElement('output'); panel.append(status); document.body.append(panel);
 function button(label,action){const b=document.createElement('button');b.textContent=label;b.onclick=action;panel.append(b);}
-button('Triple tap test',()=>{
+button('Boost hold test',()=>{
   app.input.boost.reset(); app.root.focus();
-  for(let i=0;i<3;i++) {
-    window.dispatchEvent(new KeyboardEvent('keydown',{code:'ShiftLeft',bubbles:true}));
-    app.input.read(.1);
-    window.dispatchEvent(new KeyboardEvent('keyup',{code:'ShiftLeft',bubbles:true}));
-  }
-  status.textContent=`locked=${app.input.boost.locked} active=${app.input.boost.active} `;
+  window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyK',bubbles:true}));
+  status.textContent=`boost=${app.input.read().boostHeld} `;
 });
-button('Unlock test',()=>{
-  app.root.focus(); window.dispatchEvent(new KeyboardEvent('keydown',{code:'ShiftLeft',bubbles:true}));
-  window.dispatchEvent(new KeyboardEvent('keyup',{code:'ShiftLeft',bubbles:true}));
-  status.textContent=`locked=${app.input.boost.locked} active=${app.input.boost.active} `;
+button('Boost release test',()=>{
+  app.root.focus(); window.dispatchEvent(new KeyboardEvent('keyup',{code:'KeyK',bubbles:true}));
+  status.textContent=`boost=${app.input.read().boostHeld} `;
 });
 button('Blast speed test',()=>{
   app.flight.takeManualControl(); app.flight.speed=120; app.flight.throttle=1;

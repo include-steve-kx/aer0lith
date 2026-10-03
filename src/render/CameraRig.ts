@@ -1,8 +1,9 @@
-import { MOUSE, Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three';
+import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { COCKPIT_EYE } from '../core/aircraftGeometry.ts';
 import { CAMERA } from '../core/config.ts';
-import type { CameraMode } from '../core/types.ts';
+import type { CameraMode, DriftState } from '../core/types.ts';
+import { DEFAULT_FLIGHT_TUNING, type FlightTuningSettings } from '../flight/FlightTuning.ts';
 
 const MODES: CameraMode[] = ['cockpit', 'chase', 'far-chase'];
 
@@ -22,6 +23,13 @@ export class CameraRig {
   private readonly planeDelta = new Vector3();
   private readonly orbitViewDirection = new Vector3();
   private readonly aircraftUp = new Vector3();
+  private readonly chaseForward = new Vector3(0, 0, 1);
+  private readonly targetChaseForward = new Vector3(0, 0, 1);
+  private readonly chaseUp = new Vector3(0, 1, 0);
+  private readonly targetChaseUp = new Vector3(0, 1, 0);
+  private readonly velocityDirection = new Vector3(0, 0, 1);
+  private tuning: FlightTuningSettings = { ...DEFAULT_FLIGHT_TUNING };
+  private chaseFrameReady = false;
   private orbitDragging = false;
   private orbitReturnDelay = 0;
   private hasPlanePosition = false;
@@ -34,13 +42,6 @@ export class CameraRig {
     this.camera = new PerspectiveCamera(CAMERA.chaseFov, aspect, 0.1, 1700);
     this.camera.position.set(0, 8, -22);
     this.controls = new OrbitControls(this.camera, domElement);
-    // OrbitControls swaps rotate/pan on Shift. Compensate at pointer-down via
-    // its public mapping so Shift remains boost, including during right-drag.
-    domElement.addEventListener('pointerdown', event => {
-      const shiftOnly = event.shiftKey && !event.ctrlKey && !event.metaKey;
-      this.controls.mouseButtons.LEFT = shiftOnly ? MOUSE.PAN : MOUSE.ROTATE;
-      this.controls.mouseButtons.RIGHT = shiftOnly ? MOUSE.ROTATE : MOUSE.PAN;
-    }, { capture: true });
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.enablePan = true;
@@ -67,6 +68,8 @@ export class CameraRig {
     crash: number,
     throttleActive = false,
     paused = false,
+    travelVelocity?: Vector3,
+    driftState: DriftState = 'cruise',
   ): void {
     // Hold the exact pose/FOV until a camera control is used. In paused orbit
     // the user owns the view; the normal return-to-chase countdown is stopped.
@@ -96,27 +99,32 @@ export class CameraRig {
     }
 
     this.forward.set(0, 0, 1).applyQuaternion(planeOrientation).normalize();
+    this.aircraftUp.copy(this.up).applyQuaternion(planeOrientation).normalize();
+    this.updateChaseFrame(dt, travelVelocity, driftState);
     if (this.mode === 'chase') {
-      this.offset.set(0, 8, -22).applyQuaternion(planeOrientation);
-      this.desiredPosition.copy(planePosition).add(this.offset);
-      this.desiredTarget.copy(planePosition).addScaledVector(this.forward, 16);
-      this.desiredTarget.y += 1.8;
-      this.lookMatrix.lookAt(this.desiredPosition, this.desiredTarget, this.up);
+      this.desiredPosition.copy(planePosition)
+        .addScaledVector(this.chaseForward, -22)
+        .addScaledVector(this.chaseUp, 8);
+      this.desiredTarget.copy(planePosition)
+        .addScaledVector(this.chaseForward, 16)
+        .addScaledVector(this.chaseUp, 1.8);
+      this.lookMatrix.lookAt(this.desiredPosition, this.desiredTarget, this.chaseUp);
       this.desiredQuaternion.setFromRotationMatrix(this.lookMatrix);
     } else if (this.mode === 'cockpit') {
       this.offset.set(...COCKPIT_EYE).applyQuaternion(planeOrientation);
       this.desiredPosition.copy(planePosition).add(this.offset);
       this.desiredTarget.copy(this.desiredPosition).addScaledVector(this.forward, 60);
-      this.aircraftUp.copy(this.up).applyQuaternion(planeOrientation);
       this.lookMatrix.lookAt(this.desiredPosition, this.desiredTarget, this.aircraftUp);
       this.desiredQuaternion.setFromRotationMatrix(this.lookMatrix);
     } else {
       // Keep far chase at the 260 m OrbitControls limit while raising its viewpoint.
-      this.offset.set(0, 80, -247.38633753705963).applyQuaternion(planeOrientation);
-      this.desiredPosition.copy(planePosition).add(this.offset);
-      this.desiredTarget.copy(planePosition).addScaledVector(this.forward, 60);
-      this.desiredTarget.y += 10;
-      this.lookMatrix.lookAt(this.desiredPosition, this.desiredTarget, this.up);
+      this.desiredPosition.copy(planePosition)
+        .addScaledVector(this.chaseForward, -247.38633753705963)
+        .addScaledVector(this.chaseUp, 80);
+      this.desiredTarget.copy(planePosition)
+        .addScaledVector(this.chaseForward, 60)
+        .addScaledVector(this.chaseUp, 10);
+      this.lookMatrix.lookAt(this.desiredPosition, this.desiredTarget, this.chaseUp);
       this.desiredQuaternion.setFromRotationMatrix(this.lookMatrix);
     }
 
@@ -125,17 +133,64 @@ export class CameraRig {
       this.desiredPosition.y += (Math.random() - 0.5) * crash * 1.4;
     }
 
-    const smoothing = this.hasCameraPose
-      ? 1 - Math.exp(-dt / CAMERA.transitionTime * 3.4)
+    const positionSmoothing = this.hasCameraPose
+      ? 1 - Math.exp(-dt / Math.max(0.01, this.tuning.cameraPositionResponse))
       : 1;
-    this.camera.position.lerp(this.desiredPosition, smoothing);
-    this.camera.quaternion.slerp(this.desiredQuaternion, smoothing);
+    const headingSmoothing = this.hasCameraPose
+      ? 1 - Math.exp(-dt / Math.max(0.01, this.tuning.cameraHeadingResponse))
+      : 1;
+    this.camera.position.lerp(this.desiredPosition, positionSmoothing);
+    this.camera.quaternion.slerp(this.desiredQuaternion, headingSmoothing);
     this.controls.target.copy(this.desiredTarget);
     this.hasCameraPose = true;
     if (this.camera.position.distanceToSquared(this.desiredPosition) < 1e-8
       && this.camera.quaternion.angleTo(this.desiredQuaternion) < 1e-5) {
       this.cameraSelectionPending = false;
     }
+  }
+
+  configure(settings: FlightTuningSettings): void {
+    this.tuning = { ...settings };
+  }
+
+  private updateChaseFrame(
+    dt: number,
+    travelVelocity: Vector3 | undefined,
+    driftState: DriftState,
+  ): void {
+    this.targetChaseForward.copy(this.forward);
+    const hasTravel = Boolean(travelVelocity && travelVelocity.lengthSq() > 1e-8);
+    const driftActive = driftState === 'drift' || driftState === 'drift-boost';
+    if (hasTravel && driftActive && travelVelocity) {
+      this.velocityDirection.copy(travelVelocity).normalize();
+      this.targetChaseForward.lerp(
+        this.velocityDirection,
+        this.tuning.cameraTravelInfluence,
+      ).normalize();
+      const maxLag = this.tuning.cameraMaxLag * Math.PI / 180;
+      const lag = this.forward.angleTo(this.targetChaseForward);
+      if (lag > maxLag && lag > 1e-6) {
+        this.targetChaseForward.lerpVectors(
+          this.forward,
+          this.targetChaseForward,
+          maxLag / lag,
+        ).normalize();
+      }
+    }
+    this.targetChaseUp.copy(this.aircraftUp);
+    if (!this.chaseFrameReady) {
+      this.chaseForward.copy(this.targetChaseForward);
+      this.chaseUp.copy(this.targetChaseUp);
+      this.chaseFrameReady = true;
+      return;
+    }
+    const response = driftActive
+      ? this.tuning.cameraHeadingResponse
+      : this.tuning.cameraRecoveryResponse;
+    const forwardSmoothing = 1 - Math.exp(-dt / Math.max(0.01, response));
+    const bankSmoothing = 1 - Math.exp(-dt / Math.max(0.01, this.tuning.cameraBankResponse));
+    this.chaseForward.lerp(this.targetChaseForward, forwardSmoothing).normalize();
+    this.chaseUp.lerp(this.targetChaseUp, bankSmoothing).normalize();
   }
 
   private synchronizeOrbitTarget(): void {

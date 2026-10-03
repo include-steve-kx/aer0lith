@@ -3,6 +3,8 @@ import type { Quaternion, Vector3 } from 'three';
 export type FlightMode = 'loading' | 'autopilot' | 'manual' | 'crashed' | 'paused';
 export type CameraMode = 'cockpit' | 'chase' | 'far-chase';
 export type ExperienceMode = 'ambient' | 'analysis';
+export type DriftTier = 0 | 1 | 2 | 3;
+export type DriftState = 'cruise' | 'drift' | 'banked' | 'drift-boost' | 'normal-boost';
 
 export interface FlightPathSample {
   x: number;
@@ -36,6 +38,12 @@ export interface FlightSnapshot {
   altitude: number;
   seed: string;
   audioEnabled: boolean;
+  controlVelocity?: Vector3;
+  driftAngle?: number;
+  driftEnergy?: number;
+  driftTier?: DriftTier;
+  driftState?: DriftState;
+  boostKickAvailable?: boolean;
 }
 
 export interface SafeCheckpoint {
@@ -52,4 +60,9 @@ export interface FlightInput {
   roll: number;
   yaw: number;
   throttle: number;
+  driftHeld?: boolean;
+  driftPressed?: boolean;
+  boostHeld?: boolean;
+  boostPressed?: boolean;
+  boostReleased?: boolean;
 }

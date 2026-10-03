@@ -2,6 +2,8 @@ import { CombatSettingsControls } from './CombatSettingsControls.ts';
 import type { CombatSettings } from '../combat/settings.ts';
 import type { FlightEffectSettings } from '../render/FlightEffects.ts';
 import { bindButtonAction } from './bindButtonAction.ts';
+import type { FlightTuningSettings } from '../flight/FlightTuning.ts';
+import { FlightSettingsControls } from './FlightSettingsControls.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -9,7 +11,8 @@ function element<T extends HTMLElement>(id: string): T {
   return result as T;
 }
 
-const STORAGE_KEY = 'aer0lith.visual-settings.v2';
+const STORAGE_KEY = 'aer0lith.settings.v3';
+const AEROLITH_LEGACY_STORAGE_KEY = 'aer0lith.visual-settings.v2';
 const LEGACY_STORAGE_KEY_V1 = 'vector-flight.visual-settings.v1';
 const LEGACY_STORAGE_KEY_V2 = 'vector-flight.visual-settings.v2';
 
@@ -35,7 +38,7 @@ export function migrateVisualSettingsV1(saved: Record<string, unknown>): Record<
   };
 }
 
-export interface VisualSettings extends FlightEffectSettings, CombatSettings {
+export interface AppSettings extends FlightEffectSettings, CombatSettings, FlightTuningSettings {
   scanTerrainSpeed: number;
   scanTerrainPattern: 'dot' | 'plus';
   scanTerrainPatternSpacing: number;
@@ -113,6 +116,9 @@ export interface VisualSettings extends FlightEffectSettings, CombatSettings {
   glowRadius: number;
   fontChoice: 'technical' | 'system' | 'terminal';
 }
+
+/** Compatibility alias for render systems that still consume the visual subset. */
+export type VisualSettings = AppSettings;
 
 export class SettingsPanel {
   readonly button = element<HTMLButtonElement>('settings-button');
@@ -301,15 +307,17 @@ export class SettingsPanel {
   private readonly terrainFogDensityValue = element<HTMLOutputElement>('terrain-fog-density-value');
   private readonly glowStrengthValue = element<HTMLOutputElement>('glow-strength-value');
   private readonly glowRadiusValue = element<HTMLOutputElement>('glow-radius-value');
-  onChange: ((settings: VisualSettings) => void) | undefined;
+  onChange: ((settings: AppSettings) => void) | undefined;
   onReset: (() => void) | undefined;
   private readonly resetButton = document.createElement('button');
   private readonly resetEvents = new AbortController();
   private readonly defaults: Array<{ input: HTMLInputElement | HTMLSelectElement; value: string; checked: boolean }>;
 
   private readonly combatControls = new CombatSettingsControls();
+  private readonly flightControls: FlightSettingsControls;
 
   constructor() {
+    this.flightControls = new FlightSettingsControls(this.panel);
     // Capture the shipped HTML and combat defaults before loading personal edits.
     this.defaults = Array.from(this.panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'), input => ({
       input, value: input.value, checked: input instanceof HTMLInputElement && input.checked,
@@ -348,11 +356,12 @@ export class SettingsPanel {
     this.updateModeVisibility();
   }
 
-  get values(): VisualSettings {
+  get values(): AppSettings {
     return {
       ...this.combatControls.values,
-      renderResolutionMode: this.renderResolutionMode.value as VisualSettings['renderResolutionMode'],
-      terrainRenderingMode: this.terrainRenderingMode.value as VisualSettings['terrainRenderingMode'],
+      ...this.flightControls.values,
+      renderResolutionMode: this.renderResolutionMode.value as AppSettings['renderResolutionMode'],
+      terrainRenderingMode: this.terrainRenderingMode.value as AppSettings['terrainRenderingMode'],
       backgroundColor: this.backgroundColor.value,
       meshColor: this.meshColor.value,
       terrainFogDensity: this.terrainFogDensity.valueAsNumber,
@@ -370,7 +379,7 @@ export class SettingsPanel {
       terrainCrystalColor: this.terrainCrystalColor.value,
       planeColor: this.planeColor.value,
       scanTerrainSpeed: this.scanTerrainSpeed.valueAsNumber,
-      scanTerrainPattern: this.scanTerrainPattern.value as VisualSettings['scanTerrainPattern'],
+      scanTerrainPattern: this.scanTerrainPattern.value as AppSettings['scanTerrainPattern'],
       scanTerrainPatternSpacing: this.scanTerrainPatternSpacing.valueAsNumber,
       scanTerrainPatternSize: this.scanTerrainPatternSize.valueAsNumber,
       scanTerrainPatternColor: this.scanTerrainPatternColor.value,
@@ -455,7 +464,7 @@ export class SettingsPanel {
       glowEnabled: this.glowEnabled.checked,
       glowStrength: this.glowStrength.valueAsNumber,
       glowRadius: this.glowRadius.valueAsNumber,
-      fontChoice: this.fontChoice.value as VisualSettings['fontChoice'],
+      fontChoice: this.fontChoice.value as AppSettings['fontChoice'],
     };
   }
 
@@ -467,7 +476,7 @@ export class SettingsPanel {
     const opening = this.panel.hidden;
     this.panel.hidden = !opening;
     this.button.setAttribute('aria-expanded', String(opening));
-    this.button.setAttribute('aria-label', opening ? 'Close visual settings' : 'Open visual settings');
+    this.button.setAttribute('aria-label', opening ? 'Close game settings' : 'Open game settings');
     this.button.textContent = opening ? 'SETTINGS / CLOSE' : 'SETTINGS';
   }
 
@@ -493,14 +502,16 @@ export class SettingsPanel {
   private restore(): void {
     try {
       const currentRaw = localStorage.getItem(STORAGE_KEY);
-      const legacyV2Raw = currentRaw ? null : localStorage.getItem(LEGACY_STORAGE_KEY_V2);
-      const legacyV1Raw = currentRaw || legacyV2Raw
+      const aerolithLegacyRaw = currentRaw ? null : localStorage.getItem(AEROLITH_LEGACY_STORAGE_KEY);
+      const legacyV2Raw = currentRaw || aerolithLegacyRaw ? null : localStorage.getItem(LEGACY_STORAGE_KEY_V2);
+      const legacyV1Raw = currentRaw || aerolithLegacyRaw || legacyV2Raw
         ? null
         : localStorage.getItem(LEGACY_STORAGE_KEY_V1);
-      const parsed = JSON.parse(currentRaw ?? legacyV2Raw ?? legacyV1Raw ?? 'null') as unknown;
+      const parsed = JSON.parse(currentRaw ?? aerolithLegacyRaw ?? legacyV2Raw ?? legacyV1Raw ?? 'null') as unknown;
       if (!isRecord(parsed)) return;
       const saved = legacyV1Raw ? migrateVisualSettingsV1(parsed) : parsed;
       this.combatControls.restore(saved);
+      this.flightControls.restore(saved);
       if (
         saved.renderResolutionMode === 'full'
         || saved.renderResolutionMode === 'balanced'
@@ -630,7 +641,7 @@ export class SettingsPanel {
 
   disposeCombatControls(): void { this.resetEvents.abort(); this.resetButton.remove(); this.combatControls.dispose(); }
 
-  private persist(settings: VisualSettings): void {
+  private persist(settings: AppSettings): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         ...settings,
@@ -662,6 +673,7 @@ export class SettingsPanel {
 
   private updateReadouts(): void {
     this.combatControls.updateReadouts();
+    this.flightControls.updateReadouts();
     this.terrainFogDensityValue.textContent = this.terrainFogDensity.valueAsNumber.toFixed(5);
     this.dangerDistanceValue.textContent = `${this.dangerDistance.valueAsNumber.toFixed(0)} M`;
     this.dangerSizeMultiplierValue.textContent = `${this.dangerSizeMultiplier.valueAsNumber.toFixed(1)}×`;

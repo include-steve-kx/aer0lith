@@ -83,11 +83,14 @@ export class TrailView {
     }
   }
 
-  update(dt: number, throttleActive: boolean): void {
+  update(dt: number, activity: boolean | number): void {
+    const target = typeof activity === 'number'
+      ? Math.max(0, Math.min(1, activity))
+      : activity ? 1 : 0;
     const current = this.material.uniforms.uThrottle.value as number;
-    const response = throttleActive ? 0.16 : 0.5;
+    const response = target > current ? 0.16 : 0.5;
     const smoothing = 1 - Math.exp(-dt / response);
-    this.material.uniforms.uThrottle.value = current + ((throttleActive ? 1 : 0) - current) * smoothing;
+    this.material.uniforms.uThrottle.value = current + (target - current) * smoothing;
   }
 
   add(worldPosition: Vector3, orientation: Quaternion, origin: Vector3, force = false): void {

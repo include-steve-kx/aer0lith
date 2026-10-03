@@ -222,10 +222,15 @@ export class WindView {
     planePosition: Vector3,
     planeOrientation: Quaternion,
     speed: number,
-    throttleActive: boolean,
+    throttleActive: boolean | number,
     frozen = false,
+    travelVelocity?: Vector3,
   ): void {
-    this.targetForward.set(0, 0, 1).applyQuaternion(planeOrientation).normalize();
+    if (travelVelocity && travelVelocity.lengthSq() > 1e-8) {
+      this.targetForward.copy(travelVelocity).normalize();
+    } else {
+      this.targetForward.set(0, 0, 1).applyQuaternion(planeOrientation).normalize();
+    }
     if (!this.initialized) {
       this.forward.copy(this.targetForward);
       this.updateFrameAxes();
@@ -242,11 +247,14 @@ export class WindView {
       this.updateParticles(dt, planePosition);
     }
 
+    const throttleTarget = typeof throttleActive === 'number'
+      ? Math.max(0, Math.min(1, throttleActive))
+      : throttleActive ? 1 : 0;
     const throttle = this.material.uniforms.uThrottle.value as number;
-    const throttleResponse = throttleActive ? 0.2 : 0.5;
+    const throttleResponse = throttleTarget > throttle ? 0.2 : 0.5;
     const throttleSmoothing = frozen ? 0 : 1 - Math.exp(-dt / throttleResponse);
     this.material.uniforms.uThrottle.value = throttle
-      + ((throttleActive ? 1 : 0) - throttle) * throttleSmoothing;
+      + (throttleTarget - throttle) * throttleSmoothing;
     this.speed = Math.max(0, speed);
     this.updateSpeedPresentation();
     this.material.uniforms.uSpeed.value = speed;

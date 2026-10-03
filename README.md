@@ -43,7 +43,8 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 | `W` / `S` | Pitch nose up / down |
 | `A` / `D` | Coordinated roll and yaw left / right |
 | `Q` / `E` | One 360° dodge roll left / right; also available above the joystick |
-| `Shift` | Boost without disengaging autopilot. Triple-tap boost to lock (up to 0.4 s between presses); tap again to unlock. |
+| `J` | Hold to drift. The angle between the aircraft nose and controllable velocity charges drift energy. |
+| `K` | Hold to spend drift energy on an automatic three-tier drift boost; without energy this is normal boost. |
 | `T` | Toggle autopilot |
 | Hold `Space` / fire icon | Shoot bullets from randomized wing tips; release to stop |
 | `F` | Trigger a terrain probe wave |
