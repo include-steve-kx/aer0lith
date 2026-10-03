@@ -1,11 +1,17 @@
 # Tuned defaults and proximity meteors
 
 The shipped preset now matches the settings captured from the existing Chrome
-simulator on October 2, 2026. Notable choices include mesh terrain, sky
+simulator on October 3, 2026. Notable choices include mesh terrain, sky
 `#3f60a2`, mesh `#5e6768`, blue exhaust `#8ab7ff`, 3.5 m high / 0.08 m thick
 side wakes, 36 bullets per second, and 180 m / 6 s missile trails. The crystal
 layer uses 10% coverage, 50% opacity, 3.0 refraction, 1.2 dispersion, and
 `#42e3ff`.
+
+The October 3 profile also raises the Pulse impact radius to **80 m**, drift
+charge to **100/s**, contact friction to **0.6**, and uses the larger white
+collision-spark and center-tail ash settings documented in
+[`drift-boost.md`](drift-boost.md). Slider ranges were expanded so these tuned
+values remain adjustable in both directions instead of sitting at an endpoint.
 
 Existing saved choices are preserved. Fresh installations use the new preset.
 The red **RESET ALL SETTINGS TO DEFAULT** button at the bottom of Settings
@@ -64,7 +70,7 @@ creating fragments, refraction, shake, and a physical push once. Pause freezes
 unarmed checks, armed countdowns, and physics. Disabling proximity explosions
 disarms pending fuses. There is no splash damage or chain reaction.
 
-Validation: `npm run verify` passes 186 tests and the production build. Browser
+Validation: `npm run verify` passes 201 tests and the production build. Browser
 checks compared every reset control against the captured preset, including the
 400 m radius and 20 m/s push overrides, then verified changed values/debug flags reset and survive
 reload. New tests cover warning/fuse boundaries, fast relative sweeps, pause,
