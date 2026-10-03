@@ -571,7 +571,7 @@ export class MeteorSystem implements DynamicObstacleProvider {
             rockPose.edges,
           );
           if (gap <= 0.015) {
-            this.captureShipHit(hit, part);
+            this.captureShipHit(hit, part, m.velocity);
             return true;
           }
           if (bound < 1e-9) {
@@ -585,7 +585,7 @@ export class MeteorSystem implements DynamicObstacleProvider {
           }
         }
         if (!done) {
-          this.captureShipHit(hit, part);
+          this.captureShipHit(hit, part, m.velocity);
           return true;
         }
       }
@@ -593,7 +593,7 @@ export class MeteorSystem implements DynamicObstacleProvider {
     return false;
   }
 
-  private captureShipHit(hit: DynamicObstacleHit | undefined, part: ShapePose): void {
+  private captureShipHit(hit: DynamicObstacleHit | undefined, part: ShapePose, surfaceVelocity: Vector3): void {
     if (!hit) return;
     this.impactDirection.subVectors(this.rockP, this.position);
     this.rotation.copy(this.orientation).invert();
@@ -612,6 +612,7 @@ export class MeteorSystem implements DynamicObstacleProvider {
     if (hit.normal.lengthSq() < 1e-8) hit.normal.subVectors(this.position, this.rockP);
     if (hit.normal.lengthSq() < 1e-8) hit.normal.set(0, 1, 0);
     else hit.normal.normalize();
+    hit.surfaceVelocity.copy(surfaceVelocity);
   }
   avoidance(
     dt: number,

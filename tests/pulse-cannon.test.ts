@@ -18,18 +18,18 @@ const air = {
   }),
 };
 
-test('Pulse Cannon snapshots an 800 m shot whose 40 m capsule reaches both visual ends', () => {
+test('Pulse Cannon snapshots an 800 m shot whose 80 m capsule reaches both visual ends', () => {
   const pulse = new PulseCannonSystem();
   const muzzle = new Vector3(10, 20, 30);
   const aim = new Vector3(110, 20, 1030);
   pulse.requestFire();
   const shot = pulse.tryFire(muzzle, aim)!;
   assert.ok(shot);
-  assert.equal(shot.radius, 40);
+  assert.equal(shot.radius, 80);
   assert.ok(Math.abs(shot.visualStart.distanceTo(shot.visualEnd) - 800) < 1e-9);
-  assert.ok(Math.abs(shot.visualStart.distanceTo(shot.carveStart) - 40) < 1e-9);
-  assert.ok(Math.abs(shot.visualStart.distanceTo(shot.carveEnd) - 760) < 1e-9);
-  assert.ok(Math.abs(shot.carveStart.distanceTo(shot.carveEnd) - 720) < 1e-9);
+  assert.ok(Math.abs(shot.visualStart.distanceTo(shot.carveStart) - 80) < 1e-9);
+  assert.ok(Math.abs(shot.visualStart.distanceTo(shot.carveEnd) - 720) < 1e-9);
+  assert.ok(Math.abs(shot.carveStart.distanceTo(shot.carveEnd) - 640) < 1e-9);
   assert.equal(pulse.visualActive, true);
   assert.equal(pulse.ready, false);
   pulse.update(DEFAULT_COMBAT.pulseDuration);

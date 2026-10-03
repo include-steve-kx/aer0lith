@@ -31,6 +31,7 @@ export interface DynamicObstacleHit {
   readonly point: Vector3;
   readonly localPoint: Vector3;
   readonly normal: Vector3;
+  readonly surfaceVelocity: Vector3;
 }
 export interface RefractionContributor {
   readonly active: boolean;

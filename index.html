@@ -28,6 +28,21 @@
           </div>
         </header>
 
+        <div id="navigation-cue" class="navigation-cue" aria-label="Route direction">
+          <span id="navigation-arrow" class="navigation-arrow" aria-hidden="true">
+            <span class="navigation-arrow-shaft"></span>
+            <span class="navigation-arrow-head navigation-arrow-head--left"></span>
+            <span class="navigation-arrow-head navigation-arrow-head--right"></span>
+            <span class="navigation-arrow-head navigation-arrow-head--top"></span>
+            <span class="navigation-arrow-head navigation-arrow-head--bottom"></span>
+            <span class="navigation-arrow-face navigation-arrow-face--one"></span>
+            <span class="navigation-arrow-face navigation-arrow-face--two"></span>
+            <span class="navigation-arrow-face navigation-arrow-face--three"></span>
+            <span class="navigation-arrow-face navigation-arrow-face--four"></span>
+          </span>
+          <span id="wrong-way-indicator" class="wrong-way-indicator" role="status" hidden>WRONG WAY</span>
+        </div>
+
         <aside class="tape tape--speed" aria-label="Speed">
           <span class="tape-label">SPD</span>
           <strong id="speed-value">055</strong>
@@ -48,10 +63,19 @@
         </div>
 
         <div id="drift-meter" class="drift-meter" role="progressbar" aria-label="Drift energy" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-          <div class="drift-meter-header"><span>DRIFT ENERGY</span><strong id="drift-status">CRUISE</strong></div>
-          <div class="drift-meter-segments" aria-hidden="true">
-            <span><i></i></span><span><i></i></span><span><i></i></span>
-          </div>
+          <div class="drift-meter-header"><span>DRIFT</span><strong id="drift-status">CRUISE</strong></div>
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <g class="drift-meter-segments">
+              <path pathLength="1" />
+              <path pathLength="1" />
+              <path pathLength="1" />
+            </g>
+            <g class="drift-meter-track">
+              <path pathLength="1" />
+              <path pathLength="1" />
+              <path pathLength="1" />
+            </g>
+          </svg>
         </div>
 
         <div id="horizon" class="horizon" aria-hidden="true">
@@ -128,7 +152,7 @@
             <label for="drift-max-angle"><span>SCORING ANGLE CAP</span><output id="drift-max-angle-value"></output></label>
             <input id="drift-max-angle" data-flight-setting="driftMaxAngle" data-unit="°" data-decimals="0" type="range" min="30" max="120" step="1" value="75" />
             <label for="drift-charge-rate"><span>CHARGE RATE</span><output id="drift-charge-rate-value"></output></label>
-            <input id="drift-charge-rate" data-flight-setting="driftChargeRate" data-unit="/S" data-decimals="0" type="range" min="5" max="100" step="1" value="40" />
+            <input id="drift-charge-rate" data-flight-setting="driftChargeRate" data-unit="/S" data-decimals="0" type="range" min="5" max="200" step="1" value="100" />
             <label for="drift-speed-influence"><span>SPEED INFLUENCE</span><output id="drift-speed-influence-value"></output></label>
             <input id="drift-speed-influence" data-flight-setting="driftSpeedInfluence" type="range" min="0" max="2" step="0.05" value="1" />
             <label for="drift-grace-time"><span>DECAY GRACE</span><output id="drift-grace-time-value"></output></label>
@@ -144,19 +168,30 @@
           </section>
 
           <section class="settings-section" aria-labelledby="settings-impact-title">
-            <h2 id="settings-impact-title">IMPACT RESPONSE</h2>
-            <label for="impact-push-scale"><span>BOUNCE STRENGTH</span><output id="impact-push-scale-value"></output></label>
-            <input id="impact-push-scale" data-flight-setting="impactPushScale" type="range" min="0.2" max="2.5" step="0.05" value="1.1" />
-            <label for="impact-min-push"><span>MINIMUM PUSH</span><output id="impact-min-push-value"></output></label>
-            <input id="impact-min-push" data-flight-setting="impactMinPush" data-unit=" M/S" data-decimals="0" type="range" min="0" max="60" step="1" value="18" />
-            <label for="impact-max-push"><span>MAXIMUM PUSH</span><output id="impact-max-push-value"></output></label>
-            <input id="impact-max-push" data-flight-setting="impactMaxPush" data-unit=" M/S" data-decimals="0" type="range" min="40" max="180" step="5" value="120" />
-            <label for="impact-push-duration"><span>PUSH DURATION</span><output id="impact-push-duration-value"></output></label>
-            <input id="impact-push-duration" data-flight-setting="impactPushDuration" data-unit=" S" type="range" min="0.1" max="1.5" step="0.05" value="0.45" />
+            <h2 id="settings-impact-title">CONTACT PHYSICS + SPARKS</h2>
+            <label for="collision-restitution"><span>COLLISION RESTITUTION</span><output id="collision-restitution-value"></output></label>
+            <input id="collision-restitution" data-flight-setting="collisionRestitution" type="range" min="0" max="0.8" step="0.01" value="0.18" />
+            <label for="collision-friction"><span>SURFACE FRICTION</span><output id="collision-friction-value"></output></label>
+            <input id="collision-friction" data-flight-setting="collisionFriction" type="range" min="0" max="2" step="0.01" value="0.6" />
+            <label for="collision-separation-speed"><span>SEPARATION SPEED</span><output id="collision-separation-speed-value"></output></label>
+            <input id="collision-separation-speed" data-flight-setting="collisionSeparationSpeed" data-unit=" M/S" type="range" min="0" max="12" step="0.25" value="2" />
             <label for="impact-flash-duration"><span>RED FLASH TIME</span><output id="impact-flash-duration-value"></output></label>
             <input id="impact-flash-duration" data-flight-setting="impactFlashDuration" data-unit=" S" type="range" min="0.1" max="2" step="0.05" value="0.65" />
-            <label for="impact-cooldown"><span>CONTACT COOLDOWN</span><output id="impact-cooldown-value"></output></label>
-            <input id="impact-cooldown" data-flight-setting="impactCooldown" data-unit=" S" type="range" min="0.05" max="0.6" step="0.01" value="0.18" />
+            <h3 id="settings-collision-sparks-title">COLLISION SPARKS</h3>
+            <label class="toggle-setting" for="collision-sparks-enabled"><span>SPARKS ENABLED</span><input id="collision-sparks-enabled" data-flight-setting="collisionSparksEnabled" type="checkbox" checked /></label>
+            <label for="collision-spark-amount"><span>SPARK AMOUNT</span><output id="collision-spark-amount-value"></output></label>
+            <input id="collision-spark-amount" data-flight-setting="collisionSparkAmount" data-unit="×" type="range" min="0" max="6" step="0.05" value="3" />
+            <label class="color-setting" for="collision-spark-color"><span>SPARK COLOR</span><input id="collision-spark-color" data-flight-setting="collisionSparkColor" type="color" value="#ffffff" /></label>
+            <label for="collision-spark-thickness"><span>SPARK THICKNESS</span><output id="collision-spark-thickness-value"></output></label>
+            <input id="collision-spark-thickness" data-flight-setting="collisionSparkThickness" data-unit=" M" data-decimals="3" type="range" min="0.01" max="0.3" step="0.005" value="0.15" />
+            <label for="collision-spark-length"><span>SPARK LENGTH</span><output id="collision-spark-length-value"></output></label>
+            <input id="collision-spark-length" data-flight-setting="collisionSparkLength" data-unit=" M" type="range" min="0.2" max="8" step="0.1" value="4" />
+            <label for="collision-spark-speed"><span>SPARK SPEED</span><output id="collision-spark-speed-value"></output></label>
+            <input id="collision-spark-speed" data-flight-setting="collisionSparkSpeed" data-unit=" M/S" data-decimals="0" type="range" min="5" max="100" step="1" value="50" />
+            <label for="collision-spark-lifetime"><span>SPARK LIFE</span><output id="collision-spark-lifetime-value"></output></label>
+            <input id="collision-spark-lifetime" data-flight-setting="collisionSparkLifetime" data-unit=" S" type="range" min="0.05" max="1.6" step="0.01" value="0.8" />
+            <label for="collision-spark-spread"><span>SPARK SPREAD</span><output id="collision-spark-spread-value"></output></label>
+            <input id="collision-spark-spread" data-flight-setting="collisionSparkSpread" type="range" min="0" max="2" step="0.05" value="1" />
           </section>
 
           <section class="settings-section" aria-labelledby="settings-drift-boost-title">
@@ -201,15 +236,17 @@
           </section>
 
           <section class="settings-section" aria-labelledby="settings-drift-display-title">
-            <h2 id="settings-drift-display-title">DRIFT DISPLAY</h2>
+            <h2 id="settings-drift-display-title">DRIFT HUD</h2>
             <label class="toggle-setting" for="drift-cue-enabled"><span>SLIP CUE</span><input id="drift-cue-enabled" data-flight-setting="driftCueEnabled" type="checkbox" checked /></label>
             <label for="drift-cue-size"><span>CUE SIZE</span><output id="drift-cue-size-value"></output></label>
             <input id="drift-cue-size" data-flight-setting="driftCueSize" data-unit=" PX" data-decimals="0" type="range" min="12" max="72" step="1" value="34" />
             <label for="drift-cue-opacity"><span>CUE OPACITY</span><output id="drift-cue-opacity-value"></output></label>
             <input id="drift-cue-opacity" data-flight-setting="driftCueOpacity" type="range" min="0.1" max="1" step="0.05" value="0.7" />
             <label class="toggle-setting" for="drift-meter-enabled"><span>ENERGY METER</span><input id="drift-meter-enabled" data-flight-setting="driftMeterEnabled" type="checkbox" checked /></label>
-            <label for="drift-meter-scale"><span>METER SCALE</span><output id="drift-meter-scale-value"></output></label>
-            <input id="drift-meter-scale" data-flight-setting="driftMeterScale" type="range" min="0.7" max="1.5" step="0.05" value="1" />
+            <label for="drift-meter-arc-length"><span>METER ARC LENGTH</span><output id="drift-meter-arc-length-value"></output></label>
+            <input id="drift-meter-arc-length" data-flight-setting="driftMeterArcLength" data-unit=" VW" data-decimals="1" type="range" min="12" max="64" step="0.5" value="32" />
+            <label for="drift-meter-radial-thickness"><span>METER RADIAL THICKNESS</span><output id="drift-meter-radial-thickness-value"></output></label>
+            <input id="drift-meter-radial-thickness" data-flight-setting="driftMeterRadialThickness" data-unit=" VW" data-decimals="1" type="range" min="0.5" max="5" step="0.1" value="1.5" />
             <label for="drift-trail-response"><span>TRAIL RESPONSE</span><output id="drift-trail-response-value"></output></label>
             <input id="drift-trail-response" data-flight-setting="driftTrailResponse" type="range" min="0" max="2" step="0.05" value="1" />
             <label class="toggle-setting" for="drift-tier-pulse"><span>TIER III PULSE</span><input id="drift-tier-pulse" data-flight-setting="driftTierPulse" type="checkbox" checked /></label>
@@ -218,29 +255,67 @@
           </section>
 
           <section class="settings-section" aria-labelledby="settings-touch-title">
-            <h2 id="settings-touch-title">TOUCH CONTROL</h2>
+            <h2 id="settings-touch-title">INPUT CONTROLS</h2>
             <label for="touch-dead-zone"><span>JOYSTICK DEADZONE</span><output id="touch-dead-zone-value"></output></label>
             <input id="touch-dead-zone" data-flight-setting="touchDeadZone" type="range" min="0" max="0.4" step="0.01" value="0.08" />
             <label for="touch-response-curve"><span>RESPONSE CURVE</span><output id="touch-response-curve-value"></output></label>
             <input id="touch-response-curve" data-flight-setting="touchResponseCurve" type="range" min="0.4" max="3" step="0.05" value="1" />
-            <label for="touch-primary-scale"><span>PRIMARY BUTTON SIZE</span><output id="touch-primary-scale-value"></output></label>
+            <label for="touch-primary-scale"><span>DRIFT + BOOST SCALE</span><output id="touch-primary-scale-value"></output></label>
             <input id="touch-primary-scale" data-flight-setting="touchPrimaryScale" type="range" min="0.8" max="1.35" step="0.05" value="1" />
           </section>
 
           <section class="settings-section" aria-labelledby="settings-drift-trail-title">
-            <h2 id="settings-drift-trail-title">DRIFT TRAIL</h2>
+            <h2 id="settings-drift-trail-title">DRIFT ASH TRAIL</h2>
             <label class="toggle-setting" for="drift-trail-enabled"><span>ASH TRAIL</span><input id="drift-trail-enabled" data-flight-setting="driftTrailEnabled" type="checkbox" checked /></label>
             <label for="drift-trail-rate"><span>PARTICLE RATE</span><output id="drift-trail-rate-value"></output></label>
-            <input id="drift-trail-rate" data-flight-setting="driftTrailRate" data-unit="/S" data-decimals="0" type="range" min="4" max="80" step="1" value="32" />
+            <input id="drift-trail-rate" data-flight-setting="driftTrailRate" data-unit="/S" data-decimals="0" type="range" min="4" max="128" step="1" value="64" />
             <label for="drift-trail-size"><span>CLOUD SIZE</span><output id="drift-trail-size-value"></output></label>
-            <input id="drift-trail-size" data-flight-setting="driftTrailSize" data-unit=" M" data-decimals="1" type="range" min="1" max="10" step="0.5" value="4.5" />
+            <input id="drift-trail-size" data-flight-setting="driftTrailSize" data-unit=" M" data-decimals="1" type="range" min="1" max="20" step="0.5" value="10" />
             <label for="drift-trail-lifetime"><span>TRAIL LIFE</span><output id="drift-trail-lifetime-value"></output></label>
-            <input id="drift-trail-lifetime" data-flight-setting="driftTrailLifetime" data-unit=" S" data-decimals="1" type="range" min="0.3" max="4" step="0.1" value="1.4" />
+            <input id="drift-trail-lifetime" data-flight-setting="driftTrailLifetime" data-unit=" S" data-decimals="1" type="range" min="0.3" max="5" step="0.1" value="2" />
             <label for="drift-trail-opacity"><span>OPACITY</span><output id="drift-trail-opacity-value"></output></label>
             <input id="drift-trail-opacity" data-flight-setting="driftTrailOpacity" data-unit="%" data-decimals="0" type="range" min="0.05" max="1" step="0.05" value="0.55" />
             <label for="drift-trail-turbulence"><span>TURBULENCE</span><output id="drift-trail-turbulence-value"></output></label>
-            <input id="drift-trail-turbulence" data-flight-setting="driftTrailTurbulence" data-unit=" M/S" data-decimals="1" type="range" min="0" max="10" step="0.5" value="3.5" />
+            <input id="drift-trail-turbulence" data-flight-setting="driftTrailTurbulence" data-unit=" M/S" data-decimals="1" type="range" min="0" max="14" step="0.5" value="6" />
             <label class="color-setting" for="drift-trail-color"><span>ASH COLOR</span><input id="drift-trail-color" data-flight-setting="driftTrailColor" type="color" value="#c8c8c8" /></label>
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-navigation-title">
+            <h2 id="settings-navigation-title">ROUTE GUIDANCE</h2>
+            <label class="toggle-setting" for="navigation-arrow-enabled"><span>HUD DIRECTION ARROW</span><input id="navigation-arrow-enabled" data-flight-setting="navigationArrowEnabled" type="checkbox" checked /></label>
+            <label for="navigation-arrow-scale"><span>ARROW SCALE</span><output id="navigation-arrow-scale-value"></output></label>
+            <input id="navigation-arrow-scale" data-flight-setting="navigationArrowScale" data-unit="×" type="range" min="0.6" max="9" step="0.05" value="1" />
+            <label class="select-setting" for="navigation-arrow-head-style"><span>HEAD STYLE</span>
+              <select id="navigation-arrow-head-style" data-flight-setting="navigationArrowHeadStyle">
+                <option value="wire" selected>FOUR LINES</option>
+                <option value="solid">SOLID PYRAMID</option>
+              </select>
+            </label>
+            <label for="navigation-arrow-head-length"><span>HEAD LENGTH</span><output id="navigation-arrow-head-length-value"></output></label>
+            <input id="navigation-arrow-head-length" data-flight-setting="navigationArrowHeadLength" data-unit=" PX" data-decimals="1" type="range" min="3" max="90" step="0.5" value="7" />
+            <label for="navigation-arrow-head-width"><span>HEAD WIDTH</span><output id="navigation-arrow-head-width-value"></output></label>
+            <input id="navigation-arrow-head-width" data-flight-setting="navigationArrowHeadWidth" data-unit=" PX" data-decimals="1" type="range" min="6" max="120" step="0.5" value="12" />
+            <label for="navigation-arrow-body-length"><span>BODY LENGTH</span><output id="navigation-arrow-body-length-value"></output></label>
+            <input id="navigation-arrow-body-length" data-flight-setting="navigationArrowBodyLength" data-unit=" PX" data-decimals="1" type="range" min="10" max="210" step="1" value="22" />
+            <label for="navigation-arrow-line-thickness"><span>LINE THICKNESS</span><output id="navigation-arrow-line-thickness-value"></output></label>
+            <input id="navigation-arrow-line-thickness" data-flight-setting="navigationArrowLineThickness" data-unit=" PX" data-decimals="1" type="range" min="0.5" max="15" step="0.1" value="1" />
+            <label for="navigation-look-ahead"><span>LOOK-AHEAD DISTANCE</span><output id="navigation-look-ahead-value"></output></label>
+            <input id="navigation-look-ahead" data-flight-setting="navigationLookAhead" data-unit=" M" data-decimals="0" type="range" min="80" max="400" step="10" value="160" />
+            <label class="color-setting" for="navigation-arrow-color"><span>ARROW COLOR</span><input id="navigation-arrow-color" data-flight-setting="navigationArrowColor" type="color" value="#ffffff" /></label>
+            <label class="toggle-setting" for="wrong-way-enabled"><span>WRONG WAY WARNING</span><input id="wrong-way-enabled" data-flight-setting="wrongWayEnabled" type="checkbox" checked /></label>
+            <label for="wrong-way-delay"><span>WARNING DELAY</span><output id="wrong-way-delay-value"></output></label>
+            <input id="wrong-way-delay" data-flight-setting="wrongWayDelay" data-unit=" S" type="range" min="0.25" max="2" step="0.05" value="0.75" />
+          </section>
+
+          <section class="settings-section" aria-labelledby="settings-world-route-title">
+            <h2 id="settings-world-route-title">WORLD ROUTE — RESTART REQUIRED</h2>
+            <label for="route-horizontal-turns"><span>HORIZONTAL TURNS</span><output id="route-horizontal-turns-value"></output></label>
+            <input id="route-horizontal-turns" data-flight-setting="routeHorizontalTurns" data-unit="×" type="range" min="0.5" max="1.5" step="0.05" value="0.85" />
+            <label for="route-vertical-turns"><span>VERTICAL TURNS</span><output id="route-vertical-turns-value"></output></label>
+            <input id="route-vertical-turns" data-flight-setting="routeVerticalTurns" data-unit="×" type="range" min="0.5" max="1.5" step="0.05" value="0.85" />
+            <label for="route-clearance"><span>ROUTE CLEARANCE</span><output id="route-clearance-value"></output></label>
+            <input id="route-clearance" data-flight-setting="routeClearance" data-unit="×" type="range" min="0.75" max="1.5" step="0.05" value="1.1" />
+            <div class="settings-actions"><button id="apply-world-settings" type="button">APPLY &amp; RESTART CURRENT WORLD</button></div>
           </section>
 
           <section class="settings-section" aria-labelledby="settings-terrain-title">

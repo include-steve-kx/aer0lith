@@ -236,7 +236,7 @@ test('terrain missile sampling is at most one metre and earliest convex surface 
   assert.ok(t2 > 0.5 && t2 < 0.6);
 });
 
-test('meteor collision pushes the aircraft without changing its flight mode', () => {
+test('meteor collision dissipates relative motion without changing its flight mode', () => {
   for (const manual of [false, true]) {
     const { meteors } = systems();
     const flight = new FlightController(air as unknown as ProceduralTerrain);
@@ -244,15 +244,15 @@ test('meteor collision pushes the aircraft without changing its flight mode', ()
     if (manual) flight.takeManualControl();
     rock(meteors, 0, 7, 10);
     let impactSource = '';
-    let impulseLength = 0;
+    let dissipatedEnergy = 0;
     flight.onImpact = impact => {
       impactSource = impact.source;
-      impulseLength = impact.impulse.length();
+      dissipatedEnergy = impact.dissipatedEnergy;
     };
     flight.update(1 / 120, neutral);
     assert.equal(flight.mode, manual ? 'manual' : 'autopilot');
     assert.equal(impactSource, 'meteor');
-    assert.ok(impulseLength >= flight.settings.impactMinPush);
+    assert.ok(dissipatedEnergy > 0);
     assert.equal(meteors.activeCount, 1, 'contact does not erase the obstacle field');
   }
 });

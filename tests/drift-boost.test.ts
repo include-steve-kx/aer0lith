@@ -4,6 +4,7 @@ import { Vector3 } from 'three';
 import { FLIGHT } from '../src/core/config.ts';
 import type { FlightInput } from '../src/core/types.ts';
 import { FlightController } from '../src/flight/FlightController.ts';
+import { DEFAULT_FLIGHT_TUNING } from '../src/flight/FlightTuning.ts';
 import { HoldAction } from '../src/flight/HoldAction.ts';
 import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 
@@ -126,7 +127,10 @@ test('drift cancels boost, clears its bank, and suppresses held boost until repr
 
   flight.update(FLIGHT.fixedStep, { ...boost, driftHeld: true });
   assert.equal(flight.driftState, 'drift');
-  assert.ok(flight.driftEnergy < 0.5, 'old bank is cleared before the fresh drift starts charging');
+  assert.ok(
+    flight.driftEnergy <= DEFAULT_FLIGHT_TUNING.driftChargeRate * FLIGHT.fixedStep + 1e-9,
+    'old bank is cleared before the fresh drift starts charging',
+  );
   flight.update(FLIGHT.fixedStep, { ...boost, driftHeld: false });
   assert.notEqual(flight.driftState, 'normal-boost', 'held K stays suppressed');
   flight.update(FLIGHT.fixedStep, neutral);
@@ -161,7 +165,7 @@ test('tier-speed terrain sweep deflects from a thin wall between fixed-step endp
   flight.onImpact = impact => {
     impactCount++;
     assert.equal(impact.source, 'terrain');
-    assert.ok(impact.impulse.z < 0);
+    assert.ok(impact.relativeVelocityAfter.dot(impact.normal) > 0);
   };
   flight.update(FLIGHT.fixedStep, neutral);
   assert.equal(flight.mode, 'manual');

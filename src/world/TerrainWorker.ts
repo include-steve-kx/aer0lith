@@ -19,12 +19,15 @@ const workerScope = self as unknown as WorkerScope;
 const output = new Float32MeshBuffer();
 const carvedDensity = new Float32Array(densityLatticeLength());
 let activeSeed = '';
+let activeGenerationKey = '';
 let terrain: ProceduralTerrain | undefined;
 
 workerScope.onmessage = ({ data }): void => {
-  if (!terrain || data.seed !== activeSeed) {
+  const generationKey = JSON.stringify(data.generationSettings);
+  if (!terrain || data.seed !== activeSeed || generationKey !== activeGenerationKey) {
     activeSeed = data.seed;
-    terrain = new ProceduralTerrain(activeSeed);
+    activeGenerationKey = generationKey;
+    terrain = new ProceduralTerrain(activeSeed, data.generationSettings);
   }
 
   if (

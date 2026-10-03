@@ -1,17 +1,14 @@
 import {
-  AdditiveBlending,
   Color,
   DoubleSide,
   GreaterDepth,
   Group,
   LineSegments,
   Mesh,
-  MeshBasicMaterial,
   MeshStandardMaterial,
   NotEqualStencilFunc,
   ReplaceStencilOp,
   ShaderMaterial,
-  SphereGeometry,
   Vector3,
 } from 'three';
 import { PALETTE } from '../core/config.ts';
@@ -66,18 +63,7 @@ export class AircraftView {
 
   private readonly geometry;
   private readonly edgeGeometry;
-  private readonly impactGeometry = new SphereGeometry(0.62, 10, 7);
-  private readonly impactMaterial = new MeshBasicMaterial({
-    color: '#ff2020',
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    blending: AdditiveBlending,
-  });
-  private readonly impactMarker = new Mesh(this.impactGeometry, this.impactMaterial);
-  private impactRemaining = 0;
-  private impactDuration = 0.65;
-  private impactSeverity = 0;
+  private readonly lastImpactPoint = new Vector3();
   private readonly wings: WingPose;
   private wingRevision = -1;
 
@@ -86,15 +72,33 @@ export class AircraftView {
     this.group.name = 'Lance / minimal X-wing';
     this.geometry = createAircraftGeometry(wings);
     this.edgeGeometry = createAircraftEdgeGeometry(wings);
+    this.bodyMaterial.onBeforeCompile = shader => {
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nattribute float aImpact;\nvarying float vImpact;',
+        )
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvImpact = aImpact;',
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nvarying float vImpact;',
+        )
+        .replace(
+          '#include <color_fragment>',
+          '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.015, 0.01), clamp(vImpact, 0.0, 1.0));',
+        );
+    };
+    this.bodyMaterial.customProgramCacheKey = () => 'aircraft-impact-vertices-v1';
     const mesh = new Mesh(this.geometry, this.bodyMaterial);
     mesh.name = 'monochrome hull and four blades';
     // Terrain is order 1 and flocks are order 2. Draw after both before marking
     // visible pixels; sharing terrain order lets material sorting mask the ghost.
     mesh.renderOrder = 3;
-    this.impactMarker.name = 'temporary aircraft impact flash';
-    this.impactMarker.visible = false;
-    this.impactMarker.renderOrder = 10;
-    this.group.add(mesh, this.ghostGroup, this.impactMarker);
+    this.group.add(mesh, this.ghostGroup);
     const ghost = new Mesh(this.geometry, this.ghostMaterial);
     const outline = new LineSegments(this.edgeGeometry, this.outlineMaterial);
     ghost.name = 'occluded ship silhouette'; outline.name = 'occluded ship edges';
@@ -126,39 +130,22 @@ export class AircraftView {
   }
 
   flashImpact(localPoint: Vector3, duration: number, severity: number): void {
-    this.impactMarker.position.copy(localPoint);
-    this.impactDuration = Math.max(0.05, duration);
-    this.impactRemaining = this.impactDuration;
-    this.impactSeverity = Math.max(0.15, Math.min(1, severity));
-    const scale = 0.8 + this.impactSeverity * 0.8;
-    this.impactMarker.scale.setScalar(scale);
-    this.impactMarker.visible = true;
+    this.lastImpactPoint.copy(localPoint);
+    this.geometry.flashImpact(localPoint, duration, severity);
   }
 
   updateImpact(dt: number, frozen = false): void {
-    if (this.impactRemaining <= 0) return;
-    if (!frozen) this.impactRemaining = Math.max(0, this.impactRemaining - dt);
-    if (this.impactRemaining <= 0) {
-      this.impactMarker.visible = false;
-      this.impactMaterial.opacity = 0;
-      return;
-    }
-    const progress = 1 - this.impactRemaining / this.impactDuration;
-    const flash = Math.sin(progress * Math.PI * 10) > 0 ? 1 : 0.2;
-    this.impactMaterial.opacity = (this.impactRemaining / this.impactDuration)
-      * flash * (0.35 + this.impactSeverity * 0.65);
+    this.geometry.updateImpact(dt, frozen);
   }
 
-  get impactVisible(): boolean { return this.impactMarker.visible; }
-  get impactPosition(): Readonly<Vector3> { return this.impactMarker.position; }
+  get impactVisible(): boolean { return this.geometry.impactVisible; }
+  get impactPosition(): Readonly<Vector3> { return this.lastImpactPoint; }
 
   dispose(): void {
     this.geometry.dispose();
     this.edgeGeometry.dispose();
-    this.impactGeometry.dispose();
     this.bodyMaterial.dispose();
     this.ghostMaterial.dispose();
     this.outlineMaterial.dispose();
-    this.impactMaterial.dispose();
   }
 }

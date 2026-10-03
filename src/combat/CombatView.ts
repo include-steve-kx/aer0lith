@@ -126,18 +126,20 @@ export class RibbonBatch {
     this.colors.setXYZ(i, color.r, color.g, color.b);
     this.alphas?.setX(i, alpha);
   }
-  finish(): void {
+  finish(fullUpload = false): void {
     this.geometry.setDrawRange(0, this.count);
     // Upload only the live prefix, not the entire worst-case pool every frame.
-    for (const attribute of [this.positions, this.colors, this.alphas]) {
-      if (!attribute) continue;
-      attribute.clearUpdateRanges();
-      if (this.count > 0) {
-        attribute.addUpdateRange(0, this.count * attribute.itemSize);
-        attribute.needsUpdate = true;
-      }
-    }
+    this.finishAttribute(this.positions, fullUpload);
+    this.finishAttribute(this.colors, fullUpload);
+    this.finishAttribute(this.alphas, fullUpload);
     this.mesh.visible = this.count > 0;
+  }
+  private finishAttribute(attribute?: BufferAttribute, fullUpload = false): void {
+    if (!attribute) return;
+    attribute.clearUpdateRanges();
+    if (this.count <= 0) return;
+    if (!fullUpload) attribute.addUpdateRange(0, this.count * attribute.itemSize);
+    attribute.needsUpdate = true;
   }
   dispose(): void {
     this.geometry.dispose();

@@ -10,11 +10,10 @@ import {
   ShaderMaterial,
   Vector3,
 } from 'three';
-import { TRAIL_ANCHORS } from '../core/aircraftGeometry.ts';
 import type { FlightTuningSettings } from '../flight/FlightTuning.ts';
 
 const MAX_PARTICLES = 256;
-const ANCHORS = TRAIL_ANCHORS.map(anchor => new Vector3(...anchor));
+const TAIL_ANCHOR = new Vector3(0, 0.05, -3.75);
 
 function hash(value: number): number {
   const result = Math.sin(value * 91.713 + 17.17) * 43758.5453;
@@ -167,8 +166,7 @@ export class DriftTrailView {
     const offset = index * 3;
     const serial = this.serial++;
     this.cursor = (this.cursor + 1) % MAX_PARTICLES;
-    const anchor = ANCHORS[serial % ANCHORS.length];
-    this.spawnPoint.copy(anchor).applyQuaternion(orientation).add(planePosition);
+    this.spawnPoint.copy(TAIL_ANCHOR).applyQuaternion(orientation).add(planePosition);
     this.positions[offset] = this.spawnPoint.x;
     this.positions[offset + 1] = this.spawnPoint.y;
     this.positions[offset + 2] = this.spawnPoint.z;

@@ -32,6 +32,13 @@ test('impact feedback flashes at the struck aircraft-local point and expires', (
   const ship = new AircraftView();
   const point = new Vector3(5.5, 1.8, -2.9);
   ship.flashImpact(point, 0.5, 0.8);
+  assert.equal(ship.group.children.length, 2, 'impact feedback adds no sphere mesh');
+  const body = ship.group.children[0] as Mesh;
+  const impactWeights = body.geometry.getAttribute('aImpact');
+  const highlighted = Array.from({ length: impactWeights.count }, (_, index) => impactWeights.getX(index))
+    .filter(weight => weight > 0);
+  assert.ok(highlighted.length >= 3);
+  assert.ok(highlighted.length < impactWeights.count, 'only the nearest triangle and duplicate vertices flash');
   assert.equal(ship.impactVisible, true);
   assert.deepEqual(ship.impactPosition.toArray(), point.toArray());
   ship.updateImpact(0.25);

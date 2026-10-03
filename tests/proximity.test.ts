@@ -134,7 +134,7 @@ test('new defaults fit slider bounds and restoration preserves saved custom sett
   assert.equal(restored.meteorMinFuseDelay, 1);
   assert.equal(restored.meteorMaxFuseDelay, 1);
   assert.equal(DEFAULT_COMBAT.pulseRange, 800);
-  assert.equal(DEFAULT_COMBAT.pulseRadius, 40);
+  assert.equal(DEFAULT_COMBAT.pulseRadius, 80);
   assert.equal(DEFAULT_COMBAT.pulsePlasmaRadius, 8);
   assert.equal(DEFAULT_COMBAT.pulseCooldown, 1);
   assert.equal(DEFAULT_COMBAT.pulseDuration, 0.6);

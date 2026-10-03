@@ -73,21 +73,39 @@ export class FlightController {
   private readonly collisionLocalPoint = new Vector3();
   private readonly impactNormal = new Vector3();
   private readonly impactVelocity = new Vector3();
-  private readonly impactImpulse = new Vector3();
+  private readonly impactPostVelocity = new Vector3();
+  private readonly impactRelativeBefore = new Vector3();
+  private readonly impactRelativeAfter = new Vector3();
+  private readonly impactTangent = new Vector3();
+  private readonly impactExternalAfter = new Vector3();
+  private readonly staticSurfaceVelocity = new Vector3();
+  private readonly contactNormal = new Vector3();
   private readonly obstacleHit: DynamicObstacleHit = {
     point: new Vector3(),
     localPoint: new Vector3(),
     normal: new Vector3(),
+    surfaceVelocity: new Vector3(),
   };
   private readonly impactSnapshot = {
     point: new Vector3(),
     localPoint: new Vector3(),
     normal: new Vector3(),
-    impulse: new Vector3(),
+    surfaceVelocity: new Vector3(),
+    relativeVelocityBefore: new Vector3(),
+    relativeVelocityAfter: new Vector3(),
+    tangentialDirection: new Vector3(),
+    normalSpeed: 0,
+    tangentialSpeed: 0,
+    dissipatedEnergy: 0,
+    dissipatedSpeed: 0,
     severity: 0,
     source: 'terrain' as FlightImpactSource,
+    initialContact: true,
   };
-  private impactCooldownRemaining = 0;
+  private contactActive = false;
+  private contactSeenThisStep = false;
+  private contactFreeSteps = 0;
+  private contactSource: FlightImpactSource = 'terrain';
   onImpact?: (impact: FlightImpactSnapshot) => void;
   applyExternalImpulse(impulse: Vector3, settle = 0.8): void {
     if (this.mode === 'crashed' || this.mode === 'loading') return;
@@ -222,7 +240,7 @@ export class FlightController {
     this.previousOrientation.copy(this.orientation);
     this.previousCameraOrientation.copy(this.cameraOrientation);
     this.previousRollAngle = this.rollAngle;
-    this.impactCooldownRemaining = Math.max(0, this.impactCooldownRemaining - dt);
+    this.contactSeenThisStep = false;
     const driftHeld = input.driftHeld ?? false;
     const boostHeld = input.boostHeld ?? input.throttle > 0;
     if (input.pitch !== 0 || input.roll !== 0 || input.yaw !== 0 || driftHeld) this.takeManualControl();
@@ -238,10 +256,9 @@ export class FlightController {
     this.wings.update(dt, this.throttle);
     this.position.addScaledVector(this.controlVelocity, dt);
     const blastMoved = this.advanceExternal(dt);
-    this.actualSpeed = this.position.distanceTo(this.previousPosition) / dt;
     if (blastMoved) this.checkBlastTerrain();
     else this.checkHighSpeedTerrainSweep();
-    if (this.obstacles?.sweepShip(
+    if (!this.contactSeenThisStep && this.obstacles?.sweepShip(
       this.previousPosition,
       this.position,
       this.previousOrientation,
@@ -253,10 +270,13 @@ export class FlightController {
         this.obstacleHit.localPoint,
         this.obstacleHit.point,
         this.obstacleHit.normal,
+        this.obstacleHit.surfaceVelocity,
         'meteor',
       );
     }
-    this.checkCollision(dt);
+    if (!this.contactSeenThisStep) this.checkCollision(dt);
+    this.finishContactStep();
+    this.actualSpeed = this.position.distanceTo(this.previousPosition) / dt;
     this.updateCheckpoint(dt);
   }
 
@@ -609,10 +629,6 @@ export class FlightController {
   }
 
   private checkCollision(dt: number): void {
-    if (this.impactCooldownRemaining > 0) {
-      this.collisionContactTime = 0;
-      return;
-    }
     let deepestPenetration = 0;
     const probes = this.cockpitCollision ? COCKPIT_COLLISION_PROBES : this.wings.collisionProbes;
     const orientation = this.orientation;
@@ -667,46 +683,107 @@ export class FlightController {
     }
     if (this.impactNormal.lengthSq() < 1e-8) this.impactNormal.set(0, 1, 0);
     else this.impactNormal.normalize();
-    this.resolveImpact(localPoint, worldPoint, this.impactNormal, source);
+    this.resolveImpact(
+      localPoint,
+      worldPoint,
+      this.impactNormal,
+      this.staticSurfaceVelocity,
+      source,
+    );
   }
 
   private resolveImpact(
     localPoint: Vector3,
     worldPoint: Vector3,
     normal: Vector3,
+    surfaceVelocity: Vector3,
     source: FlightImpactSource,
   ): void {
-    if (this.impactCooldownRemaining > 0) return;
     this.impactNormal.copy(normal);
     if (this.impactNormal.lengthSq() < 1e-8) this.impactNormal.copy(this.forward).negate();
     else this.impactNormal.normalize();
+
+    const initialContact = !this.contactActive
+      || this.contactSource !== source
+      || this.contactNormal.dot(this.impactNormal) < 0.7;
+    this.contactActive = true;
+    this.contactSeenThisStep = true;
+    this.contactFreeSteps = 0;
+    this.contactSource = source;
+    this.contactNormal.copy(this.impactNormal);
+
     this.impactVelocity.copy(this.controlVelocity).add(this.externalVelocity);
-    const incomingSpeed = Math.max(0, -this.impactVelocity.dot(this.impactNormal));
-    const push = clamp(
-      this.tuning.impactMinPush + incomingSpeed * this.tuning.impactPushScale,
-      this.tuning.impactMinPush,
-      this.tuning.impactMaxPush,
+    this.impactRelativeBefore.copy(this.impactVelocity).sub(surfaceVelocity);
+    const normalVelocity = this.impactRelativeBefore.dot(this.impactNormal);
+    const incomingNormalSpeed = Math.max(0, -normalVelocity);
+    this.impactTangent.copy(this.impactRelativeBefore)
+      .addScaledVector(this.impactNormal, -normalVelocity);
+    const tangentialSpeed = this.impactTangent.length();
+    const tangentialLoss = Math.min(
+      tangentialSpeed,
+      this.tuning.collisionFriction * incomingNormalSpeed,
     );
-    this.impactImpulse.copy(this.impactNormal).multiplyScalar(push);
-    this.position.copy(this.previousPosition).addScaledVector(this.impactNormal, 0.35);
-    const controlIntoSurface = this.controlVelocity.dot(this.impactNormal);
-    if (controlIntoSurface < 0) {
-      this.controlVelocity.addScaledVector(this.impactNormal, -controlIntoSurface * 1.1);
-      this.speed = this.controlVelocity.length();
+    const tangentialScale = tangentialSpeed > 1e-8
+      ? Math.max(0, (tangentialSpeed - tangentialLoss) / tangentialSpeed)
+      : 0;
+    this.impactRelativeAfter.copy(this.impactTangent).multiplyScalar(tangentialScale);
+    let separationSpeed = normalVelocity > 0
+      ? normalVelocity
+      : incomingNormalSpeed * this.tuning.collisionRestitution;
+    if (initialContact) {
+      separationSpeed = Math.max(separationSpeed, this.tuning.collisionSeparationSpeed);
     }
-    this.applyExternalImpulse(this.impactImpulse, this.tuning.impactPushDuration);
-    this.impactCooldownRemaining = this.tuning.impactCooldown;
+    this.impactRelativeAfter.addScaledVector(this.impactNormal, separationSpeed);
+    this.impactPostVelocity.copy(this.impactRelativeAfter).add(surfaceVelocity);
+
+    // Preserve the identity of explosion displacement while filtering it through
+    // the same contact plane. The controllable component supplies the exact
+    // remainder, so their combined post-impact velocity is authoritative.
+    const externalNormalSpeed = this.externalVelocity.dot(this.impactNormal);
+    const externalNormalAfter = externalNormalSpeed < 0
+      ? -externalNormalSpeed * this.tuning.collisionRestitution
+      : externalNormalSpeed;
+    this.impactExternalAfter.copy(this.externalVelocity)
+      .addScaledVector(this.impactNormal, -externalNormalSpeed)
+      .multiplyScalar(tangentialScale)
+      .addScaledVector(this.impactNormal, externalNormalAfter);
+    this.externalVelocity.copy(this.impactExternalAfter);
+    this.controlVelocity.copy(this.impactPostVelocity).sub(this.externalVelocity);
+    this.speed = this.controlVelocity.length();
+    this.position.copy(this.previousPosition).addScaledVector(this.impactNormal, 0.15);
     this.collisionContactTime = 0;
     this.cancelRoll();
+
+    const beforeSq = this.impactRelativeBefore.lengthSq();
+    const afterSq = this.impactRelativeAfter.lengthSq();
+    const dissipatedEnergy = Math.max(0, 0.5 * (beforeSq - afterSq));
+    const dissipatedSpeed = Math.sqrt(dissipatedEnergy * 2);
     this.impactSnapshot.point.copy(worldPoint);
     this.impactSnapshot.localPoint.copy(localPoint);
     this.impactSnapshot.normal.copy(this.impactNormal);
-    this.impactSnapshot.impulse.copy(this.impactImpulse);
-    this.impactSnapshot.severity = this.tuning.impactMaxPush > 0
-      ? clamp(push / this.tuning.impactMaxPush, 0, 1)
-      : 0;
+    this.impactSnapshot.surfaceVelocity.copy(surfaceVelocity);
+    this.impactSnapshot.relativeVelocityBefore.copy(this.impactRelativeBefore);
+    this.impactSnapshot.relativeVelocityAfter.copy(this.impactRelativeAfter);
+    this.impactSnapshot.tangentialDirection.copy(this.impactTangent);
+    if (tangentialSpeed > 1e-8) this.impactSnapshot.tangentialDirection.divideScalar(tangentialSpeed);
+    else this.impactSnapshot.tangentialDirection.set(0, 0, 0);
+    this.impactSnapshot.normalSpeed = incomingNormalSpeed;
+    this.impactSnapshot.tangentialSpeed = tangentialSpeed;
+    this.impactSnapshot.dissipatedEnergy = dissipatedEnergy;
+    this.impactSnapshot.dissipatedSpeed = dissipatedSpeed;
+    this.impactSnapshot.severity = clamp(dissipatedSpeed / 80, 0, 1);
     this.impactSnapshot.source = source;
-    this.onImpact?.(this.impactSnapshot);
+    this.impactSnapshot.initialContact = initialContact;
+    if (initialContact || dissipatedSpeed > 0.5) this.onImpact?.(this.impactSnapshot);
+  }
+
+  private finishContactStep(): void {
+    if (this.contactSeenThisStep) return;
+    this.contactFreeSteps += 1;
+    if (this.contactFreeSteps >= 2) {
+      this.contactActive = false;
+      this.contactFreeSteps = 0;
+    }
   }
 
   private updateCheckpoint(dt: number): void {
@@ -751,6 +828,9 @@ export class FlightController {
     this.throttle = checkpoint.throttle;
     this.wings.reset(this.throttle);
     this.collisionContactTime = 0;
+    this.contactActive = false;
+    this.contactSeenThisStep = false;
+    this.contactFreeSteps = 0;
     this.syncOrientation();
     this.forward.set(0, 0, 1).applyQuaternion(this.orientation).normalize();
     this.controlVelocity.copy(this.forward).multiplyScalar(this.speed);
@@ -803,7 +883,7 @@ export class FlightController {
   }
 
   get hasTerrainContact(): boolean {
-    return this.impactCooldownRemaining > 0 || this.collisionContactTime > 0;
+    return this.contactActive || this.collisionContactTime > 0;
   }
 
   private setMode(mode: FlightMode): void {

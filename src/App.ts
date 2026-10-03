@@ -22,8 +22,9 @@ import {
 } from 'three';
 import { AudioEngine } from './audio/AudioEngine.ts';
 import { FLIGHT, PALETTE, TERRAIN } from './core/config.ts';
-import type { CameraMode, ExperienceMode, FlightSnapshot } from './core/types.ts';
+import type { CameraMode, ExperienceMode, FlightPathSample, FlightSnapshot } from './core/types.ts';
 import { FlightController } from './flight/FlightController.ts';
+import { RouteProgress } from './flight/RouteProgress.ts';
 import { InputManager } from './flight/InputManager.ts';
 import { CockpitRoll } from './render/CockpitRoll.ts';
 import { BoostCameraShake } from './render/BoostCameraShake.ts';
@@ -36,6 +37,8 @@ import { PostProcessor } from './render/PostProcessor.ts';
 import { RouteGuide } from './render/RouteGuide.ts';
 import { TrailView } from './render/TrailView.ts';
 import { DriftTrailView } from './render/DriftTrailView.ts';
+import { CollisionSparkView } from './render/CollisionSparkView.ts';
+import { NavigationArrowView } from './render/NavigationArrowView.ts';
 import { WindView } from './render/WindView.ts';
 import { Hud } from './ui/Hud.ts';
 import { SettingsPanel } from './ui/SettingsPanel.ts';
@@ -80,9 +83,12 @@ export class App {
   private readonly collisionDebug: CollisionDebugView;
   private readonly trail: TrailView;
   private readonly driftTrail = new DriftTrailView();
+  private readonly collisionSparks = new CollisionSparkView();
   private readonly wind = new WindView();
   private readonly route: RouteGuide;
   private readonly cameraRig: CameraRig;
+  private readonly navigationArrow: NavigationArrowView;
+  private readonly routeProgress = new RouteProgress();
   private readonly post: PostProcessor;
   private readonly hud = new Hud();
   private readonly settings = new SettingsPanel();
@@ -98,6 +104,11 @@ export class App {
   private renderManeuverRollAngle = 0;
   private readonly originShift = new Vector3();
   private readonly blurVelocity = new Vector3();
+  private readonly navigationTarget = new Vector3();
+  private readonly navigationRouteSample: FlightPathSample = {
+    x: 0, y: 0, floorY: 0, tangentX: 0, tangentY: 0,
+    width: 0, height: 0, openness: 0,
+  };
   private accumulator = 0;
   private renderInterpolationReady = false;
   private lastTime = performance.now();
@@ -140,7 +151,8 @@ export class App {
     rimLight.position.set(120, 40, 180);
     this.scene.add(rimLight);
 
-    this.terrainModel = new ProceduralTerrain(seed);
+    const initialSettings = this.settings.values;
+    this.terrainModel = new ProceduralTerrain(seed, initialSettings);
     this.terrain = new TerrainManager(this.scene, this.terrainModel);
     this.flocks = new FlockSystem(this.scene, this.terrainModel, seed);
     this.flight = new FlightController(this.terrainModel);
@@ -166,6 +178,8 @@ export class App {
     this.flight.onRecovery = () => this.resetCombat();
     this.route = new RouteGuide(this.terrainModel);
     this.cameraRig = new CameraRig(window.innerWidth / window.innerHeight, this.renderer.domElement);
+    this.navigationArrow = new NavigationArrowView();
+    this.routeProgress.reset(this.flight.position.z);
     this.post = new PostProcessor(this.renderer);
 
     this.scene.add(this.cameraRig.camera);
@@ -177,6 +191,7 @@ export class App {
       this.collisionDebug.group,
       this.trail.group,
       this.driftTrail.group,
+      this.collisionSparks.group,
       this.route.line,
       this.wind.group,
     );
@@ -186,12 +201,13 @@ export class App {
     this.trail.add(this.renderPlaneWorldPosition, this.renderAircraftOrientation, this.renderOrigin, true);
 
     this.flight.onImpact = impact => {
-      this.audio.crash();
+      if (impact.initialContact) this.audio.crash();
       this.aircraft.flashImpact(
         impact.localPoint,
         this.flight.settings.impactFlashDuration,
         impact.severity,
       );
+      this.collisionSparks.emit(impact, this.renderOrigin);
     };
     this.flight.onModeChange = () => {
       this.audio.beep(this.flight.mode === 'autopilot' ? 690 : 510, 0.045);
@@ -287,7 +303,9 @@ export class App {
       this.post.setGlowSettings(settings.glowEnabled, settings.glowStrength, settings.glowRadius);
       this.flight.configure(settings);
       this.driftTrail.configure(settings);
+      this.collisionSparks.configure(settings);
       this.cameraRig.configure(settings);
+      this.navigationArrow.configure(settings);
       this.hud.configureDrift(settings);
       this.input.configureTouch(settings.touchDeadZone, settings.touchResponseCurve);
       document.documentElement.dataset.font = settings.fontChoice;
@@ -297,6 +315,7 @@ export class App {
       this.collisionDebug.group.visible = false;
       this.hud.setCollisionVisible(false);
     };
+    this.settings.onApplyWorldSettings = () => window.location.reload();
     this.settings.apply();
     this.pulseView.prewarm(this.renderer, this.scene, this.cameraRig.camera);
 
@@ -316,6 +335,8 @@ export class App {
       this.post.dispose();
       this.flightEffects.dispose();
       this.driftTrail.dispose();
+      this.collisionSparks.dispose();
+      this.navigationArrow.dispose();
       this.aircraft.dispose();
       this.terrain.dispose();
     });
@@ -360,6 +381,12 @@ export class App {
           this.scan.center.copy(this.terrain.currentProbeWorldCenter);
         }
         this.flight.update(dt, frameInput);
+        this.routeProgress.update(
+          dt,
+          this.flight.position.z,
+          this.flight.settings.wrongWayEnabled,
+          this.flight.settings.wrongWayDelay,
+        );
         this.pulse.update(dt);
         if (this.flight.mode !== 'crashed') {
           this.meteors.updateProximity(dt, this.flight.previousPosition, this.flight.position, this.flight.orientation);
@@ -451,6 +478,22 @@ export class App {
     this.cameraRig.update(rawDelta, this.renderPlanePosition, this.renderCameraOrientation,
       this.flight.crashIntensity, this.throttleActive, this.paused,
       this.renderControlVelocity, this.flight.driftState);
+    const routeTarget = this.terrainModel.sample(
+      this.flight.position.z + this.flight.settings.navigationLookAhead,
+      this.navigationRouteSample,
+    );
+    this.navigationTarget.set(
+      routeTarget.x - this.renderOrigin.x,
+      routeTarget.y - this.renderOrigin.y,
+      this.flight.position.z + this.flight.settings.navigationLookAhead - this.renderOrigin.z,
+    );
+    this.navigationArrow.update(
+      this.cameraRig.camera,
+      this.renderPlanePosition,
+      this.navigationTarget,
+    );
+    this.collisionSparks.update(rawDelta, this.cameraRig.camera, this.paused);
+    this.hud.setWrongWay(this.flight.settings.wrongWayEnabled, this.routeProgress.wrongWay);
     this.terrain.updateBoostLight(this.flightEffects.lightPosition,
       this.flightEffects.lightColor, this.flightEffects.lightIntensity);
     this.audio.update(this.flight.speed, this.flight.throttle, this.paused);
@@ -567,6 +610,7 @@ export class App {
     this.cameraRig.applyOriginShift(this.originShift);
     this.wind.applyOriginShift(this.originShift);
     this.driftTrail.applyOriginShift(this.originShift);
+    this.collisionSparks.applyOriginShift(this.originShift);
     this.terrain.updateRenderOrigin(this.renderOrigin);
     this.trail.rebuild(this.renderOrigin);
     this.route.update(this.flight.position, this.renderOrigin);
@@ -667,6 +711,8 @@ export class App {
     this.updateRenderPose(1);
     this.trail.clear();
     this.driftTrail.clear();
+    this.collisionSparks.clear();
+    this.routeProgress.reset(this.flight.position.z);
     this.trail.add(this.renderPlaneWorldPosition, this.renderAircraftOrientation, this.renderOrigin, true);
     this.wind.reset(this.renderPlanePosition, this.renderAircraftOrientation);
   }

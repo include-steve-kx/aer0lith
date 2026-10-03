@@ -2,6 +2,10 @@ import { Vector3 } from 'three';
 import { DensityLatticeCache } from './DensityLatticeCache.ts';
 import { TERRAIN } from '../core/config.ts';
 import type { FlightPath, FlightPathSample, TerrainSampler } from '../core/types.ts';
+import {
+  DEFAULT_TERRAIN_GENERATION,
+  type TerrainGenerationSettings,
+} from '../flight/FlightTuning.ts';
 import { SeededNoise } from './Noise.ts';
 import { interpolateDensityCell, type VolumeChunkCoordinate } from './VolumeMesher.ts';
 import {
@@ -30,6 +34,7 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
   readonly noise: SeededNoise;
   private readonly crystalNoise: SeededNoise;
   readonly seedText: string;
+  readonly generationSettings: TerrainGenerationSettings;
   // Workers only polygonize; allocate the collision cache on first query.
   private collisionCache?: DensityLatticeCache;
   private readonly carves = new TerrainCarveField();
@@ -50,8 +55,25 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
     );
   }
 
-  constructor(seed: string) {
+  constructor(seed: string, settings: Partial<TerrainGenerationSettings> = {}) {
     this.seedText = seed;
+    this.generationSettings = {
+      routeHorizontalTurns: clamp(
+        settings.routeHorizontalTurns ?? DEFAULT_TERRAIN_GENERATION.routeHorizontalTurns,
+        0.5,
+        1.5,
+      ),
+      routeVerticalTurns: clamp(
+        settings.routeVerticalTurns ?? DEFAULT_TERRAIN_GENERATION.routeVerticalTurns,
+        0.5,
+        1.5,
+      ),
+      routeClearance: clamp(
+        settings.routeClearance ?? DEFAULT_TERRAIN_GENERATION.routeClearance,
+        0.75,
+        1.5,
+      ),
+    };
     this.noise = new SeededNoise(seed);
     this.crystalNoise = new SeededNoise(`${seed}:crystal`);
   }
@@ -90,7 +112,7 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
     }
   }
 
-  sample(worldZ: number): FlightPathSample {
+  sample(worldZ: number, target?: FlightPathSample): FlightPathSample {
     const seedPhase = this.noise.seed * 0.000013;
     const routeX = (z: number): number => (
       this.noise.fbm(z * 0.00175, 19.7, 4) * 245
@@ -104,11 +126,16 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
       + Math.sin(z * 0.00068 + seedPhase) * 45
     );
 
-    const x = routeX(worldZ);
-    const y = routeY(worldZ);
+    const horizontal = this.generationSettings.routeHorizontalTurns;
+    const vertical = this.generationSettings.routeVerticalTurns;
+    const clearance = this.generationSettings.routeClearance;
+    const rawX = routeX(worldZ);
+    const rawY = routeY(worldZ);
+    const x = rawX * horizontal;
+    const y = 42 + (rawY - 42) * vertical;
     const look = 2;
-    const tangentX = (routeX(worldZ + look) - x) / look;
-    const tangentY = (routeY(worldZ + look) - y) / look;
+    const tangentX = (routeX(worldZ + look) * horizontal - x) / look;
+    const tangentY = (42 + (routeY(worldZ + look) - 42) * vertical - y) / look;
     const chamberSignal = (
       this.noise.fbm(worldZ * 0.00105, -8.4, 4)
       + this.noise.noise2(worldZ * 0.00037 + 71, seedPhase) * 0.45
@@ -119,19 +146,19 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
       0.94,
       Math.abs(this.noise.noise2(worldZ * 0.0033 - 12, seedPhase + 5.1)),
     );
-    const width = Math.max(30, 42 + Math.pow(openness, 1.55) * 142 - constriction * 24);
-    const height = Math.max(25, 31 + Math.pow(openness, 1.38) * 116 - constriction * 19);
+    const width = Math.max(30, 42 + Math.pow(openness, 1.55) * 142 - constriction * 24) * clearance;
+    const height = Math.max(25, 31 + Math.pow(openness, 1.38) * 116 - constriction * 19) * clearance;
 
-    return {
-      x,
-      y,
-      floorY: y - height,
-      tangentX,
-      tangentY,
-      width,
-      height,
-      openness,
-    };
+    const result = target ?? {} as FlightPathSample;
+    result.x = x;
+    result.y = y;
+    result.floorY = y - height;
+    result.tangentX = tangentX;
+    result.tangentY = tangentY;
+    result.width = width;
+    result.height = height;
+    result.openness = openness;
+    return result;
   }
 
   baseDensityAt(worldX: number, worldY: number, worldZ: number): number {
@@ -192,7 +219,7 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
     }
 
     // Absolute safety invariant: no procedural layer may fill this route core.
-    const guaranteedAir = Math.hypot(dx, dy) - 28;
+    const guaranteedAir = Math.hypot(dx, dy) - 28 * this.generationSettings.routeClearance;
     return Math.min(density, guaranteedAir);
   }
 

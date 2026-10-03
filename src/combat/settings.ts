@@ -80,7 +80,7 @@ export const DEFAULT_BULLETS = {
 export const DEFAULT_PULSE = {
   pulseEnabled: true,
   pulseRange: 800,
-  pulseRadius: 40,
+  pulseRadius: 80,
   pulsePlasmaRadius: 8,
   pulseCooldown: 1,
   pulseDuration: 0.6,
@@ -221,7 +221,7 @@ export const BULLET_CONTROLS: readonly ControlSpec[] = [
 export const PULSE_CONTROLS: readonly ControlSpec[] = [
   ['pulseEnabled', 'PULSE CANNON ENABLED'],
   ['pulseRange', 'RANGE', 160, 800, 20, ' M'],
-  ['pulseRadius', 'PHYSICAL BEAM RADIUS', 4, 80, 2, ' M'],
+  ['pulseRadius', 'IMPACT BEAM RADIUS', 4, 160, 2, ' M'],
   ['pulsePlasmaRadius', 'INNER PLASMA RADIUS', 4, 80, 2, ' M'],
   ['pulseCooldown', 'COOLDOWN', 0.25, 15, 0.25, ' S'],
   ['pulseDuration', 'VISUAL DURATION', 0.2, 1.5, 0.05, ' S'],

@@ -5,6 +5,7 @@ import { PROBE, TERRAIN } from '../src/core/config.ts';
 import { hashString, SeededNoise } from '../src/world/Noise.ts';
 import { dotSpacingFromDensity, TerrainManager } from '../src/world/TerrainManager.ts';
 import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
+import { DEFAULT_TERRAIN_GENERATION } from '../src/flight/FlightTuning.ts';
 import {
   Float32MeshBuffer,
   interpolateDensityCell,
@@ -95,6 +96,26 @@ test('flight vein is continuous in 3D and its central route remains open', () =>
   }
   assert.ok(maximumWidth - minimumWidth > 50);
   assert.ok(maximumHeight - minimumHeight > 40);
+});
+
+test('default terrain route is 15 percent gentler and 10 percent wider than legacy generation', () => {
+  const gentler = new ProceduralTerrain('route-tuning');
+  const legacy = new ProceduralTerrain('route-tuning', {
+    routeHorizontalTurns: 1,
+    routeVerticalTurns: 1,
+    routeClearance: 1,
+  });
+  assert.deepEqual(gentler.generationSettings, DEFAULT_TERRAIN_GENERATION);
+  for (let z = -1000; z <= 5000; z += 137) {
+    const current = gentler.sample(z);
+    const before = legacy.sample(z);
+    assert.ok(Math.abs(current.x - before.x * 0.85) < 1e-9);
+    assert.ok(Math.abs((current.y - 42) - (before.y - 42) * 0.85) < 1e-9);
+    assert.ok(Math.abs(current.tangentX - before.tangentX * 0.85) < 1e-9);
+    assert.ok(Math.abs(current.tangentY - before.tangentY * 0.85) < 1e-9);
+    assert.ok(Math.abs(current.width - before.width * 1.1) < 1e-9);
+    assert.ok(Math.abs(current.height - before.height * 1.1) < 1e-9);
+  }
 });
 
 test('polygonizer extracts a 3D isosurface and joins neighboring chunks', () => {

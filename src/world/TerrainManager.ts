@@ -863,6 +863,7 @@ export class TerrainManager {
       const message: TerrainWorkerRequest = {
         requestId,
         seed: this.terrain.seedText,
+        generationSettings: this.terrain.generationSettings,
         chunk: request.chunk,
         revision: request.revision,
         carves,

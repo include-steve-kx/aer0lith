@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Quaternion, Vector3 } from 'three';
+import { Points, Quaternion, Vector3 } from 'three';
 import { DEFAULT_FLIGHT_TUNING } from '../src/flight/FlightTuning.ts';
 import { DriftTrailView } from '../src/render/DriftTrailView.ts';
 
@@ -13,8 +13,15 @@ test('drift ash uses a fixed pool and emits only while drift intensity is active
   trail.update(0.5, position, orientation, velocity, 0);
   assert.equal(trail.emittedCount, 0);
   trail.update(0.5, position, orientation, velocity, 1);
-  assert.equal(trail.emittedCount, 16);
+  assert.equal(trail.emittedCount, 32);
   assert.ok(trail.activeCount > 0);
+  const points = trail.group.children[0] as Points;
+  const positions = points.geometry.getAttribute('position');
+  for (let index = 0; index < 32; index += 1) {
+    assert.equal(positions.getX(index), 0);
+    assert.ok(Math.abs(positions.getY(index) - 0.05) < 1e-6);
+    assert.equal(positions.getZ(index), -3.75);
+  }
   const emitted = trail.emittedCount;
   trail.update(0.5, position, orientation, velocity, 0);
   assert.equal(trail.emittedCount, emitted, 'coasting never emits drift ash');

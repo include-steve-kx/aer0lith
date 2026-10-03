@@ -2,6 +2,7 @@ import { Euler, Quaternion, Vector3 } from 'three';
 import type { CameraMode, DriftState, ExperienceMode, FlightMode, FlightSnapshot } from '../core/types.ts';
 import { bindButtonAction } from './bindButtonAction.ts';
 import type { FlightTuningSettings } from '../flight/FlightTuning.ts';
+import { createDriftMeterGeometry } from './DriftMeterGeometry.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -74,12 +75,15 @@ export class Hud {
   private readonly driftCluster = element<HTMLElement>('drift-cluster');
   private readonly driftMeter = element<HTMLElement>('drift-meter');
   private readonly driftStatus = element<HTMLElement>('drift-status');
-  private readonly driftSegments = Array.from(this.driftMeter.querySelectorAll<HTMLElement>('.drift-meter-segments i'));
+  private readonly navigationCue = element<HTMLElement>('navigation-cue');
+  private readonly wrongWayIndicator = element<HTMLElement>('wrong-way-indicator');
+  private readonly driftSegments = Array.from(this.driftMeter.querySelectorAll<SVGPathElement>('.drift-meter-segments path'));
   private readonly attitude = new Euler(0, 0, 0, 'YXZ');
   private readonly inverseOrientation = new Quaternion();
   private readonly localTravel = new Vector3();
   private driftSettings: FlightTuningSettings | undefined;
   private paused = false;
+  private wrongWayVisible: boolean | undefined;
 
   constructor() {
     bindButtonAction(this.legendToggle, () => {
@@ -187,10 +191,27 @@ export class Hud {
   configureDrift(settings: FlightTuningSettings): void {
     this.driftSettings = settings;
     this.driftMeter.hidden = !settings.driftMeterEnabled;
-    this.driftMeter.style.setProperty('--meter-scale', String(settings.driftMeterScale));
+    const geometry = createDriftMeterGeometry(
+      settings.driftMeterArcLength,
+      settings.driftMeterRadialThickness,
+    );
+    const tracks = Array.from(this.driftMeter.querySelectorAll<SVGPathElement>('.drift-meter-track path'));
+    for (let index = 0; index < geometry.segments.length; index += 1) {
+      tracks[index].setAttribute('d', geometry.segments[index].sectorPath);
+      this.driftSegments[index].setAttribute('d', geometry.segments[index].progressPath);
+    }
+    this.driftMeter.style.setProperty('--meter-fill-width', String(geometry.radialThickness));
     this.reticle.style.setProperty('--drift-cue-opacity', String(settings.driftCueOpacity));
     this.driftCluster.style.setProperty('--primary-control-scale', String(settings.touchPrimaryScale));
     this.driftMeter.classList.toggle('is-tier-pulsing', settings.driftTierPulse);
+    this.navigationCue.hidden = !settings.navigationArrowEnabled;
+  }
+
+  setWrongWay(enabled: boolean, active: boolean): void {
+    const visible = enabled && active;
+    if (visible === this.wrongWayVisible) return;
+    this.wrongWayVisible = visible;
+    this.wrongWayIndicator.hidden = !visible;
   }
 
   setProbeActive(active: boolean): void {

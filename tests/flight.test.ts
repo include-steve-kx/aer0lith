@@ -170,24 +170,26 @@ test('manual throttle is a temporary boost and returns to cruise speed', () => {
   assert.ok(Math.abs(flight.speed - FLIGHT.nominalSpeed) < 1);
 });
 
-test('collision applies an outward push without recovery or mode changes', () => {
+test('collision loses energy and separates without recovery or mode changes', () => {
   const terrain = new ProceduralTerrain('collision-test');
   const flight = new FlightController(terrain);
   flight.takeManualControl();
   let impactCount = 0;
-  let outward = 0;
+  let separation = 0;
+  let dissipated = 0;
   flight.onImpact = impact => {
     impactCount++;
-    outward = impact.impulse.dot(impact.normal);
+    separation = impact.relativeVelocityAfter.dot(impact.normal);
+    dissipated = impact.dissipatedEnergy;
   };
   const route = terrain.sample(flight.position.z);
   flight.position.set(route.x + route.width + 80, route.y, flight.position.z);
   flight.update(FLIGHT.fixedStep, neutral);
   assert.equal(flight.mode, 'manual');
   assert.equal(impactCount, 1);
-  assert.ok(outward >= flight.settings.impactMinPush);
-  flight.update(FLIGHT.fixedStep, neutral);
-  assert.ok(flight.externalVelocity.length() > 0, 'impact uses the decaying external-force channel');
+  assert.ok(separation >= flight.settings.collisionSeparationSpeed);
+  assert.ok(dissipated > 0);
+  assert.ok(flight.controlVelocity.length() < FLIGHT.nominalSpeed, 'contact removes kinetic energy');
 });
 
 test('collision probes remain inside the visible aircraft silhouette', () => {

@@ -11,9 +11,18 @@ export interface FlightImpactSnapshot {
   readonly point: Vector3;
   readonly localPoint: Vector3;
   readonly normal: Vector3;
-  readonly impulse: Vector3;
+  readonly surfaceVelocity: Vector3;
+  readonly relativeVelocityBefore: Vector3;
+  readonly relativeVelocityAfter: Vector3;
+  readonly tangentialDirection: Vector3;
+  readonly normalSpeed: number;
+  readonly tangentialSpeed: number;
+  readonly dissipatedEnergy: number;
+  readonly dissipatedSpeed: number;
   readonly severity: number;
   readonly source: FlightImpactSource;
+  /** True for the first step of a contact, false while an existing scrape continues. */
+  readonly initialContact: boolean;
 }
 
 export interface FlightPathSample {
@@ -29,7 +38,7 @@ export interface FlightPathSample {
 }
 
 export interface FlightPath {
-  sample(worldZ: number): FlightPathSample;
+  sample(worldZ: number, target?: FlightPathSample): FlightPathSample;
 }
 
 export interface TerrainSampler {

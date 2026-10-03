@@ -12,7 +12,9 @@ function element<T extends HTMLElement>(id: string): T {
   return result as T;
 }
 
-const STORAGE_KEY = 'aer0lith.settings.v3';
+const STORAGE_KEY = 'aer0lith.settings.v4';
+const SECTION_STATE_KEY = 'aer0lith.settings-sections.v1';
+const PREVIOUS_STORAGE_KEY = 'aer0lith.settings.v3';
 const AEROLITH_LEGACY_STORAGE_KEY = 'aer0lith.visual-settings.v2';
 const LEGACY_STORAGE_KEY_V1 = 'vector-flight.visual-settings.v1';
 const LEGACY_STORAGE_KEY_V2 = 'vector-flight.visual-settings.v2';
@@ -124,6 +126,7 @@ export type VisualSettings = AppSettings;
 export class SettingsPanel {
   readonly button = element<HTMLButtonElement>('settings-button');
   private readonly panel = element<HTMLElement>('settings-panel');
+  private readonly applyWorldSettingsButton = element<HTMLButtonElement>('apply-world-settings');
   private readonly renderResolutionMode = element<HTMLSelectElement>('render-resolution-mode');
   private readonly terrainRenderingMode = element<HTMLSelectElement>('terrain-rendering-mode');
   private readonly backgroundColor = element<HTMLInputElement>('background-color');
@@ -310,6 +313,7 @@ export class SettingsPanel {
   private readonly glowRadiusValue = element<HTMLOutputElement>('glow-radius-value');
   onChange: ((settings: AppSettings) => void) | undefined;
   onReset: (() => void) | undefined;
+  onApplyWorldSettings: (() => void) | undefined;
   private readonly resetButton = document.createElement('button');
   private readonly resetEvents = new AbortController();
   private readonly defaults: Array<{ input: HTMLInputElement | HTMLSelectElement; value: string; checked: boolean }>;
@@ -319,6 +323,7 @@ export class SettingsPanel {
 
   constructor() {
     this.flightControls = new FlightSettingsControls(this.panel);
+    this.installCollapsibleSections();
     installSettingHelp(this.panel);
     // Capture the shipped HTML and combat defaults before loading personal edits.
     this.defaults = Array.from(this.panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'), input => ({
@@ -342,6 +347,7 @@ export class SettingsPanel {
       }
     });
     bindButtonAction(this.button, () => this.toggle());
+    bindButtonAction(this.applyWorldSettingsButton, () => this.onApplyWorldSettings?.());
     bindButtonAction(this.boostGlassDebugButton, () => {
       this.boostGlassDebug = !this.boostGlassDebug;
       this.emit();
@@ -482,6 +488,82 @@ export class SettingsPanel {
     this.button.textContent = opening ? 'SETTINGS / CLOSE' : 'SETTINGS';
   }
 
+  private installCollapsibleSections(): void {
+    const priority = [
+      'settings-handling-title',
+      'settings-camera-follow-title',
+      'settings-drift-energy-title',
+      'settings-drift-boost-title',
+      'settings-drift-display-title',
+      'settings-drift-trail-title',
+      'settings-impact-title',
+      'settings-navigation-title',
+      'settings-world-route-title',
+      'settings-touch-title',
+    ];
+    const sections = Array.from(this.panel.querySelectorAll<HTMLElement>(':scope > .settings-section'));
+    const first = sections[0];
+    if (first) {
+      const ordered = priority
+        .map(id => sections.find(section => section.querySelector(':scope > h2')?.id === id))
+        .filter((section): section is HTMLElement => Boolean(section));
+      const marker = document.createComment('primary settings order');
+      first.before(marker);
+      for (const section of ordered) marker.before(section);
+      marker.remove();
+    }
+
+    const expanded = this.restoreExpandedSections();
+    for (const section of this.panel.querySelectorAll<HTMLElement>(':scope > .settings-section')) {
+      const heading = section.querySelector<HTMLElement>(':scope > h2');
+      if (!heading) continue;
+      const key = heading.id || (heading.textContent ?? 'settings')
+        .trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'settings-section-toggle';
+      button.id = heading.id;
+      button.textContent = heading.textContent;
+      button.setAttribute('aria-expanded', String(expanded.has(key)));
+      heading.replaceWith(button);
+
+      const content = document.createElement('div');
+      content.className = 'settings-section-content';
+      content.id = `${key}-settings-content`;
+      while (button.nextSibling) content.append(button.nextSibling);
+      section.append(content);
+      button.setAttribute('aria-controls', content.id);
+      section.dataset.settingsSection = key;
+      section.classList.toggle('is-collapsed', !expanded.has(key));
+      button.addEventListener('click', () => {
+        const collapsed = section.classList.toggle('is-collapsed');
+        button.setAttribute('aria-expanded', String(!collapsed));
+        this.persistExpandedSections();
+      }, { signal: this.resetEvents.signal });
+    }
+  }
+
+  private restoreExpandedSections(): Set<string> {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(SECTION_STATE_KEY) ?? '[]') as unknown;
+      return new Set(Array.isArray(parsed) ? parsed.filter(value => typeof value === 'string') : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  private persistExpandedSections(): void {
+    try {
+      const expanded = Array.from(
+        this.panel.querySelectorAll<HTMLElement>(':scope > .settings-section:not(.is-collapsed)'),
+        section => section.dataset.settingsSection,
+      ).filter((key): key is string => Boolean(key));
+      localStorage.setItem(SECTION_STATE_KEY, JSON.stringify(expanded));
+    } catch {
+      // Section toggles remain usable when storage is unavailable.
+    }
+  }
+
   private emit(): void {
     this.updateReadouts();
     this.updateModeVisibility();
@@ -504,12 +586,13 @@ export class SettingsPanel {
   private restore(): void {
     try {
       const currentRaw = localStorage.getItem(STORAGE_KEY);
-      const aerolithLegacyRaw = currentRaw ? null : localStorage.getItem(AEROLITH_LEGACY_STORAGE_KEY);
-      const legacyV2Raw = currentRaw || aerolithLegacyRaw ? null : localStorage.getItem(LEGACY_STORAGE_KEY_V2);
-      const legacyV1Raw = currentRaw || aerolithLegacyRaw || legacyV2Raw
+      const previousRaw = currentRaw ? null : localStorage.getItem(PREVIOUS_STORAGE_KEY);
+      const aerolithLegacyRaw = currentRaw || previousRaw ? null : localStorage.getItem(AEROLITH_LEGACY_STORAGE_KEY);
+      const legacyV2Raw = currentRaw || previousRaw || aerolithLegacyRaw ? null : localStorage.getItem(LEGACY_STORAGE_KEY_V2);
+      const legacyV1Raw = currentRaw || previousRaw || aerolithLegacyRaw || legacyV2Raw
         ? null
         : localStorage.getItem(LEGACY_STORAGE_KEY_V1);
-      const parsed = JSON.parse(currentRaw ?? aerolithLegacyRaw ?? legacyV2Raw ?? legacyV1Raw ?? 'null') as unknown;
+      const parsed = JSON.parse(currentRaw ?? previousRaw ?? aerolithLegacyRaw ?? legacyV2Raw ?? legacyV1Raw ?? 'null') as unknown;
       if (!isRecord(parsed)) return;
       const saved = legacyV1Raw ? migrateVisualSettingsV1(parsed) : parsed;
       this.combatControls.restore(saved);

@@ -84,13 +84,14 @@ select {
 
 .hud {
   --ui-scale: 1;
+  --hud-inset-left: max(calc(18px * var(--ui-scale)), env(safe-area-inset-left));
   --telemetry-font-size: calc(10px * var(--ui-scale));
   --telemetry-letter-spacing: 0.08em;
   position: absolute;
   inset: max(calc(18px * var(--ui-scale)), env(safe-area-inset-top))
     max(calc(18px * var(--ui-scale)), env(safe-area-inset-right))
     max(calc(18px * var(--ui-scale)), env(safe-area-inset-bottom))
-    max(calc(18px * var(--ui-scale)), env(safe-area-inset-left));
+    var(--hud-inset-left);
   z-index: 10;
   pointer-events: none;
   color: var(--ui-tone);
@@ -109,7 +110,7 @@ select {
   opacity: 1;
 }
 
-.hud.is-ambient > :not(.system-controls),
+.hud.is-ambient > :not(.system-controls):not(.navigation-cue),
 .hud.is-ambient .system-controls button:not(#view-button):not(#pause-button) {
   opacity: 0;
   pointer-events: none;
@@ -167,6 +168,120 @@ select {
 }
 
 .telemetry-grid strong { color: var(--ui-tone); font-weight: 400; }
+
+.navigation-cue {
+  --navigation-arrow-color: #fff;
+  --navigation-arrow-scale: 1;
+  position: absolute;
+  top: clamp(54px, 10vh, 92px);
+  left: 50%;
+  width: 30px;
+  height: 30px;
+  transform: translateX(-50%) scale(var(--navigation-arrow-scale));
+  transform-origin: top center;
+  opacity: 1;
+  perspective: 96px;
+  perspective-origin: center;
+}
+
+.navigation-cue[hidden] { display: none; }
+
+.navigation-arrow {
+  --navigation-heading: 0rad;
+  --navigation-elevation: 0rad;
+  --navigation-body-length: 22px;
+  --navigation-tip-depth: -22px;
+  --navigation-head-arm-length: 9px;
+  --navigation-head-angle: 45deg;
+  --navigation-head-angle-negative: -45deg;
+  --navigation-line-thickness: 1px;
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform: rotateX(var(--navigation-elevation)) rotateY(var(--navigation-heading));
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.navigation-arrow-shaft,
+.navigation-arrow-head {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  height: var(--navigation-line-thickness);
+  background: var(--navigation-arrow-color);
+  box-shadow: 0 0 3px rgb(255 255 255 / 24%);
+  transform-style: preserve-3d;
+  backface-visibility: visible;
+}
+
+.navigation-arrow-shaft {
+  width: var(--navigation-line-thickness);
+  height: var(--navigation-body-length);
+  transform-origin: 50% 0;
+  transform: translateX(-50%) rotateX(-90deg);
+}
+
+.navigation-arrow-head { width: var(--navigation-head-arm-length); }
+.navigation-arrow-head--right {
+  transform-origin: 0 50%;
+  transform: translate3d(0, -50%, var(--navigation-tip-depth)) rotateY(var(--navigation-head-angle-negative));
+}
+.navigation-arrow-head--left {
+  left: auto;
+  right: 50%;
+  transform-origin: 100% 50%;
+  transform: translate3d(0, -50%, var(--navigation-tip-depth)) rotateY(var(--navigation-head-angle));
+}
+.navigation-arrow-head--top,
+.navigation-arrow-head--bottom {
+  width: var(--navigation-line-thickness);
+  height: var(--navigation-head-arm-length);
+}
+.navigation-arrow-head--top {
+  top: auto;
+  bottom: 50%;
+  transform-origin: 50% 100%;
+  transform: translate3d(-50%, 0, var(--navigation-tip-depth)) rotateX(var(--navigation-head-angle-negative));
+}
+.navigation-arrow-head--bottom {
+  transform-origin: 50% 0;
+  transform: translate3d(-50%, 0, var(--navigation-tip-depth)) rotateX(var(--navigation-head-angle));
+}
+
+.navigation-arrow-face {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: none;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: color-mix(in srgb, var(--navigation-arrow-color) 72%, transparent);
+  box-shadow: inset 0 0 0 var(--navigation-line-thickness) var(--navigation-arrow-color);
+  transform-origin: 0 0;
+  transform-style: preserve-3d;
+  backface-visibility: visible;
+}
+
+.navigation-arrow-face--two,
+.navigation-arrow-face--four {
+  background: color-mix(in srgb, var(--navigation-arrow-color) 48%, transparent);
+}
+
+.navigation-arrow[data-head-style="solid"] .navigation-arrow-face {
+  display: block;
+}
+
+.wrong-way-indicator {
+  position: absolute;
+  left: 38px;
+  top: 8px;
+  width: max-content;
+  color: #ff4747;
+  font-size: max(8px, calc(9px * var(--ui-scale)));
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 8px rgb(255 32 32 / 55%);
+}
 
 .tape {
   position: absolute;
@@ -425,12 +540,36 @@ kbd {
 
 .settings-section:last-child { padding-bottom: 0; }
 
-.settings-section h2 {
-  margin: 0 0 7px;
+.settings-section-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0;
+  border: 0;
   color: rgb(215 222 215 / 68%);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
   font-size: 9px;
   font-weight: 400;
   letter-spacing: 0.14em;
+  text-align: left;
+}
+
+.settings-section-toggle::after {
+  color: rgb(215 222 215 / 48%);
+  content: '[+]';
+}
+
+.settings-section-toggle[aria-expanded="true"]::after { content: '[-]'; }
+.settings-section-toggle:focus-visible { outline: 1px solid var(--ui-tone); outline-offset: 3px; }
+.settings-section-content { padding-top: 7px; }
+.settings-section.is-collapsed .settings-section-content { display: none; }
+
+.settings-section.is-collapsed {
+  padding-bottom: 0;
 }
 
 .conditional-settings {
@@ -559,7 +698,8 @@ kbd {
 
 .settings-tier-grid span { color: rgb(215 222 215 / 58%); font-size: 8px; }
 .settings-section label[title] > span:first-child,
-.settings-section > h2[title] {
+.settings-section > .settings-section-toggle[title],
+.settings-section > h3[title] {
   text-decoration: underline dotted rgb(215 222 215 / 30%);
   text-underline-offset: 3px;
   cursor: help;
@@ -655,7 +795,7 @@ kbd {
   right: calc(18px * var(--ui-scale));
   bottom: calc(18px * var(--ui-scale));
   display: flex;
-  gap: calc(6px * var(--ui-scale));
+  gap: 2px;
   pointer-events: auto;
 }
 
@@ -663,54 +803,71 @@ kbd {
   --primary-control-scale: 1;
   position: absolute;
   right: calc(18px * var(--ui-scale));
-  bottom: calc(70px * var(--ui-scale));
-  width: calc(182px * var(--ui-scale));
+  bottom: calc(18px * var(--ui-scale) + 52px);
+  width: calc(182px * var(--primary-control-scale));
   pointer-events: auto;
 }
 
 .drift-actions {
   display: flex;
   justify-content: flex-end;
-  gap: calc(6px * var(--ui-scale));
+  gap: 6px;
 }
 
-.primary-flight-action {
-  width: calc(88px * var(--ui-scale) * var(--primary-control-scale));
-  height: calc(88px * var(--ui-scale) * var(--primary-control-scale));
-  padding: calc(8px * var(--ui-scale));
+.flight-action.primary-flight-action {
+  width: calc(88px * var(--primary-control-scale));
+  height: calc(88px * var(--primary-control-scale));
+  padding: 8px;
   grid-template-rows: 1fr auto;
   gap: 2px;
-  font-size: calc(10px * var(--ui-scale));
+  font-size: 10px;
   letter-spacing: 0.06em;
 }
 
-.primary-flight-action svg { width: calc(38px * var(--ui-scale)); height: calc(38px * var(--ui-scale)); }
-.primary-flight-action > span { line-height: 1; }
+.flight-action.primary-flight-action svg { width: 38px; height: 38px; }
+.flight-action.primary-flight-action > span { line-height: 1; }
 
 .drift-meter {
-  --meter-scale: 1;
-  position: absolute;
-  left: calc(50% + 54px * var(--ui-scale));
-  top: 50%;
-  width: clamp(150px, 18vw, 240px);
-  padding: calc(7px * var(--ui-scale)) calc(14px * var(--ui-scale)) calc(8px * var(--ui-scale)) calc(10px * var(--ui-scale));
-  border: 1px solid rgb(215 222 215 / 28%);
-  border-left-color: rgb(215 222 215 / 12%);
-  border-radius: 4px 999px 999px 4px;
-  background: rgb(5 7 8 / 70%);
-  transform: translateY(-50%) scale(var(--meter-scale));
-  transform-origin: left center;
+  --meter-fill-width: 2.2;
+  position: fixed;
+  left: 50vw;
+  top: 50vh;
+  width: 50vw;
+  height: 50vw;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
   pointer-events: none;
 }
 
 .drift-meter[hidden] { display: none; }
-.drift-meter-header { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: max(8px, calc(9px * var(--ui-scale))); }
+.drift-meter svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.drift-meter-header {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  display: grid;
+  gap: 3px;
+  width: max-content;
+  transform: translateY(-50%);
+  font-size: max(8px, calc(9px * var(--ui-scale)));
+}
 .drift-meter-header strong { color: var(--ui-tone); font-weight: 400; }
-.drift-meter-segments { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; height: max(7px, calc(8px * var(--ui-scale))); }
-.drift-meter-segments > span { position: relative; border: 1px solid rgb(215 222 215 / 30%); overflow: hidden; }
-.drift-meter-segments i { position: absolute; inset: 0; background: var(--ui-tone); transform: scaleX(var(--segment-fill, 0)); transform-origin: left; }
-.drift-meter[data-tier="2"] { border-color: rgb(215 222 215 / 52%); }
-.drift-meter[data-tier="3"] { outline: 1px solid rgb(215 222 215 / 20%); outline-offset: 2px; }
+.drift-meter path { stroke-linejoin: miter; }
+.drift-meter-track path {
+  fill: none;
+  stroke: rgb(255 255 255 / 78%);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+.drift-meter-segments path {
+  fill: none;
+  stroke: rgb(255 255 255 / 48%);
+  stroke-linecap: butt;
+  stroke-width: var(--meter-fill-width);
+  stroke-dasharray: var(--segment-fill, 0) 1;
+}
+.drift-meter[data-tier="2"] .drift-meter-track path { stroke: rgb(255 255 255 / 90%); }
+.drift-meter[data-tier="3"] svg { filter: drop-shadow(0 0 5px rgb(215 222 215 / 22%)); }
 .drift-meter.is-tier-pulsing[data-tier="3"] { animation: drift-tier-pulse 900ms ease-in-out infinite alternate; }
 
 @keyframes drift-tier-pulse { from { box-shadow: 0 0 0 rgb(215 222 215 / 0%); } to { box-shadow: 0 0 14px rgb(215 222 215 / 18%); } }
@@ -741,9 +898,9 @@ kbd {
 .flight-action {
   display: grid;
   place-items: center;
-  width: calc(42px * var(--ui-scale));
-  height: calc(42px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale));
+  width: 44px;
+  height: 44px;
+  padding: 8px;
 }
 
 #probe-button svg { transform: scaleY(-1); }
@@ -832,20 +989,14 @@ kbd {
 }
 
 .app.is-touch-device .touch-joystick { display: block; }
-.app.is-touch-device .fullscreen-button { display: none; }
 .app.is-touch-device .legend { display: none; }
+.app.is-touch-device .flight-actions { gap: 2px; }
 .app.is-touch-device .flight-action {
-  width: 44px;
-  height: 44px;
   padding: 9px;
 }
 .app.is-touch-device .primary-flight-action {
-  width: calc(88px * var(--primary-control-scale));
-  height: calc(88px * var(--primary-control-scale));
   padding: 9px;
-  font-size: 10px;
 }
-.app.is-touch-device .primary-flight-action svg { width: 38px; height: 38px; }
 
 .app.is-touch-device button:focus,
 .app.is-touch-device button:focus-visible,
@@ -938,6 +1089,7 @@ kbd {
 @media (max-width: 820px) {
   .hud {
     --ui-scale: 0.64;
+    --hud-inset-left: max(10px, env(safe-area-inset-left));
     --telemetry-font-size: 8px;
     --telemetry-letter-spacing: 0.04em;
     inset: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
@@ -963,8 +1115,11 @@ kbd {
   .flight-actions { right: 8px; bottom: 8px; }
   .drift-cluster { right: 8px; bottom: 60px; width: calc(182px * var(--primary-control-scale)); }
   .drift-actions { gap: 6px; }
-  .drift-meter { left: calc(50% + 34px); width: clamp(130px, 30vw, 180px); }
   .mode-button { left: 50%; bottom: 8px; min-width: 142px; transform: translateX(-50%); }
+  .app.is-touch-device .mode-button {
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 150px);
+    min-width: 126px;
+  }
   .touch-joystick { width: 98px; height: 98px; }
   .touch-joystick-axis--horizontal { width: 74px; }
   .touch-joystick-axis--vertical { height: 74px; }
@@ -972,12 +1127,14 @@ kbd {
 
 @media (max-width: 440px) {
   .hud { --ui-scale: 0.54; --telemetry-font-size: 7px; }
-  .drift-meter { left: calc(50% + 20px); width: clamp(116px, 30vw, 150px); }
   .system-controls button { min-width: 66px; padding: 5px 3px; font-size: 7px; }
   .touch-joystick { width: 90px; height: 90px; }
   .touch-joystick-axis--horizontal { width: 68px; }
   .touch-joystick-axis--vertical { height: 68px; }
   .mode-button { min-width: 126px; }
+  .app.is-touch-device .mode-button {
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 142px);
+  }
   .coordinates { gap: 8px; }
 }
 

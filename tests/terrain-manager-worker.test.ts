@@ -64,6 +64,7 @@ test('stale worker results are rejected and replaced by the latest carve revisio
     const worker = FakeWorker.instances[0];
     const initial = worker.requests[0];
     assert.ok(initial);
+    assert.deepEqual(initial.generationSettings, terrain.generationSettings);
     const center = new Vector3(
       (initial.chunk.x + 0.5) * 128,
       (initial.chunk.y + 0.5) * 128,
