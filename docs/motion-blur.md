@@ -6,6 +6,6 @@ The effect samples scene color along a projected flight-velocity vector. Scene d
 
 This is a lightweight approximation for flight translation, not a full per-object velocity-buffer implementation: independently moving flock members and camera rotation do not get separate physical motion vectors. Empty gaps in the terrain's dot mode use an 80-meter depth proxy so points can streak into empty pixels rather than merely dimming. The effect uses twelve neighboring color/depth samples in the existing post-process pass and no accumulating frame history.
 
-Pause preserves the same flight velocity and image exposure. No blur history or animation advances while paused, so appearance edits and camera orbit remain live without ghost trails or a jump on resume. Crash recovery sets translation blur to zero.
+Pause preserves the same flight velocity and image exposure. No blur history or animation advances while paused, so appearance edits and camera orbit remain live without ghost trails or a jump on resume. Contact deflection remains part of measured world motion; the controllable-velocity blur direction stays independent from the temporary external push.
 
 The depth-reconstruction and directional-sampling approach follows [GPU Gems 3, Chapter 27](https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-27-motion-blur-post-processing-effect), adapted to a synthetic shutter interval driven by the ship's speed. The scene depth comes from a [Three.js DepthTexture](https://threejs.org/docs/pages/DepthTexture.html).

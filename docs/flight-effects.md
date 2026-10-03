@@ -4,9 +4,9 @@
 
 Press **Q** / **E**, or the left/right roll buttons above the joystick, to dodge. A/D and the joystick only steer through coordinated roll and yaw; repeated steering never triggers a maneuver. Holding Q/E does not retrigger. The roll buttons also support keyboard activation and are disabled while paused.
 
-The aircraft makes a 360-degree roll and moves 44 meters sideways over 1.2 seconds. The maneuver takes manual control and keeps forward flight and throttle active. Additional rolls cannot interrupt it; there is a 0.25-second recovery before another. Pitch/heading stay fixed during the dodge. The chase camera follows the translation without spinning with the aircraft. In cockpit view, the eye position and view roll with the ship through exactly one full turn. The roll is applied after camera-follow smoothing and removed after rendering so quaternion interpolation cannot shorten or skip turns.
+The aircraft makes a 360-degree roll and moves 44 meters sideways over 0.6 seconds. The maneuver takes manual control and keeps forward flight and throttle active. Additional rolls cannot interrupt it; there is a 0.125-second recovery before another. Pitch/heading stay fixed during the dodge. The chase camera follows the translation without spinning with the aircraft. In cockpit view, the eye position and view roll with the ship through exactly one full turn. The roll is applied after camera-follow smoothing and removed after rendering so quaternion interpolation cannot shorten or skip turns.
 
-The normal collision samples run on every fixed simulation step during the maneuver. Collision cancels the roll and enters normal crash recovery. There is no invulnerability or teleport. Pause freezes the maneuver.
+The normal collision samples run on every fixed simulation step during the maneuver. Contact cancels the scripted roll, flashes the struck aircraft point red, and applies a surface-normal push based on impact speed and angle. It does not restart the flight. Pause freezes the maneuver.
 
 ## Boost and side wakes
 
@@ -18,7 +18,7 @@ The separate rear diamond wake has been removed. Instead, a thin refractive enve
 
 Four independent line trails attach just behind the four X-wing tips. Live endpoints stay attached between the bounded 1.5-meter history samples. Two side wakes remain separate meshes, spanning each upper/lower wing pair at their mouths and following previous turns and bank. Defaults are 120 meters long, 14 meters tall, and 0.3 meters thick.
 
-Physical boost also folds the four wings. Each tip sweeps backward and each upper/lower pair turns toward the center, using the actual throttle above cruise rather than the visual-only idle flame. A smoothed response deliberately trails the engine, so reaching full physical boost does not instantly snap the wings to their final pose. The default maximum angles are 28° backward and 18° centerward, with a 1× response speed. The rendered wing triangles, collision samples and debug wireframe, gun/missile launch points, four missile HUD magazines, line trails, and side-wake mouths all read the same pose. Releasing boost eases them back to the neutral pose; pause freezes the pose.
+Physical boost also folds the four wings. Each tip sweeps backward and each upper/lower pair turns toward the center, using the actual throttle above cruise rather than the visual-only idle flame. A smoothed response deliberately trails the engine, so reaching full physical boost does not instantly snap the wings to their final pose. The player-tuned default angles are 40° backward and 12° centerward, with a 1× response speed. The rendered wing triangles, collision samples and debug wireframe, gun/missile launch points, four missile HUD magazines, line trails, and side-wake mouths all read the same pose. Releasing boost eases them back to the neutral pose; pause freezes the pose.
 
 Four independent controls set **Side Backward Speed**, **Side Flutter Speed**, **Flame Backward Speed**, and **Flame Flutter Speed** (each 0–3×, default 1×). Backward flow advances surface ripples/turbulence in aircraft-relative meters at aircraft speed times the selected multiplier. Flutter advances at aircraft speed / 55 m/s times its multiplier. Thus doubling aircraft speed doubles all four animation rates. Zero freezes only the selected component. The sheet mouths and flame roots stay attached to the ship, and wake geometry still follows the recorded flight path. Flutter amplitude also scales with speed. Integrating each phase avoids jumps when speed or a rate setting changes. Appearance and camera settings remain live while paused; motion, flutter, illumination and release fade freeze.
 
@@ -26,7 +26,7 @@ Four independent controls set **Side Backward Speed**, **Side Flutter Speed**, *
 
 Hold `K` or the boost button for momentary boost. There is no tap-lock mode. With banked drift energy, the first hold consumes the bank's one ignition kick and starts the automatically selected tier; releasing ends powered drift boost and leaves the remainder to decay. Reholding spends the remaining energy without repeating the kick. At zero energy, a continuing hold becomes normal boost. Autopilot remains engaged only for normal boost.
 
-Keyboard repeats and overlapping keyboard/touch holds count as one press. Long holds never lock. Focus loss, pause, crash, and checkpoint recovery clear held inputs so neither action can stick.
+Keyboard repeats and overlapping keyboard/touch holds count as one press. Long holds never lock. Focus loss, pause, and checkpoint restoration clear held inputs so neither action can stick.
 
 ## Controls
 
@@ -40,7 +40,9 @@ Flight effects live under **Settings > Boost + Wakes**. Scan terrain and optics 
 | Booster geometry button | Toggle glass / opaque amber geometry; show the current idle or boost size, with a full-size preview when the idle baseline is zero |
 | Booster motion | Flutter amplitude 0.9 m (0–2); backward speed 1× and flutter speed 1× (each 0–3×), independently responding to aircraft speed |
 | Boost camera | Shake strength 1.3 (0–2, zero disables); frequency 20 Hz (4–30) |
-| Boost wing fold | Backward turn 28° (0–60); centerward turn 18° (0–45); animation speed 1× (0.1–4×) |
+| Boost wing fold | Backward turn 40° (0–60); centerward turn 12° (0–45); animation speed 1× (0.1–4×) |
+| Drift ash | Enabled; 32 particles/s; 4.5 m size; 1.4 s life; 55% opacity; 3.5 m/s turbulence; gray `#c8c8c8` |
+| Impact response | 1.1× speed/angle push; 18–120 m/s bounds; 0.45 s decay; 0.65 s local red flash; 0.18 s contact cooldown |
 | Side wakes | Enable; length 120 m (20–240); height 3.5 m (2–32); thickness 0.08 m (0.02–2); flutter 0.65 m (0–2) |
 | Side wake motion | Backward speed 0.5× and flutter speed 1× (each 0–3×), independently responding to aircraft speed |
 | Side wake glass | Refraction 1.75 (0–3); sheen 0.045 (0–0.2); dispersion 0.12 (0–0.4) |

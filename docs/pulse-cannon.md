@@ -8,7 +8,7 @@ The convergence reticle selects direction only. The shot always extends to the c
 
 The gameplay capsule starts one radius in front of the nose and ends one radius before the visual endpoint. Its rounded caps therefore cover exactly the visual interval without carving behind the muzzle. Every intersected meteor is destroyed through the normal meteor-destruction callback, retaining explosions, shrinking opaque meteor fragments, shake, and capped ship impulse. Ordinary bullets, missiles, and proximity explosions never carve terrain.
 
-Pause freezes cooldown and beam age. Crash, recovery, combat reset, or disabling the feature clears pending input and transient beam state and makes the cannon ready. These transitions do not heal tunnels. Tunnels last until page reload or seed change.
+Pause freezes cooldown and beam age. Explicit combat reset or disabling the feature clears pending input and transient beam state and makes the cannon ready. Ordinary terrain or meteor contact no longer resets combat. These transitions do not heal tunnels. Tunnels last until page reload or seed change.
 
 ## Controls and settings
 
