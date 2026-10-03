@@ -236,24 +236,24 @@ test('terrain missile sampling is at most one metre and earliest convex surface 
   assert.ok(t2 > 0.5 && t2 < 0.6);
 });
 
-test('meteor collision runs in autopilot and manual, and recovery clears obstacles first', () => {
+test('meteor collision pushes the aircraft without changing its flight mode', () => {
   for (const manual of [false, true]) {
     const { meteors } = systems();
     const flight = new FlightController(air as unknown as ProceduralTerrain);
     flight.obstacles = meteors;
     if (manual) flight.takeManualControl();
     rock(meteors, 0, 7, 10);
-    let recovered = false;
-    flight.onRecovery = () => {
-      recovered = true;
-      meteors.reset();
+    let impactSource = '';
+    let impulseLength = 0;
+    flight.onImpact = impact => {
+      impactSource = impact.source;
+      impulseLength = impact.impulse.length();
     };
     flight.update(1 / 120, neutral);
-    assert.equal(flight.mode, 'crashed');
-    flight.reset();
-    assert.equal(recovered, true);
-    assert.equal(meteors.activeCount, 0);
-    assert.equal(flight.mode, 'autopilot');
+    assert.equal(flight.mode, manual ? 'manual' : 'autopilot');
+    assert.equal(impactSource, 'meteor');
+    assert.ok(impulseLength >= flight.settings.impactMinPush);
+    assert.equal(meteors.activeCount, 1, 'contact does not erase the obstacle field');
   }
 });
 

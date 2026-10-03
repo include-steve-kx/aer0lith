@@ -5,6 +5,16 @@ export type CameraMode = 'cockpit' | 'chase' | 'far-chase';
 export type ExperienceMode = 'ambient' | 'analysis';
 export type DriftTier = 0 | 1 | 2 | 3;
 export type DriftState = 'cruise' | 'drift' | 'banked' | 'drift-boost' | 'normal-boost';
+export type FlightImpactSource = 'terrain' | 'meteor';
+
+export interface FlightImpactSnapshot {
+  readonly point: Vector3;
+  readonly localPoint: Vector3;
+  readonly normal: Vector3;
+  readonly impulse: Vector3;
+  readonly severity: number;
+  readonly source: FlightImpactSource;
+}
 
 export interface FlightPathSample {
   x: number;

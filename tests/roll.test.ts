@@ -40,8 +40,10 @@ for (const direction of [-1, 1] as const) {
   });
 }
 
-test('a roll can hit terrain and enter crash recovery; pause freezes its motion', () => {
+test('a roll can hit terrain, receive a push, and cancel without recovery; pause freezes motion', () => {
   const flight = new FlightController(terrain(x => x > 9 ? 2 : -100));
+  let impacts = 0;
+  flight.onImpact = () => { impacts++; };
   flight.startRoll(-1);
   flight.update(FLIGHT.fixedStep, neutral);
   flight.togglePause();
@@ -49,7 +51,8 @@ test('a roll can hit terrain and enter crash recovery; pause freezes its motion'
   flight.update(1, neutral);
   assert.ok(flight.position.equals(before)); assert.equal(flight.maneuverRollAngle, angle);
   flight.togglePause();
-  for (let i = 0; i < 100 && flight.mode !== 'crashed'; i++) flight.update(FLIGHT.fixedStep, neutral);
-  assert.equal(flight.mode, 'crashed');
+  for (let i = 0; i < 100 && impacts === 0; i++) flight.update(FLIGHT.fixedStep, neutral);
+  assert.equal(flight.mode, 'manual');
+  assert.equal(impacts, 1);
   assert.equal(flight.isRolling, false);
 });

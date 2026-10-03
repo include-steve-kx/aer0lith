@@ -146,7 +146,7 @@ test('passive energy grace and decay advance only with simulation time', () => {
   assert.ok(flight.driftEnergy < banked);
 });
 
-test('tier-speed terrain sweep catches a thin wall between fixed-step endpoints', () => {
+test('tier-speed terrain sweep deflects from a thin wall between fixed-step endpoints', () => {
   const terrain = {
     sample: () => ({ x: 0, y: 50, floorY: -150, tangentX: 0, tangentY: 0,
       width: 10000, height: 10000, openness: 1 }),
@@ -157,6 +157,13 @@ test('tier-speed terrain sweep catches a thin wall between fixed-step endpoints'
   flight.takeManualControl();
   flight.speed = 180;
   flight.controlVelocity.set(0, 0, 180);
+  let impactCount = 0;
+  flight.onImpact = impact => {
+    impactCount++;
+    assert.equal(impact.source, 'terrain');
+    assert.ok(impact.impulse.z < 0);
+  };
   flight.update(FLIGHT.fixedStep, neutral);
-  assert.equal(flight.mode, 'crashed');
+  assert.equal(flight.mode, 'manual');
+  assert.equal(impactCount, 1);
 });

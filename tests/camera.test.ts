@@ -191,6 +191,6 @@ test('hybrid chase frame reveals the aircraft side during a large drift', () => 
   const cameraOffset = rig.camera.position.clone().sub(plane).normalize();
   const rearOfNose = new Vector3(0, 0, -1).applyQuaternion(orientation).normalize();
   const sideAngle = cameraOffset.angleTo(rearOfNose) * 180 / Math.PI;
-  assert.ok(sideAngle > 35, `expected a rear-side view, got ${sideAngle.toFixed(1)} degrees`);
-  assert.ok(sideAngle < 80, 'configured maximum lag remains bounded');
+  assert.ok(sideAngle > 20, `expected a restrained rear-side view, got ${sideAngle.toFixed(1)} degrees`);
+  assert.ok(sideAngle < 40, 'tighter configured maximum lag remains bounded');
 });

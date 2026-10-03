@@ -17,6 +17,7 @@ export interface DynamicObstacleProvider {
     fromQ: Quaternion,
     toQ: Quaternion,
     cockpit: boolean,
+    hit?: DynamicObstacleHit,
   ): boolean;
   clearance(position: Vector3, radius: number): boolean;
   avoidance(
@@ -25,6 +26,11 @@ export interface DynamicObstacleProvider {
     speed: number,
     target: Vector3,
   ): boolean;
+}
+export interface DynamicObstacleHit {
+  readonly point: Vector3;
+  readonly localPoint: Vector3;
+  readonly normal: Vector3;
 }
 export interface RefractionContributor {
   readonly active: boolean;

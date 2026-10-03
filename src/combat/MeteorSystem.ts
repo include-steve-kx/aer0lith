@@ -21,6 +21,7 @@ import {
   terrainHit,
 } from './collision.ts';
 import type {
+  DynamicObstacleHit,
   DynamicObstacleProvider,
   MeteorHandle,
   ScanSnapshot,
@@ -238,6 +239,9 @@ export class MeteorSystem implements DynamicObstacleProvider {
   private readonly orientation = new Quaternion();
   private readonly rockP = new Vector3();
   private readonly rockQ = new Quaternion();
+  private readonly impactDirection = new Vector3();
+  private readonly impactLocal = new Vector3();
+  private readonly impactWorld = new Vector3();
   private readonly shipShapes: ShapePose[];
   private readonly wings: WingPose;
   private readonly wingSweepTriangles: Vector3[][];
@@ -526,6 +530,7 @@ export class MeteorSystem implements DynamicObstacleProvider {
     fromQ: Quaternion,
     toQ: Quaternion,
     cockpit: boolean,
+    hit?: DynamicObstacleHit,
   ): boolean {
     for (const m of this.rocks) {
       if (!m.active) continue;
@@ -565,7 +570,10 @@ export class MeteorSystem implements DynamicObstacleProvider {
             rockPose.normals,
             rockPose.edges,
           );
-          if (gap <= 0.015) return true;
+          if (gap <= 0.015) {
+            this.captureShipHit(hit, part);
+            return true;
+          }
           if (bound < 1e-9) {
             done = true;
             break;
@@ -576,10 +584,34 @@ export class MeteorSystem implements DynamicObstacleProvider {
             break;
           }
         }
-        if (!done) return true;
+        if (!done) {
+          this.captureShipHit(hit, part);
+          return true;
+        }
       }
     }
     return false;
+  }
+
+  private captureShipHit(hit: DynamicObstacleHit | undefined, part: ShapePose): void {
+    if (!hit) return;
+    this.impactDirection.subVectors(this.rockP, this.position);
+    this.rotation.copy(this.orientation).invert();
+    this.impactDirection.applyQuaternion(this.rotation);
+    let best = part.shape.vertices[0];
+    let score = -Infinity;
+    for (const vertex of part.shape.vertices) {
+      const next = vertex.dot(this.impactDirection);
+      if (next > score) { score = next; best = vertex; }
+    }
+    this.impactLocal.copy(best);
+    this.impactWorld.copy(best).applyQuaternion(this.orientation).add(this.position);
+    hit.localPoint.copy(this.impactLocal);
+    hit.point.copy(this.impactWorld);
+    hit.normal.subVectors(this.impactWorld, this.rockP);
+    if (hit.normal.lengthSq() < 1e-8) hit.normal.subVectors(this.position, this.rockP);
+    if (hit.normal.lengthSq() < 1e-8) hit.normal.set(0, 1, 0);
+    else hit.normal.normalize();
   }
   avoidance(
     dt: number,

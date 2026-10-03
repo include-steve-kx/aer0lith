@@ -309,16 +309,20 @@ test("blast impulses retain autopilot, combine before clamp, settle exactly and 
   flight.update(0.01, neutral);
   assert.equal(flight.externalVelocity.length(), 0);
 });
-test("blast-displaced autopilot checks terrain and clears force on crash", () => {
+test("blast-displaced autopilot checks terrain and receives an outward contact push", () => {
   const terrain = {
     ...air,
     collisionDensityAt: (x: number) => (x > 6.05 ? 1 : -1000),
   };
   const flight = new FlightController(terrain as unknown as ProceduralTerrain);
+  let impact: { normal: Vector3; impulse: Vector3 } | undefined;
+  flight.onImpact = hit => { impact = { normal: hit.normal.clone(), impulse: hit.impulse.clone() }; };
   flight.applyExternalImpulse(new Vector3(30, 0, 0));
   flight.update(0.01, neutral);
-  assert.equal(flight.mode, "crashed");
-  assert.equal(flight.externalVelocity.length(), 0);
+  assert.equal(flight.mode, "autopilot");
+  assert.ok(impact);
+  assert.ok(impact.normal.x < -0.9);
+  assert.ok(impact.impulse.x < 0);
 });
 test("new settings preserve old explosion keys and reset nonpersisted debug", () => {
   const settings = sanitizeCombatSettings(

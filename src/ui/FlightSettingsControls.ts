@@ -20,12 +20,14 @@ export class FlightSettingsControls {
     const values = { ...DEFAULT_FLIGHT_TUNING } as FlightTuningSettings;
     for (const [key, input] of this.inputs) {
       if (input.type === 'checkbox') {
-        (values as unknown as Record<string, number | boolean>)[key] = input.checked;
+        (values as unknown as Record<string, number | boolean | string>)[key] = input.checked;
+      } else if (input.type === 'color') {
+        (values as unknown as Record<string, number | boolean | string>)[key] = input.value;
       } else {
         const min = Number(input.min);
         const max = Number(input.max);
         const raw = input.valueAsNumber;
-        (values as unknown as Record<string, number | boolean>)[key] = Number.isFinite(raw)
+        (values as unknown as Record<string, number | boolean | string>)[key] = Number.isFinite(raw)
           ? Math.min(max, Math.max(min, raw))
           : DEFAULT_FLIGHT_TUNING[key] as number;
       }
@@ -40,6 +42,10 @@ export class FlightSettingsControls {
         if (typeof value === 'boolean') input.checked = value;
         continue;
       }
+      if (input.type === 'color') {
+        if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)) input.value = value;
+        continue;
+      }
       if (typeof value !== 'number' || !Number.isFinite(value)) continue;
       input.value = String(Math.min(Number(input.max), Math.max(Number(input.min), value)));
     }
@@ -49,7 +55,7 @@ export class FlightSettingsControls {
   updateReadouts(): void {
     this.writeSanitizedValues();
     for (const input of this.inputs.values()) {
-      if (input.type === 'checkbox') continue;
+      if (input.type === 'checkbox' || input.type === 'color') continue;
       const output = document.getElementById(`${input.id}-value`);
       if (!(output instanceof HTMLOutputElement)) continue;
       const decimals = Number(input.dataset.decimals ?? '2');
@@ -71,9 +77,9 @@ export class FlightSettingsControls {
   private rawValues(): FlightTuningSettings {
     const values = { ...DEFAULT_FLIGHT_TUNING } as FlightTuningSettings;
     for (const [key, input] of this.inputs) {
-      (values as unknown as Record<string, number | boolean>)[key] = input.type === 'checkbox'
+      (values as unknown as Record<string, number | boolean | string>)[key] = input.type === 'checkbox'
         ? input.checked
-        : input.valueAsNumber;
+        : input.type === 'color' ? input.value : input.valueAsNumber;
     }
     return values;
   }

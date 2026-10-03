@@ -134,10 +134,6 @@ select {
   opacity: 0.96;
 }
 
-.app.is-ambient .fault {
-  display: none;
-}
-
 .telemetry {
   position: absolute;
   top: calc(16px * var(--ui-scale));
@@ -562,6 +558,12 @@ kbd {
 }
 
 .settings-tier-grid span { color: rgb(215 222 215 / 58%); font-size: 8px; }
+.settings-section label[title] > span:first-child,
+.settings-section > h2[title] {
+  text-decoration: underline dotted rgb(215 222 215 / 30%);
+  text-underline-offset: 3px;
+  cursor: help;
+}
 .settings-tier-grid input[type="number"] {
   width: 100%;
   min-width: 0;
@@ -662,7 +664,7 @@ kbd {
   position: absolute;
   right: calc(18px * var(--ui-scale));
   bottom: calc(70px * var(--ui-scale));
-  width: calc(122px * var(--ui-scale));
+  width: calc(182px * var(--ui-scale));
   pointer-events: auto;
 }
 
@@ -673,37 +675,43 @@ kbd {
 }
 
 .primary-flight-action {
-  width: calc(58px * var(--ui-scale) * var(--primary-control-scale));
-  height: calc(58px * var(--ui-scale) * var(--primary-control-scale));
-  padding: calc(5px * var(--ui-scale));
+  width: calc(88px * var(--ui-scale) * var(--primary-control-scale));
+  height: calc(88px * var(--ui-scale) * var(--primary-control-scale));
+  padding: calc(8px * var(--ui-scale));
   grid-template-rows: 1fr auto;
   gap: 2px;
-  font-size: calc(8px * var(--ui-scale));
+  font-size: calc(10px * var(--ui-scale));
   letter-spacing: 0.06em;
 }
 
-.primary-flight-action svg { width: calc(25px * var(--ui-scale)); height: calc(25px * var(--ui-scale)); }
+.primary-flight-action svg { width: calc(38px * var(--ui-scale)); height: calc(38px * var(--ui-scale)); }
 .primary-flight-action > span { line-height: 1; }
 
 .drift-meter {
   --meter-scale: 1;
-  margin-bottom: calc(6px * var(--ui-scale));
-  padding: calc(6px * var(--ui-scale));
+  position: absolute;
+  left: calc(50% + 54px * var(--ui-scale));
+  top: 50%;
+  width: clamp(150px, 18vw, 240px);
+  padding: calc(7px * var(--ui-scale)) calc(14px * var(--ui-scale)) calc(8px * var(--ui-scale)) calc(10px * var(--ui-scale));
   border: 1px solid rgb(215 222 215 / 28%);
+  border-left-color: rgb(215 222 215 / 12%);
+  border-radius: 4px 999px 999px 4px;
   background: rgb(5 7 8 / 70%);
-  transform: scale(var(--meter-scale));
-  transform-origin: right bottom;
+  transform: translateY(-50%) scale(var(--meter-scale));
+  transform-origin: left center;
+  pointer-events: none;
 }
 
 .drift-meter[hidden] { display: none; }
-.drift-meter-header { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; font-size: calc(7px * var(--ui-scale)); }
+.drift-meter-header { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: max(8px, calc(9px * var(--ui-scale))); }
 .drift-meter-header strong { color: var(--ui-tone); font-weight: 400; }
-.drift-meter-segments { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; height: calc(5px * var(--ui-scale)); }
+.drift-meter-segments { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; height: max(7px, calc(8px * var(--ui-scale))); }
 .drift-meter-segments > span { position: relative; border: 1px solid rgb(215 222 215 / 30%); overflow: hidden; }
 .drift-meter-segments i { position: absolute; inset: 0; background: var(--ui-tone); transform: scaleX(var(--segment-fill, 0)); transform-origin: left; }
-.drift-cluster[data-tier="2"] .drift-meter { border-color: rgb(215 222 215 / 52%); }
-.drift-cluster[data-tier="3"] .drift-meter { outline: 1px solid rgb(215 222 215 / 20%); outline-offset: 2px; }
-.drift-cluster.is-tier-pulsing[data-tier="3"] .drift-meter { animation: drift-tier-pulse 900ms ease-in-out infinite alternate; }
+.drift-meter[data-tier="2"] { border-color: rgb(215 222 215 / 52%); }
+.drift-meter[data-tier="3"] { outline: 1px solid rgb(215 222 215 / 20%); outline-offset: 2px; }
+.drift-meter.is-tier-pulsing[data-tier="3"] { animation: drift-tier-pulse 900ms ease-in-out infinite alternate; }
 
 @keyframes drift-tier-pulse { from { box-shadow: 0 0 0 rgb(215 222 215 / 0%); } to { box-shadow: 0 0 14px rgb(215 222 215 / 18%); } }
 
@@ -832,12 +840,12 @@ kbd {
   padding: 9px;
 }
 .app.is-touch-device .primary-flight-action {
-  width: calc(64px * var(--primary-control-scale));
-  height: calc(64px * var(--primary-control-scale));
-  padding: 7px;
-  font-size: 8px;
+  width: calc(88px * var(--primary-control-scale));
+  height: calc(88px * var(--primary-control-scale));
+  padding: 9px;
+  font-size: 10px;
 }
-.app.is-touch-device .primary-flight-action svg { width: 27px; height: 27px; }
+.app.is-touch-device .primary-flight-action svg { width: 38px; height: 38px; }
 
 .app.is-touch-device button:focus,
 .app.is-touch-device button:focus-visible,
@@ -902,34 +910,6 @@ kbd {
   color: var(--ui-tone);
 }
 
-.fault {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: grid;
-  place-content: center;
-  gap: 8px;
-  visibility: hidden;
-  color: var(--magenta);
-  background: transparent;
-  font-size: 12px;
-  letter-spacing: 0.18em;
-  text-align: center;
-  text-transform: uppercase;
-  pointer-events: none;
-}
-
-.fault.is-active {
-  visibility: visible;
-  animation: fault-shift 80ms steps(2, jump-none) infinite;
-}
-
-.fault strong {
-  padding: 10px 14px;
-  border: 1px solid currentColor;
-  background: var(--bg);
-}
-
 .fallback {
   position: absolute;
   inset: 0;
@@ -946,12 +926,6 @@ kbd {
 .fallback:not([hidden]) { display: grid; }
 .fallback p { max-width: 52ch; color: rgb(215 222 215 / 62%); }
 .fallback h1 { margin: 6px 0 18px; color: var(--cyan); font-size: clamp(24px, 5vw, 52px); }
-
-@keyframes fault-shift {
-  0% { transform: translateX(-4px); opacity: 0.95; }
-  50% { transform: translateX(5px); opacity: 0.72; }
-  100% { transform: translateX(0); opacity: 0.9; }
-}
 
 @media (max-width: 1600px) {
   .hud { --ui-scale: 0.88; }
@@ -987,8 +961,9 @@ kbd {
   .system-controls button { min-width: 72px; padding: 6px 4px; font-size: 8px; }
   .settings-panel { right: 8px; top: 104px; width: min(300px, calc(100vw - 16px)); max-height: calc(100vh - 120px); }
   .flight-actions { right: 8px; bottom: 8px; }
-  .drift-cluster { right: 8px; bottom: 60px; width: calc(134px * var(--primary-control-scale)); }
+  .drift-cluster { right: 8px; bottom: 60px; width: calc(182px * var(--primary-control-scale)); }
   .drift-actions { gap: 6px; }
+  .drift-meter { left: calc(50% + 34px); width: clamp(130px, 30vw, 180px); }
   .mode-button { left: 50%; bottom: 8px; min-width: 142px; transform: translateX(-50%); }
   .touch-joystick { width: 98px; height: 98px; }
   .touch-joystick-axis--horizontal { width: 74px; }
@@ -997,6 +972,7 @@ kbd {
 
 @media (max-width: 440px) {
   .hud { --ui-scale: 0.54; --telemetry-font-size: 7px; }
+  .drift-meter { left: calc(50% + 20px); width: clamp(116px, 30vw, 150px); }
   .system-controls button { min-width: 66px; padding: 5px 3px; font-size: 7px; }
   .touch-joystick { width: 90px; height: 90px; }
   .touch-joystick-axis--horizontal { width: 68px; }
@@ -1020,7 +996,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 #throttle-button[data-tier="3"] { box-shadow: inset 0 0 14px rgb(215 222 215 / 12%); }
 
 @media (prefers-reduced-motion: reduce) {
-  .drift-cluster.is-tier-pulsing[data-tier="3"] .drift-meter { animation: none; }
+  .drift-meter.is-tier-pulsing[data-tier="3"] { animation: none; }
 }
 
 .roll-actions {

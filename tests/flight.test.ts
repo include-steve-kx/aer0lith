@@ -170,19 +170,24 @@ test('manual throttle is a temporary boost and returns to cruise speed', () => {
   assert.ok(Math.abs(flight.speed - FLIGHT.nominalSpeed) < 1);
 });
 
-test('collision enters recovery and restores autopilot', () => {
+test('collision applies an outward push without recovery or mode changes', () => {
   const terrain = new ProceduralTerrain('collision-test');
   const flight = new FlightController(terrain);
   flight.takeManualControl();
+  let impactCount = 0;
+  let outward = 0;
+  flight.onImpact = impact => {
+    impactCount++;
+    outward = impact.impulse.dot(impact.normal);
+  };
   const route = terrain.sample(flight.position.z);
   flight.position.set(route.x + route.width + 80, route.y, flight.position.z);
   flight.update(FLIGHT.fixedStep, neutral);
-  assert.equal(flight.mode, 'crashed');
-  for (let step = 0; step < Math.ceil(FLIGHT.crashDuration / FLIGHT.fixedStep) + 2; step += 1) {
-    flight.update(FLIGHT.fixedStep, neutral);
-  }
-  assert.equal(flight.mode, 'autopilot');
-  assert.ok(flight.altitudeAGL > 10);
+  assert.equal(flight.mode, 'manual');
+  assert.equal(impactCount, 1);
+  assert.ok(outward >= flight.settings.impactMinPush);
+  flight.update(FLIGHT.fixedStep, neutral);
+  assert.ok(flight.externalVelocity.length() > 0, 'impact uses the decaying external-force channel');
 });
 
 test('collision probes remain inside the visible aircraft silhouette', () => {
@@ -192,13 +197,17 @@ test('collision probes remain inside the visible aircraft silhouette', () => {
   } as unknown as ProceduralTerrain;
   const flight = new FlightController(flatTerrain);
   flight.takeManualControl();
+  let impacts = 0;
+  flight.onImpact = () => { impacts++; };
   flight.position.y = 2.05;
   flight.update(FLIGHT.fixedStep, neutral);
   assert.equal(flight.mode, 'manual', 'aircraft should not collide while its visible underside is clear');
+  assert.equal(impacts, 0);
 
   flight.position.y = 1.65;
   for (let step = 0; step < 8; step += 1) flight.update(FLIGHT.fixedStep, neutral);
-  assert.equal(flight.mode, 'crashed', 'aircraft should collide once its visible underside reaches terrain');
+  assert.equal(flight.mode, 'manual');
+  assert.equal(impacts, 1, 'visible underside contact produces one debounced impact');
 });
 
 test('a single shallow collision sample does not trigger recovery', () => {
@@ -241,14 +250,20 @@ test('cockpit uses compact bounds, still collides head-on, and camera switching 
     collisionDensityAt: (x: number) => Math.abs(x) - 3,
   } as unknown as ProceduralTerrain;
   const flight = new FlightController(terrain);
+  let impacts = 0;
+  flight.onImpact = () => { impacts++; };
   flight.takeManualControl(); flight.setCockpitCollision(true);
   for (let i = 0; i < 12; i++) flight.update(FLIGHT.fixedStep, neutral);
   assert.equal(flight.mode, 'manual', 'compact cockpit fits a six metre passage');
   flight.setCockpitCollision(false); flight.update(FLIGHT.fixedStep, neutral);
-  assert.equal(flight.mode, 'crashed', 'full wings hit the same narrow passage');
+  assert.equal(flight.mode, 'manual');
+  assert.equal(impacts, 1, 'full wings hit the same narrow passage');
   const wall = { ...terrain, collisionDensityAt: (_x: number, _y: number, z: number) => z - 6 } as ProceduralTerrain;
   const headOn = new FlightController(wall);
+  let headOnImpacts = 0;
+  headOn.onImpact = () => { headOnImpacts++; };
   headOn.takeManualControl(); headOn.setCockpitCollision(true);
-  for (let i = 0; i < 12 && headOn.mode !== 'crashed'; i++) headOn.update(FLIGHT.fixedStep, neutral);
-  assert.equal(headOn.mode, 'crashed', 'cockpit assistance never disables collision');
+  for (let i = 0; i < 12 && headOnImpacts === 0; i++) headOn.update(FLIGHT.fixedStep, neutral);
+  assert.equal(headOn.mode, 'manual');
+  assert.equal(headOnImpacts, 1, 'cockpit assistance never disables collision response');
 });

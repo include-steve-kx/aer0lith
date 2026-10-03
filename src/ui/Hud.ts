@@ -57,7 +57,6 @@ export class Hud {
   readonly touchJoystick = element<HTMLElement>('touch-joystick');
   readonly touchJoystickThumb = element<HTMLElement>('touch-joystick-thumb');
   private readonly hud = element<HTMLElement>('hud');
-  private readonly fault = element<HTMLElement>('fault');
   private readonly legend = element<HTMLElement>('legend');
   private readonly legendToggle = element<HTMLButtonElement>('legend-toggle');
   private readonly modeValue = element<HTMLElement>('mode-value');
@@ -109,8 +108,6 @@ export class Hud {
     this.horizon.classList.toggle('is-active', snapshot.camera === 'cockpit');
     const horizonRoll = zeroRollIndicatorRadians(snapshot.orientation, this.attitude);
     this.horizon.style.setProperty('--horizon-roll', `${horizonRoll}rad`);
-    this.fault.classList.toggle('is-active', snapshot.mode === 'crashed');
-    this.fault.setAttribute('aria-hidden', String(snapshot.mode !== 'crashed'));
     this.updateDrift(snapshot);
   }
 
@@ -193,7 +190,7 @@ export class Hud {
     this.driftMeter.style.setProperty('--meter-scale', String(settings.driftMeterScale));
     this.reticle.style.setProperty('--drift-cue-opacity', String(settings.driftCueOpacity));
     this.driftCluster.style.setProperty('--primary-control-scale', String(settings.touchPrimaryScale));
-    this.driftCluster.classList.toggle('is-tier-pulsing', settings.driftTierPulse);
+    this.driftMeter.classList.toggle('is-tier-pulsing', settings.driftTierPulse);
   }
 
   setProbeActive(active: boolean): void {
@@ -206,6 +203,7 @@ export class Hud {
     const tier = snapshot.driftTier ?? 0;
     const state = snapshot.driftState ?? 'cruise';
     this.driftCluster.dataset.tier = String(tier);
+    this.driftMeter.dataset.tier = String(tier);
     this.throttleButton.dataset.tier = String(tier);
     this.driftMeter.setAttribute('aria-valuenow', energy.toFixed(0));
     this.driftMeter.setAttribute('aria-valuetext', `${this.driftLabel(state, tier)}, ${energy.toFixed(0)} percent`);

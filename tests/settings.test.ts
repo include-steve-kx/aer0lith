@@ -34,10 +34,24 @@ test('flight tuning sanitizes ordered tiers, angles, and speed caps', () => {
     driftBoostSpeedOne: 180,
     driftBoostSpeedTwo: 130,
     driftBoostSpeedThree: 140,
+    impactMinPush: 90,
+    impactMaxPush: 40,
   });
   assert.ok(tuned.driftMinAngle < tuned.driftFullAngle);
   assert.ok(tuned.driftFullAngle <= tuned.driftMaxAngle);
   assert.ok(tuned.driftTierTwo < tuned.driftTierThree);
   assert.ok(tuned.driftBoostSpeedOne <= tuned.driftBoostSpeedTwo);
   assert.ok(tuned.driftBoostSpeedTwo <= tuned.driftBoostSpeedThree);
+  assert.ok(tuned.impactMinPush <= tuned.impactMaxPush);
+});
+
+test('shipped handling defaults use the tighter player-tuned profile', () => {
+  assert.equal(DEFAULT_FLIGHT_TUNING.rollRate, 1.5);
+  assert.equal(DEFAULT_FLIGHT_TUNING.cameraPositionResponse, 0.07);
+  assert.equal(DEFAULT_FLIGHT_TUNING.cameraHeadingResponse, 0.1);
+  assert.equal(DEFAULT_FLIGHT_TUNING.cameraRecoveryResponse, 0.1);
+  assert.equal(DEFAULT_FLIGHT_TUNING.cameraTravelInfluence, 0.8);
+  assert.equal(DEFAULT_FLIGHT_TUNING.cameraBankResponse, 0.1);
+  assert.equal(DEFAULT_FLIGHT_TUNING.cameraMaxLag, 24);
+  assert.equal(DEFAULT_FLIGHT_TUNING.driftCueOpacity, 0.7);
 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Color, Mesh, ShaderMaterial } from 'three';
+import { Color, Mesh, ShaderMaterial, Vector3 } from 'three';
 import { AircraftView } from '../src/render/AircraftView.ts';
 
 test('occluded body has independent color/opacity and a fully opaque outline', () => {
@@ -26,4 +26,17 @@ test('visible ship is marked only after terrain and flocks have populated depth'
   // to draw the ship first and leaves stale stencil over its occluded interior.
   assert.ok(ship.group.children[0].renderOrder > 2);
   assert.ok(ship.group.children[1].children[0].renderOrder > ship.group.children[0].renderOrder);
+});
+
+test('impact feedback flashes at the struck aircraft-local point and expires', () => {
+  const ship = new AircraftView();
+  const point = new Vector3(5.5, 1.8, -2.9);
+  ship.flashImpact(point, 0.5, 0.8);
+  assert.equal(ship.impactVisible, true);
+  assert.deepEqual(ship.impactPosition.toArray(), point.toArray());
+  ship.updateImpact(0.25);
+  assert.equal(ship.impactVisible, true);
+  ship.updateImpact(0.25);
+  assert.equal(ship.impactVisible, false);
+  ship.dispose();
 });

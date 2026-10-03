@@ -35,6 +35,7 @@ import { CollisionDebugView } from './render/CollisionDebugView.ts';
 import { PostProcessor } from './render/PostProcessor.ts';
 import { RouteGuide } from './render/RouteGuide.ts';
 import { TrailView } from './render/TrailView.ts';
+import { DriftTrailView } from './render/DriftTrailView.ts';
 import { WindView } from './render/WindView.ts';
 import { Hud } from './ui/Hud.ts';
 import { SettingsPanel } from './ui/SettingsPanel.ts';
@@ -78,6 +79,7 @@ export class App {
   private readonly pulseShakeEnvelope = new BoostEnvelope();
   private readonly collisionDebug: CollisionDebugView;
   private readonly trail: TrailView;
+  private readonly driftTrail = new DriftTrailView();
   private readonly wind = new WindView();
   private readonly route: RouteGuide;
   private readonly cameraRig: CameraRig;
@@ -174,6 +176,7 @@ export class App {
       this.flightEffects.debugGroup,
       this.collisionDebug.group,
       this.trail.group,
+      this.driftTrail.group,
       this.route.line,
       this.wind.group,
     );
@@ -182,12 +185,13 @@ export class App {
     this.route.update(this.flight.position, this.renderOrigin);
     this.trail.add(this.renderPlaneWorldPosition, this.renderAircraftOrientation, this.renderOrigin, true);
 
-    this.flight.onCrash = () => {
-      this.resetCombat();
+    this.flight.onImpact = impact => {
       this.audio.crash();
-      this.flightEffects.reset();
-      this.input.boost.reset();
-      this.input.drift.reset();
+      this.aircraft.flashImpact(
+        impact.localPoint,
+        this.flight.settings.impactFlashDuration,
+        impact.severity,
+      );
     };
     this.flight.onModeChange = () => {
       this.audio.beep(this.flight.mode === 'autopilot' ? 690 : 510, 0.045);
@@ -282,6 +286,7 @@ export class App {
         settings.motionBlurStartSpeed, settings.motionBlurMaxPixels);
       this.post.setGlowSettings(settings.glowEnabled, settings.glowStrength, settings.glowRadius);
       this.flight.configure(settings);
+      this.driftTrail.configure(settings);
       this.cameraRig.configure(settings);
       this.hud.configureDrift(settings);
       this.input.configureTouch(settings.touchDeadZone, settings.touchResponseCurve);
@@ -310,6 +315,8 @@ export class App {
       this.impacts.dispose();
       this.post.dispose();
       this.flightEffects.dispose();
+      this.driftTrail.dispose();
+      this.aircraft.dispose();
       this.terrain.dispose();
     });
     document.addEventListener('visibilitychange', () => {
@@ -395,7 +402,15 @@ export class App {
         )) * this.flight.settings.driftTrailResponse
         : 0;
       const flightVisualIntensity = Math.max(throttleActive ? 1 : 0, Math.min(1, driftVisual));
-      this.trail.update(rawDelta, flightVisualIntensity);
+      this.trail.update(rawDelta, throttleActive);
+      this.driftTrail.update(
+        rawDelta,
+        this.renderPlanePosition,
+        this.renderAircraftOrientation,
+        this.renderControlVelocity,
+        Math.min(1, driftVisual),
+        this.flight.mode === 'paused',
+      );
       if (this.elapsed - this.lastRouteUpdate > 0.25) {
         this.route.update(this.flight.position, this.renderOrigin);
         this.lastRouteUpdate = this.elapsed;
@@ -439,6 +454,7 @@ export class App {
     this.terrain.updateBoostLight(this.flightEffects.lightPosition,
       this.flightEffects.lightColor, this.flightEffects.lightIntensity);
     this.audio.update(this.flight.speed, this.flight.throttle, this.paused);
+    this.aircraft.updateImpact(rawDelta, this.paused);
 
     const instantFps = rawDelta > 0 ? 1 / rawDelta : 60;
     this.frameAverage += (instantFps - this.frameAverage) * 0.035;
@@ -550,6 +566,7 @@ export class App {
     this.renderOrigin.z = nextOriginZ;
     this.cameraRig.applyOriginShift(this.originShift);
     this.wind.applyOriginShift(this.originShift);
+    this.driftTrail.applyOriginShift(this.originShift);
     this.terrain.updateRenderOrigin(this.renderOrigin);
     this.trail.rebuild(this.renderOrigin);
     this.route.update(this.flight.position, this.renderOrigin);
@@ -649,6 +666,7 @@ export class App {
     this.renderInterpolationReady = false;
     this.updateRenderPose(1);
     this.trail.clear();
+    this.driftTrail.clear();
     this.trail.add(this.renderPlaneWorldPosition, this.renderAircraftOrientation, this.renderOrigin, true);
     this.wind.reset(this.renderPlanePosition, this.renderAircraftOrientation);
   }

@@ -8,6 +8,12 @@ export interface FlightTuningSettings {
   normalGrip: number;
   driftGrip: number;
   normalAcceleration: number;
+  impactPushScale: number;
+  impactMinPush: number;
+  impactMaxPush: number;
+  impactPushDuration: number;
+  impactFlashDuration: number;
+  impactCooldown: number;
   driftMinAngle: number;
   driftFullAngle: number;
   driftMaxAngle: number;
@@ -43,6 +49,13 @@ export interface FlightTuningSettings {
   driftMeterEnabled: boolean;
   driftMeterScale: number;
   driftTrailResponse: number;
+  driftTrailEnabled: boolean;
+  driftTrailRate: number;
+  driftTrailSize: number;
+  driftTrailLifetime: number;
+  driftTrailOpacity: number;
+  driftTrailTurbulence: number;
+  driftTrailColor: string;
   driftTierPulse: boolean;
   driftShakeStrength: number;
   touchDeadZone: number;
@@ -52,7 +65,7 @@ export interface FlightTuningSettings {
 
 export const DEFAULT_FLIGHT_TUNING: FlightTuningSettings = {
   pitchRate: 0.75,
-  rollRate: 2,
+  rollRate: 1.5,
   yawRate: 0.6,
   bankYawRate: 0.6,
   pitchAutoLevel: 0.12,
@@ -60,6 +73,12 @@ export const DEFAULT_FLIGHT_TUNING: FlightTuningSettings = {
   normalGrip: 3.5,
   driftGrip: 0.35,
   normalAcceleration: 15,
+  impactPushScale: 1.1,
+  impactMinPush: 18,
+  impactMaxPush: 120,
+  impactPushDuration: 0.45,
+  impactFlashDuration: 0.65,
+  impactCooldown: 0.18,
   driftMinAngle: 6,
   driftFullAngle: 45,
   driftMaxAngle: 75,
@@ -83,18 +102,25 @@ export const DEFAULT_FLIGHT_TUNING: FlightTuningSettings = {
   driftBoostDrainTwo: 36,
   driftBoostDrainThree: 44,
   driftBoostNoseBias: 0.85,
-  cameraPositionResponse: 0.16,
-  cameraHeadingResponse: 0.55,
-  cameraRecoveryResponse: 0.75,
-  cameraTravelInfluence: 0.85,
-  cameraBankResponse: 0.35,
-  cameraMaxLag: 75,
+  cameraPositionResponse: 0.07,
+  cameraHeadingResponse: 0.1,
+  cameraRecoveryResponse: 0.1,
+  cameraTravelInfluence: 0.8,
+  cameraBankResponse: 0.1,
+  cameraMaxLag: 24,
   driftCueEnabled: true,
   driftCueSize: 34,
-  driftCueOpacity: 0.72,
+  driftCueOpacity: 0.7,
   driftMeterEnabled: true,
   driftMeterScale: 1,
   driftTrailResponse: 1,
+  driftTrailEnabled: true,
+  driftTrailRate: 32,
+  driftTrailSize: 4.5,
+  driftTrailLifetime: 1.4,
+  driftTrailOpacity: 0.55,
+  driftTrailTurbulence: 3.5,
+  driftTrailColor: '#c8c8c8',
   driftTierPulse: true,
   driftShakeStrength: 0.45,
   touchDeadZone: 0.08,
@@ -112,5 +138,6 @@ export function sanitizeFlightTuning(
   next.driftTierThree = Math.min(99, Math.max(next.driftTierTwo + 1, next.driftTierThree));
   next.driftBoostSpeedTwo = Math.max(next.driftBoostSpeedOne, next.driftBoostSpeedTwo);
   next.driftBoostSpeedThree = Math.max(next.driftBoostSpeedTwo, next.driftBoostSpeedThree);
+  next.impactMaxPush = Math.max(next.impactMinPush, next.impactMaxPush);
   return next;
 }

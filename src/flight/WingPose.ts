@@ -18,8 +18,8 @@ export interface WingPoseSettings {
 }
 
 export const DEFAULT_WING_POSE: WingPoseSettings = {
-  wingSweepBack: 28,
-  wingTuckIn: 18,
+  wingSweepBack: 40,
+  wingTuckIn: 12,
   wingFoldSpeed: 1,
 };
 

@@ -40,7 +40,7 @@ export interface FlightEffectSettings extends WingPoseSettings {
 
 export const DEFAULT_FLIGHT_EFFECTS: FlightEffectSettings = {
   boostExhaustEnabled: true, boostExhaustStrength: 2, boostIdleAmount: 0.2,
-  wingSweepBack: 28, wingTuckIn: 18, wingFoldSpeed: 1,
+  wingSweepBack: 40, wingTuckIn: 12, wingFoldSpeed: 1,
   boostExhaustLength: 54, boostExhaustWidth: 0.45,
   boostGlassWidth: 0.55, boostGlassLength: 1, boostGlassDebug: false, boostFadeDuration: 3.6,
   boostExhaustColor: '#8ab7ff', wingWarpEnabled: true, wingWarpStrength: 1.75,

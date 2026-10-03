@@ -4,6 +4,7 @@ import type { FlightEffectSettings } from '../render/FlightEffects.ts';
 import { bindButtonAction } from './bindButtonAction.ts';
 import type { FlightTuningSettings } from '../flight/FlightTuning.ts';
 import { FlightSettingsControls } from './FlightSettingsControls.ts';
+import { installSettingHelp } from './SettingHelp.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -318,6 +319,7 @@ export class SettingsPanel {
 
   constructor() {
     this.flightControls = new FlightSettingsControls(this.panel);
+    installSettingHelp(this.panel);
     // Capture the shipped HTML and combat defaults before loading personal edits.
     this.defaults = Array.from(this.panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'), input => ({
       input, value: input.value, checked: input instanceof HTMLInputElement && input.checked,

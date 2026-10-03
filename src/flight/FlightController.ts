@@ -6,8 +6,16 @@ import {
   FLIGHT,
 } from '../core/config.ts';
 import { COCKPIT_COLLISION_PROBES } from '../core/aircraftGeometry.ts';
-import type { DriftState, DriftTier, FlightInput, FlightMode, SafeCheckpoint } from '../core/types.ts';
-import type { DynamicObstacleProvider } from '../combat/types.ts';
+import type {
+  DriftState,
+  DriftTier,
+  FlightImpactSnapshot,
+  FlightImpactSource,
+  FlightInput,
+  FlightMode,
+  SafeCheckpoint,
+} from '../core/types.ts';
+import type { DynamicObstacleHit, DynamicObstacleProvider } from '../combat/types.ts';
 import type { ProceduralTerrain } from '../world/TerrainModel.ts';
 import { WingPose } from './WingPose.ts';
 import {
@@ -60,6 +68,27 @@ export class FlightController {
   private externalSettle = 0.8;
   private readonly blastPose = new Quaternion();
   private readonly blastPosition = new Vector3();
+  private readonly impactPoint = new Vector3();
+  private readonly impactLocalPoint = new Vector3();
+  private readonly collisionLocalPoint = new Vector3();
+  private readonly impactNormal = new Vector3();
+  private readonly impactVelocity = new Vector3();
+  private readonly impactImpulse = new Vector3();
+  private readonly obstacleHit: DynamicObstacleHit = {
+    point: new Vector3(),
+    localPoint: new Vector3(),
+    normal: new Vector3(),
+  };
+  private readonly impactSnapshot = {
+    point: new Vector3(),
+    localPoint: new Vector3(),
+    normal: new Vector3(),
+    impulse: new Vector3(),
+    severity: 0,
+    source: 'terrain' as FlightImpactSource,
+  };
+  private impactCooldownRemaining = 0;
+  onImpact?: (impact: FlightImpactSnapshot) => void;
   applyExternalImpulse(impulse: Vector3, settle = 0.8): void {
     if (this.mode === 'crashed' || this.mode === 'loading') return;
     this.pendingImpulse.add(impulse); this.externalSettle = settle;
@@ -80,16 +109,24 @@ export class FlightController {
   private checkBlastTerrain(): void {
     const probes = this.cockpitCollision ? COCKPIT_COLLISION_PROBES : this.wings.collisionProbes;
     const travel = this.previousPosition.distanceTo(this.position) + this.previousOrientation.angleTo(this.orientation) * 7;
-    const steps = Math.max(1, Math.ceil(travel));
-    if (steps > 16) { this.beginCrash(); return; }
+    const steps = Math.min(16, Math.max(1, Math.ceil(travel)));
     for (let i = 0; i <= steps; i++) {
       this.blastPose.slerpQuaternions(this.previousOrientation, this.orientation, i / steps);
       this.blastPosition.lerpVectors(this.previousPosition, this.position, i / steps);
       for (const p of probes) {
-        if (p instanceof Vector3) this.samplePoint.copy(p);
-        else this.samplePoint.set(...p);
+        if (p instanceof Vector3) this.impactLocalPoint.copy(p);
+        else this.impactLocalPoint.set(...p);
+        this.samplePoint.copy(this.impactLocalPoint);
         this.samplePoint.applyQuaternion(this.blastPose).add(this.blastPosition);
-        if (this.terrain.collisionDensityAt(this.samplePoint.x, this.samplePoint.y, this.samplePoint.z) > 0) { this.beginCrash(); return; }
+        const density = this.terrain.collisionDensityAt?.(
+          this.samplePoint.x,
+          this.samplePoint.y,
+          this.samplePoint.z,
+        ) ?? this.terrain.densityAt(this.samplePoint.x, this.samplePoint.y, this.samplePoint.z);
+        if (density > 0) {
+          this.resolveSurfaceImpact(this.impactLocalPoint, this.samplePoint, 'terrain');
+          return;
+        }
       }
     }
   }
@@ -104,8 +141,9 @@ export class FlightController {
       this.blastPose.slerpQuaternions(this.previousOrientation, this.orientation, amount);
       this.blastPosition.lerpVectors(this.previousPosition, this.position, amount);
       for (const probe of probes) {
-        if (probe instanceof Vector3) this.samplePoint.copy(probe);
-        else this.samplePoint.set(...probe);
+        if (probe instanceof Vector3) this.impactLocalPoint.copy(probe);
+        else this.impactLocalPoint.set(...probe);
+        this.samplePoint.copy(this.impactLocalPoint);
         this.samplePoint.applyQuaternion(this.blastPose).add(this.blastPosition);
         const density = this.terrain.collisionDensityAt?.(
           this.samplePoint.x,
@@ -113,7 +151,7 @@ export class FlightController {
           this.samplePoint.z,
         ) ?? this.terrain.densityAt(this.samplePoint.x, this.samplePoint.y, this.samplePoint.z);
         if (density + COLLISION_TOLERANCE >= COLLISION_DEEP_PENETRATION) {
-          this.beginCrash();
+          this.resolveSurfaceImpact(this.impactLocalPoint, this.samplePoint, 'terrain');
           return;
         }
       }
@@ -135,7 +173,6 @@ export class FlightController {
   private previousRollAngle = 0;
   private readonly avoidanceTarget = new Vector3();
   private readonly avoidanceOffset = new Vector3();
-  onCrash: (() => void) | undefined;
   onModeChange: ((mode: FlightMode) => void) | undefined;
   private readonly terrain: ProceduralTerrain;
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
@@ -144,7 +181,6 @@ export class FlightController {
   private checkpoint: SafeCheckpoint;
   private initialCheckpoint: SafeCheckpoint;
   private checkpointTimer = 0;
-  private crashElapsed = 0;
   private collisionContactTime = 0;
   private previousMode: FlightMode = 'autopilot';
   private tuning: FlightTuningSettings = { ...DEFAULT_FLIGHT_TUNING };
@@ -186,13 +222,7 @@ export class FlightController {
     this.previousOrientation.copy(this.orientation);
     this.previousCameraOrientation.copy(this.cameraOrientation);
     this.previousRollAngle = this.rollAngle;
-    if (this.mode === 'crashed') {
-      this.crashElapsed += dt;
-      this.wings.update(dt, (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed));
-      if (this.crashElapsed >= FLIGHT.crashDuration) this.restoreCheckpoint();
-      return;
-    }
-
+    this.impactCooldownRemaining = Math.max(0, this.impactCooldownRemaining - dt);
     const driftHeld = input.driftHeld ?? false;
     const boostHeld = input.boostHeld ?? input.throttle > 0;
     if (input.pitch !== 0 || input.roll !== 0 || input.yaw !== 0 || driftHeld) this.takeManualControl();
@@ -211,8 +241,22 @@ export class FlightController {
     this.actualSpeed = this.position.distanceTo(this.previousPosition) / dt;
     if (blastMoved) this.checkBlastTerrain();
     else this.checkHighSpeedTerrainSweep();
-    if (this.obstacles?.sweepShip(this.previousPosition, this.position, this.previousOrientation, this.orientation, this.cockpitCollision)) this.beginCrash();
-    if (this.mode !== 'autopilot' && this.crashIntensity === 0) this.checkCollision(dt);
+    if (this.obstacles?.sweepShip(
+      this.previousPosition,
+      this.position,
+      this.previousOrientation,
+      this.orientation,
+      this.cockpitCollision,
+      this.obstacleHit,
+    )) {
+      this.resolveImpact(
+        this.obstacleHit.localPoint,
+        this.obstacleHit.point,
+        this.obstacleHit.normal,
+        'meteor',
+      );
+    }
+    this.checkCollision(dt);
     this.updateCheckpoint(dt);
   }
 
@@ -565,22 +609,29 @@ export class FlightController {
   }
 
   private checkCollision(dt: number): void {
+    if (this.impactCooldownRemaining > 0) {
+      this.collisionContactTime = 0;
+      return;
+    }
     let deepestPenetration = 0;
     const probes = this.cockpitCollision ? COCKPIT_COLLISION_PROBES : this.wings.collisionProbes;
     const orientation = this.orientation;
     for (const offset of probes) {
-      if (offset instanceof Vector3) this.samplePoint.copy(offset);
-      else this.samplePoint.set(offset[0], offset[1], offset[2]);
+      if (offset instanceof Vector3) this.impactLocalPoint.copy(offset);
+      else this.impactLocalPoint.set(offset[0], offset[1], offset[2]);
+      this.samplePoint.copy(this.impactLocalPoint);
       this.samplePoint.applyQuaternion(orientation).add(this.position);
       const collisionDensity = this.terrain.collisionDensityAt?.(
         this.samplePoint.x,
         this.samplePoint.y,
         this.samplePoint.z,
       ) ?? this.terrain.densityAt(this.samplePoint.x, this.samplePoint.y, this.samplePoint.z);
-      deepestPenetration = Math.max(
-        deepestPenetration,
-        collisionDensity + COLLISION_TOLERANCE,
-      );
+      const penetration = collisionDensity + COLLISION_TOLERANCE;
+      if (penetration > deepestPenetration) {
+        deepestPenetration = penetration;
+        this.impactPoint.copy(this.samplePoint);
+        this.collisionLocalPoint.copy(this.impactLocalPoint);
+      }
     }
     if (deepestPenetration <= 0) {
       this.collisionContactTime = 0;
@@ -591,9 +642,71 @@ export class FlightController {
       deepestPenetration >= COLLISION_DEEP_PENETRATION
       || this.collisionContactTime >= COLLISION_CONFIRM_TIME
     ) {
-      this.collisionContactTime = 0;
-      this.beginCrash();
+      this.resolveSurfaceImpact(this.collisionLocalPoint, this.impactPoint, 'terrain');
     }
+  }
+
+  private resolveSurfaceImpact(
+    localPoint: Vector3,
+    worldPoint: Vector3,
+    source: FlightImpactSource,
+  ): void {
+    const epsilon = 0.5;
+    const density = (x: number, y: number, z: number) => this.terrain.collisionDensityAt?.(x, y, z)
+      ?? this.terrain.densityAt(x, y, z);
+    this.impactNormal.set(
+      density(worldPoint.x - epsilon, worldPoint.y, worldPoint.z)
+        - density(worldPoint.x + epsilon, worldPoint.y, worldPoint.z),
+      density(worldPoint.x, worldPoint.y - epsilon, worldPoint.z)
+        - density(worldPoint.x, worldPoint.y + epsilon, worldPoint.z),
+      density(worldPoint.x, worldPoint.y, worldPoint.z - epsilon)
+        - density(worldPoint.x, worldPoint.y, worldPoint.z + epsilon),
+    );
+    if (this.impactNormal.lengthSq() < 1e-8) {
+      this.impactNormal.copy(this.controlVelocity).add(this.externalVelocity).negate();
+    }
+    if (this.impactNormal.lengthSq() < 1e-8) this.impactNormal.set(0, 1, 0);
+    else this.impactNormal.normalize();
+    this.resolveImpact(localPoint, worldPoint, this.impactNormal, source);
+  }
+
+  private resolveImpact(
+    localPoint: Vector3,
+    worldPoint: Vector3,
+    normal: Vector3,
+    source: FlightImpactSource,
+  ): void {
+    if (this.impactCooldownRemaining > 0) return;
+    this.impactNormal.copy(normal);
+    if (this.impactNormal.lengthSq() < 1e-8) this.impactNormal.copy(this.forward).negate();
+    else this.impactNormal.normalize();
+    this.impactVelocity.copy(this.controlVelocity).add(this.externalVelocity);
+    const incomingSpeed = Math.max(0, -this.impactVelocity.dot(this.impactNormal));
+    const push = clamp(
+      this.tuning.impactMinPush + incomingSpeed * this.tuning.impactPushScale,
+      this.tuning.impactMinPush,
+      this.tuning.impactMaxPush,
+    );
+    this.impactImpulse.copy(this.impactNormal).multiplyScalar(push);
+    this.position.copy(this.previousPosition).addScaledVector(this.impactNormal, 0.35);
+    const controlIntoSurface = this.controlVelocity.dot(this.impactNormal);
+    if (controlIntoSurface < 0) {
+      this.controlVelocity.addScaledVector(this.impactNormal, -controlIntoSurface * 1.1);
+      this.speed = this.controlVelocity.length();
+    }
+    this.applyExternalImpulse(this.impactImpulse, this.tuning.impactPushDuration);
+    this.impactCooldownRemaining = this.tuning.impactCooldown;
+    this.collisionContactTime = 0;
+    this.cancelRoll();
+    this.impactSnapshot.point.copy(worldPoint);
+    this.impactSnapshot.localPoint.copy(localPoint);
+    this.impactSnapshot.normal.copy(this.impactNormal);
+    this.impactSnapshot.impulse.copy(this.impactImpulse);
+    this.impactSnapshot.severity = this.tuning.impactMaxPush > 0
+      ? clamp(push / this.tuning.impactMaxPush, 0, 1)
+      : 0;
+    this.impactSnapshot.source = source;
+    this.onImpact?.(this.impactSnapshot);
   }
 
   private updateCheckpoint(dt: number): void {
@@ -610,17 +723,6 @@ export class FlightController {
     ) {
       this.checkpoint = this.captureCheckpoint();
     }
-  }
-
-  private beginCrash(): void {
-    if (this.mode === 'crashed') return;
-    this.crashElapsed = 0;
-    this.actualSpeed = 0;
-    this.clearExternalImpulse();
-    this.resetDriftState();
-    this.cancelRoll();
-    this.setMode('crashed');
-    this.onCrash?.();
   }
 
   private captureCheckpoint(): SafeCheckpoint {
@@ -660,14 +762,6 @@ export class FlightController {
     this.previousRollAngle = this.rollAngle;
   }
 
-  private restoreCheckpoint(): void {
-    this.applyCheckpoint(this.checkpoint);
-    this.speed = FLIGHT.nominalSpeed;
-    this.actualSpeed = this.speed;
-    this.throttle = (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
-    this.setMode('autopilot');
-  }
-
   reset(): void {
     this.applyCheckpoint(this.checkpoint ?? this.initialCheckpoint);
     this.setMode('autopilot');
@@ -705,12 +799,11 @@ export class FlightController {
   }
 
   get crashIntensity(): number {
-    if (this.mode !== 'crashed') return 0;
-    return clamp(1 - this.crashElapsed / FLIGHT.crashDuration, 0, 1);
+    return 0;
   }
 
   get hasTerrainContact(): boolean {
-    return this.mode === 'crashed' || this.collisionContactTime > 0;
+    return this.impactCooldownRemaining > 0 || this.collisionContactTime > 0;
   }
 
   private setMode(mode: FlightMode): void {
