@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { DEFAULT_FLIGHT_TUNING, sanitizeFlightTuning } from '../src/flight/FlightTuning.ts';
-import { DEFAULT_COMBAT } from '../src/combat/settings.ts';
-import { migrateVisualSettingsV1 } from '../src/ui/SettingsPanel.ts';
+import { DEFAULT_COMBAT, sanitizeCombatSettings } from '../src/combat/settings.ts';
+import { migrateAutomaticSlipSettings, migrateVisualSettingsV1 } from '../src/ui/SettingsPanel.ts';
 
 test('legacy pixel point settings migrate to world-space dot controls', () => {
   const migrated = migrateVisualSettingsV1({
@@ -24,12 +25,18 @@ test('legacy world-space migrations clamp out-of-range values', () => {
   assert.equal(migrateVisualSettingsV1({ dangerMaxSize: 100 }).dangerSizeMultiplier, 8);
 });
 
-test('flight tuning sanitizes ordered tiers, angles, and speed caps', () => {
+test('flight tuning sanitizes slip curves, ordered tiers, drain, and speed caps', () => {
   const tuned = sanitizeFlightTuning({
     ...DEFAULT_FLIGHT_TUNING,
-    driftMinAngle: 60,
-    driftFullAngle: 20,
-    driftMaxAngle: 30,
+    slipStartSpeed: 100,
+    slipFullSpeed: 20,
+    slipCurvePreset: 'broken' as 's-curve',
+    slipCurveX1: 0.9,
+    slipCurveX2: 0.1,
+    slipCurveY1: 0.8,
+    slipCurveY2: 0.2,
+    slipChargeRate: 40,
+    driftBoostDrainOne: 5,
     driftTierTwo: 80,
     driftTierThree: 50,
     driftBoostSpeedOne: 180,
@@ -41,9 +48,16 @@ test('flight tuning sanitizes ordered tiers, angles, and speed caps', () => {
     routeHorizontalTurns: 4,
     routeVerticalTurns: 0,
     routeClearance: 8,
+    normalTopSpeed: 200,
+    normalBoostTopSpeed: 80,
+    terrainCrystalClusterScale: 20,
+    terrainAheadDistance: 9999,
   });
-  assert.ok(tuned.driftMinAngle < tuned.driftFullAngle);
-  assert.ok(tuned.driftFullAngle <= tuned.driftMaxAngle);
+  assert.ok(tuned.slipStartSpeed < tuned.slipFullSpeed);
+  assert.equal(tuned.slipCurvePreset, 's-curve');
+  assert.ok(tuned.slipCurveX1 <= tuned.slipCurveX2);
+  assert.ok(tuned.slipCurveY1 <= tuned.slipCurveY2);
+  assert.ok(tuned.driftBoostDrainOne > tuned.slipChargeRate);
   assert.ok(tuned.driftTierTwo < tuned.driftTierThree);
   assert.ok(tuned.driftBoostSpeedOne <= tuned.driftBoostSpeedTwo);
   assert.ok(tuned.driftBoostSpeedTwo <= tuned.driftBoostSpeedThree);
@@ -53,9 +67,15 @@ test('flight tuning sanitizes ordered tiers, angles, and speed caps', () => {
   assert.equal(tuned.routeHorizontalTurns, 1.5);
   assert.equal(tuned.routeVerticalTurns, 0.5);
   assert.equal(tuned.routeClearance, 1.5);
+  assert.equal(tuned.normalTopSpeed, 200);
+  assert.equal(tuned.normalBoostTopSpeed, 200);
+  assert.equal(tuned.terrainCrystalClusterScale, 4);
+  assert.equal(tuned.terrainAheadDistance, 2560);
 });
 
 test('shipped handling defaults use the tighter player-tuned profile', () => {
+  assert.equal(DEFAULT_FLIGHT_TUNING.pitchRate, 1);
+  assert.equal(DEFAULT_FLIGHT_TUNING.normalAcceleration, 40);
   assert.equal(DEFAULT_FLIGHT_TUNING.rollRate, 1.5);
   assert.equal(DEFAULT_FLIGHT_TUNING.cameraPositionResponse, 0.07);
   assert.equal(DEFAULT_FLIGHT_TUNING.cameraHeadingResponse, 0.1);
@@ -64,8 +84,8 @@ test('shipped handling defaults use the tighter player-tuned profile', () => {
   assert.equal(DEFAULT_FLIGHT_TUNING.cameraBankResponse, 0.1);
   assert.equal(DEFAULT_FLIGHT_TUNING.cameraMaxLag, 24);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftCueOpacity, 0.7);
-  assert.equal(DEFAULT_FLIGHT_TUNING.driftMeterArcLength, 32);
-  assert.equal(DEFAULT_FLIGHT_TUNING.driftMeterRadialThickness, 1.5);
+  assert.equal(DEFAULT_FLIGHT_TUNING.driftMeterArcLength, 20);
+  assert.equal(DEFAULT_FLIGHT_TUNING.driftMeterRadialThickness, 0.5);
   assert.equal(DEFAULT_COMBAT.pulseRadius, 80);
   assert.equal(DEFAULT_FLIGHT_TUNING.collisionFriction, 0.6);
   assert.equal(DEFAULT_FLIGHT_TUNING.collisionSparkAmount, 3);
@@ -75,17 +95,76 @@ test('shipped handling defaults use the tighter player-tuned profile', () => {
   assert.equal(DEFAULT_FLIGHT_TUNING.collisionSparkSpeed, 50);
   assert.equal(DEFAULT_FLIGHT_TUNING.collisionSparkLifetime, 0.8);
   assert.equal(DEFAULT_FLIGHT_TUNING.collisionSparkSpread, 1);
-  assert.equal(DEFAULT_FLIGHT_TUNING.driftChargeRate, 100);
+  assert.equal(DEFAULT_FLIGHT_TUNING.slipChargeRate, 20);
+  assert.equal(DEFAULT_FLIGHT_TUNING.slipStartSpeed, 12);
+  assert.equal(DEFAULT_FLIGHT_TUNING.slipFullSpeed, 90);
+  assert.equal(DEFAULT_FLIGHT_TUNING.slipCurvePreset, 's-curve');
+  assert.deepEqual([
+    DEFAULT_FLIGHT_TUNING.driftBoostColorOne,
+    DEFAULT_FLIGHT_TUNING.driftBoostColorTwo,
+    DEFAULT_FLIGHT_TUNING.driftBoostColorThree,
+  ], ['#59d8ff', '#ffad42', '#ff4fc3']);
+  assert.equal(DEFAULT_FLIGHT_TUNING.hardTurnGrip, 1.25);
+  assert.equal(DEFAULT_FLIGHT_TUNING.normalTopSpeed, 130);
+  assert.equal(DEFAULT_FLIGHT_TUNING.normalBoostTopSpeed, 200);
+  assert.deepEqual([
+    DEFAULT_FLIGHT_TUNING.driftBoostSpeedOne,
+    DEFAULT_FLIGHT_TUNING.driftBoostSpeedTwo,
+    DEFAULT_FLIGHT_TUNING.driftBoostSpeedThree,
+  ], [200, 200, 200]);
+  assert.equal(DEFAULT_FLIGHT_TUNING.terrainCrystalClusterScale, 1.8);
+  assert.equal(DEFAULT_FLIGHT_TUNING.terrainAheadDistance, 1280);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftTrailRate, 64);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftTrailSize, 10);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftTrailLifetime, 2);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftTrailTurbulence, 6);
   assert.equal(DEFAULT_FLIGHT_TUNING.navigationArrowColor, '#ffffff');
   assert.equal(DEFAULT_FLIGHT_TUNING.navigationArrowHeadStyle, 'wire');
-  assert.equal(DEFAULT_FLIGHT_TUNING.navigationArrowHeadLength, 7);
-  assert.equal(DEFAULT_FLIGHT_TUNING.navigationArrowHeadWidth, 12);
-  assert.equal(DEFAULT_FLIGHT_TUNING.navigationArrowBodyLength, 22);
-  assert.equal(DEFAULT_FLIGHT_TUNING.navigationArrowLineThickness, 1);
+  assert.equal(DEFAULT_FLIGHT_TUNING.navigationArrowHeadLength, 90);
+  assert.equal(DEFAULT_FLIGHT_TUNING.navigationArrowHeadWidth, 20);
+  assert.equal(DEFAULT_FLIGHT_TUNING.navigationArrowBodyLength, 210);
+  assert.equal(DEFAULT_FLIGHT_TUNING.navigationArrowLineThickness, 2);
+  assert.equal(DEFAULT_FLIGHT_TUNING.navigationLookAhead, 400);
+  assert.equal(DEFAULT_FLIGHT_TUNING.wrongWayDelay, 1);
+  assert.equal(DEFAULT_FLIGHT_TUNING.driftCueSize, 72);
+  assert.equal(DEFAULT_FLIGHT_TUNING.driftShakeStrength, 0.5);
+});
+
+test('v4 drift settings migrate to automatic slip while preserving custom tuning', () => {
+  const defaults = migrateAutomaticSlipSettings({
+    normalTopSpeed: 130,
+    driftMinAngle: 6,
+    driftFullAngle: 45,
+    driftGrip: 0.35,
+    driftChargeRate: 100,
+    planeColor: '#ffffff',
+  });
+  assert.equal(defaults.slipStartSpeed, 12);
+  assert.equal(defaults.slipFullSpeed, 90);
+  assert.equal(defaults.hardTurnGrip, 1.25);
+  assert.equal(defaults.slipChargeRate, 20);
+  assert.equal(defaults.planeColor, '#ffffff');
+
+  const custom = migrateAutomaticSlipSettings({
+    normalTopSpeed: 100,
+    driftMinAngle: 10,
+    driftFullAngle: 30,
+    driftGrip: 1.5,
+    driftChargeRate: 40,
+  });
+  assert.ok(Math.abs(Number(custom.slipStartSpeed) - 17.3648) < 0.001);
+  assert.ok(Math.abs(Number(custom.slipFullSpeed) - 50) < 0.001);
+  assert.equal(custom.hardTurnGrip, 1.5);
+  assert.equal(custom.slipChargeRate, 8);
+});
+
+test('meteor spawn-ahead range stays ordered and within its slider limits', () => {
+  const tuned = sanitizeCombatSettings({
+    meteorSpawnDistanceMin: 2000,
+    meteorSpawnDistanceMax: 180,
+  });
+  assert.equal(tuned.meteorSpawnDistanceMin, 180);
+  assert.equal(tuned.meteorSpawnDistanceMax, 180);
 });
 
 test('new collision, spark, navigation, and terrain settings reject invalid values', () => {
@@ -94,6 +173,9 @@ test('new collision, spark, navigation, and terrain settings reject invalid valu
     collisionRestitution: Number.NaN,
     collisionSparkAmount: Number.POSITIVE_INFINITY,
     collisionSparkColor: 'gold',
+    driftBoostColorOne: 'blue',
+    driftBoostColorTwo: '#12xz89',
+    driftBoostColorThree: '',
     driftMeterArcLength: 500,
     driftMeterRadialThickness: -5,
     navigationArrowColor: '#xyzxyz',
@@ -108,8 +190,11 @@ test('new collision, spark, navigation, and terrain settings reject invalid valu
   assert.equal(tuned.collisionRestitution, DEFAULT_FLIGHT_TUNING.collisionRestitution);
   assert.equal(tuned.collisionSparkAmount, DEFAULT_FLIGHT_TUNING.collisionSparkAmount);
   assert.equal(tuned.collisionSparkColor, DEFAULT_FLIGHT_TUNING.collisionSparkColor);
+  assert.equal(tuned.driftBoostColorOne, DEFAULT_FLIGHT_TUNING.driftBoostColorOne);
+  assert.equal(tuned.driftBoostColorTwo, DEFAULT_FLIGHT_TUNING.driftBoostColorTwo);
+  assert.equal(tuned.driftBoostColorThree, DEFAULT_FLIGHT_TUNING.driftBoostColorThree);
   assert.equal(tuned.driftMeterArcLength, 64);
-  assert.equal(tuned.driftMeterRadialThickness, 0.5);
+  assert.equal(tuned.driftMeterRadialThickness, 0.1);
   assert.equal(tuned.navigationArrowColor, DEFAULT_FLIGHT_TUNING.navigationArrowColor);
   assert.equal(tuned.navigationArrowHeadStyle, 'wire');
   assert.equal(tuned.navigationArrowHeadLength, 8, 'head remains shorter than the body');
@@ -138,7 +223,7 @@ test('expanded spark ranges retain headroom above the tuned defaults', () => {
   assert.equal(tuned.collisionSparkSpread, 2);
 });
 
-test('3D HUD arrow controls expose five-times-expanded upper bounds', () => {
+test('3D HUD arrow controls retain exploration headroom above the new defaults', () => {
   const tuned = sanitizeFlightTuning({
     ...DEFAULT_FLIGHT_TUNING,
     navigationArrowScale: 999,
@@ -148,8 +233,28 @@ test('3D HUD arrow controls expose five-times-expanded upper bounds', () => {
     navigationArrowLineThickness: 999,
   });
   assert.equal(tuned.navigationArrowScale, 9);
-  assert.equal(tuned.navigationArrowHeadLength, 90);
+  assert.equal(tuned.navigationArrowHeadLength, 180);
   assert.equal(tuned.navigationArrowHeadWidth, 120);
-  assert.equal(tuned.navigationArrowBodyLength, 210);
+  assert.equal(tuned.navigationArrowBodyLength, 420);
   assert.equal(tuned.navigationArrowLineThickness, 15);
+});
+
+test('every static numeric setting default fits and aligns with its slider range', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const tags = html.match(/<input\b[^>]*>/g) ?? [];
+  const attribute = (tag: string, name: string): string | undefined =>
+    tag.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
+
+  for (const tag of tags) {
+    if (!['range', 'number'].includes(attribute(tag, 'type') ?? '')) continue;
+    const id = attribute(tag, 'id') ?? tag;
+    const value = Number(attribute(tag, 'value'));
+    const minimum = Number(attribute(tag, 'min'));
+    const maximum = Number(attribute(tag, 'max'));
+    const step = Number(attribute(tag, 'step'));
+    assert.ok([value, minimum, maximum, step].every(Number.isFinite), `${id} has finite bounds`);
+    assert.ok(value >= minimum && value <= maximum, `${id} default lies within its range`);
+    const steps = (value - minimum) / step;
+    assert.ok(Math.abs(steps - Math.round(steps)) < 1e-8, `${id} default aligns with its step`);
+  }
 });

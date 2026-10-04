@@ -11,6 +11,7 @@ export class ScanGlass {
   private radius = 0;
   private fadeDuration = 0.8;
   private speed: number = PROBE.speed;
+  private maxRadius: number = PROBE.maxRadius;
   private disposed = false;
   private flutterRate = 1;
   private lastTime: number | undefined;
@@ -85,11 +86,13 @@ export class ScanGlass {
     flutter = 0.04,
     flutterRate = 1,
     speed: number = PROBE.speed,
+    maxRadius: number = PROBE.maxRadius,
   ): void {
     if (this.enabled !== enabled) this.lastTime = undefined;
     this.enabled = enabled;
     this.flutterRate = Math.max(0, Math.min(4, flutterRate));
     this.speed = Math.max(1, speed);
+    this.maxRadius = Math.max(1, maxRadius);
     this.mesh.material.uniforms.uFlutter.value = Math.max(0, Math.min(0.12, flutter));
     this.fadeDuration = Math.max(0.15, fadeDuration);
     this.mesh.material.uniforms.uRefraction.value = strength;
@@ -106,7 +109,7 @@ export class ScanGlass {
     }
     this.worldCenter.copy(worldCenter);
     this.mesh.position.copy(worldCenter).sub(origin);
-    this.radius = Math.max(0, Math.min(PROBE.maxRadius, radius));
+    this.radius = Math.max(0, Math.min(this.maxRadius, radius));
     this.mesh.scale.setScalar(Math.max(0.001, this.radius));
     this.expanding = expanding;
     this.refresh();
@@ -116,7 +119,7 @@ export class ScanGlass {
     const fadeIn = Math.min(1, this.radius / 20);
     const fadeOut = Math.min(1, Math.max(
       0,
-      (PROBE.maxRadius - this.radius) / (this.speed * this.fadeDuration),
+      (this.maxRadius - this.radius) / (this.speed * this.fadeDuration),
     ));
     this.mesh.material.uniforms.uFade.value = fadeIn * fadeOut;
     this.mesh.visible = !this.disposed && this.enabled && this.expanding && this.radius > 0

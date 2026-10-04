@@ -2,7 +2,7 @@ import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { COCKPIT_EYE } from '../core/aircraftGeometry.ts';
 import { CAMERA } from '../core/config.ts';
-import type { CameraMode, DriftState } from '../core/types.ts';
+import type { CameraMode } from '../core/types.ts';
 import { DEFAULT_FLIGHT_TUNING, type FlightTuningSettings } from '../flight/FlightTuning.ts';
 
 const MODES: CameraMode[] = ['cockpit', 'chase', 'far-chase'];
@@ -69,7 +69,7 @@ export class CameraRig {
     throttleActive = false,
     paused = false,
     travelVelocity?: Vector3,
-    driftState: DriftState = 'cruise',
+    slipIntensity = 0,
   ): void {
     // Hold the exact pose/FOV until a camera control is used. In paused orbit
     // the user owns the view; the normal return-to-chase countdown is stopped.
@@ -100,7 +100,7 @@ export class CameraRig {
 
     this.forward.set(0, 0, 1).applyQuaternion(planeOrientation).normalize();
     this.aircraftUp.copy(this.up).applyQuaternion(planeOrientation).normalize();
-    this.updateChaseFrame(dt, travelVelocity, driftState);
+    this.updateChaseFrame(dt, travelVelocity, slipIntensity);
     if (this.mode === 'chase') {
       this.desiredPosition.copy(planePosition)
         .addScaledVector(this.chaseForward, -22)
@@ -156,16 +156,17 @@ export class CameraRig {
   private updateChaseFrame(
     dt: number,
     travelVelocity: Vector3 | undefined,
-    driftState: DriftState,
+    slipIntensity: number,
   ): void {
     this.targetChaseForward.copy(this.forward);
     const hasTravel = Boolean(travelVelocity && travelVelocity.lengthSq() > 1e-8);
-    const driftActive = driftState === 'drift' || driftState === 'drift-boost';
+    const slip = Math.max(0, Math.min(1, slipIntensity));
+    const driftActive = slip > 1e-4;
     if (hasTravel && driftActive && travelVelocity) {
       this.velocityDirection.copy(travelVelocity).normalize();
       this.targetChaseForward.lerp(
         this.velocityDirection,
-        this.tuning.cameraTravelInfluence,
+        this.tuning.cameraTravelInfluence * slip,
       ).normalize();
       const maxLag = this.tuning.cameraMaxLag * Math.PI / 180;
       const lag = this.forward.angleTo(this.targetChaseForward);

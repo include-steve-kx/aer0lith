@@ -441,6 +441,7 @@ export class PostProcessor {
     flutter = 0.04,
     flutterRate = 1,
     speed: number = PROBE.speed,
+    maxRadius: number = PROBE.maxRadius,
   ): void {
     this.scanGlass.configure(
       enabled,
@@ -450,6 +451,7 @@ export class PostProcessor {
       flutter,
       flutterRate,
       speed,
+      maxRadius,
     );
   }
 

@@ -4,6 +4,7 @@ import { Quaternion, Vector3 } from 'three';
 import { FLIGHT } from '../src/core/config.ts';
 import { FlightController } from '../src/flight/FlightController.ts';
 import { flightInputFromKeys, joystickInputFromOffset } from '../src/flight/InputManager.ts';
+import { DEFAULT_FLIGHT_TUNING } from '../src/flight/FlightTuning.ts';
 import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 
 const neutral = { pitch: 0, roll: 0, yaw: 0, throttle: 0 };
@@ -19,6 +20,11 @@ function openTerrain(): ProceduralTerrain {
 
 test('render pose interpolates fixed physics steps without visible position stair-steps', () => {
   const flight = new FlightController(openTerrain());
+  flight.configure({
+    ...DEFAULT_FLIGHT_TUNING,
+    normalTopSpeed: FLIGHT.nominalSpeed,
+    normalBoostTopSpeed: FLIGHT.maxSpeed,
+  });
   flight.takeManualControl();
   const rendered = new Vector3(), orientation = new Quaternion(), camera = new Quaternion();
   let accumulator = 0;
@@ -140,7 +146,7 @@ test('manual pitch and bank-assisted steering follow the displayed controls', ()
   assert.ok(descendFlight.position.y < neutralFlight.position.y, 'S should pitch down');
 });
 
-test('manual throttle is a temporary boost and returns to cruise speed', () => {
+test('manual throttle reaches the shipped boost cap and returns to shipped cruise', () => {
   const openTerrain = {
     sample: () => ({
       x: 0,
@@ -161,13 +167,28 @@ test('manual throttle is a temporary boost and returns to cruise speed', () => {
   for (let step = 0; step < 8 * 120; step += 1) {
     flight.update(FLIGHT.fixedStep, boost);
   }
-  assert.equal(FLIGHT.maxSpeed, 120);
-  assert.ok(flight.speed > 115);
+  assert.ok(flight.speed > DEFAULT_FLIGHT_TUNING.normalBoostTopSpeed - 5);
 
   for (let step = 0; step < 8 * 120; step += 1) {
     flight.update(FLIGHT.fixedStep, neutral);
   }
-  assert.ok(Math.abs(flight.speed - FLIGHT.nominalSpeed) < 1);
+  assert.ok(Math.abs(flight.speed - DEFAULT_FLIGHT_TUNING.normalTopSpeed) < 1);
+});
+
+test('configured cruise and normal boost top speeds drive manual propulsion', () => {
+  const flight = new FlightController(openTerrain());
+  flight.configure({
+    ...DEFAULT_FLIGHT_TUNING,
+    normalTopSpeed: 72,
+    normalBoostTopSpeed: 108,
+  });
+  flight.takeManualControl();
+  for (let step = 0; step < 10 * 120; step += 1) flight.update(FLIGHT.fixedStep, neutral);
+  assert.ok(Math.abs(flight.speed - 72) < 1e-8);
+  for (let step = 0; step < 10 * 120; step += 1) {
+    flight.update(FLIGHT.fixedStep, { ...neutral, throttle: 1 });
+  }
+  assert.equal(flight.speed, 108);
 });
 
 test('collision loses energy and separates without recovery or mode changes', () => {

@@ -7,8 +7,9 @@ import {
 } from '../core/config.ts';
 import { COCKPIT_COLLISION_PROBES } from '../core/aircraftGeometry.ts';
 import type {
-  DriftState,
+  BoostState,
   DriftTier,
+  EnergyActivity,
   FlightImpactSnapshot,
   FlightImpactSource,
   FlightInput,
@@ -23,6 +24,7 @@ import {
   sanitizeFlightTuning,
   type FlightTuningSettings,
 } from './FlightTuning.ts';
+import { buildSlipCurveLookup, evaluateSlipCurve } from './SlipResponse.ts';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -195,6 +197,11 @@ export class FlightController {
   private readonly terrain: ProceduralTerrain;
   private readonly euler = new Euler(0, 0, 0, 'YXZ');
   private readonly forward = new Vector3();
+  private readonly previousForward = new Vector3();
+  readonly effectiveVelocity = new Vector3();
+  readonly slipVector = new Vector3();
+  private readonly scoringVelocity = new Vector3();
+  private readonly scoringSlip = new Vector3();
   private readonly samplePoint = new Vector3();
   private checkpoint: SafeCheckpoint;
   private initialCheckpoint: SafeCheckpoint;
@@ -204,14 +211,24 @@ export class FlightController {
   private tuning: FlightTuningSettings = { ...DEFAULT_FLIGHT_TUNING };
   driftEnergy = 0;
   driftAngle = 0;
+  slipSpeed = 0;
+  normalizedSlip = 0;
+  slipIntensity = 0;
+  visualSlipIntensity = 0;
+  currentChargeRate = 0;
+  currentDrainRate = 0;
   driftTier: DriftTier = 0;
-  driftState: DriftState = 'cruise';
+  boostState: BoostState = 'cruise';
+  energyActivity: EnergyActivity = 'idle';
   boostKickAvailable = false;
   private driftGraceRemaining = 0;
-  private driftEnergyAtStart = 0;
-  private previousDriftHeld = false;
   private previousBoostHeld = false;
-  private boostSuppressed = false;
+  private boostReleaseLatch = 0;
+  private boostHeldThisStep = false;
+  private collisionChargeSuppression = 0;
+  private gripReduction = 0;
+  private autopilotSafetyAlignment = false;
+  private readonly slipCurveLookup = new Float32Array(129);
   private readonly travelDirection = new Vector3(0, 0, 1);
   private readonly kickDirection = new Vector3();
 
@@ -223,11 +240,13 @@ export class FlightController {
     this.pitch = -Math.atan(start.tangentY);
     this.syncOrientation();
     this.forward.set(0, 0, 1).applyQuaternion(this.orientation).normalize();
+    this.previousForward.copy(this.forward);
     this.controlVelocity.copy(this.forward).multiplyScalar(this.speed);
     this.previousControlVelocity.copy(this.controlVelocity);
     this.previousPosition.copy(this.position);
     this.previousOrientation.copy(this.orientation);
     this.previousCameraOrientation.copy(this.cameraOrientation);
+    this.rebuildSlipCurve();
     this.initialCheckpoint = this.captureCheckpoint();
     this.checkpoint = this.captureCheckpoint();
     this.setMode('autopilot');
@@ -241,9 +260,10 @@ export class FlightController {
     this.previousCameraOrientation.copy(this.cameraOrientation);
     this.previousRollAngle = this.rollAngle;
     this.contactSeenThisStep = false;
-    const driftHeld = input.driftHeld ?? false;
     const boostHeld = input.boostHeld ?? input.throttle > 0;
-    if (input.pitch !== 0 || input.roll !== 0 || input.yaw !== 0 || driftHeld) this.takeManualControl();
+    this.boostHeldThisStep = boostHeld;
+    if (input.pitch !== 0 || input.roll !== 0 || input.yaw !== 0) this.takeManualControl();
+    this.collisionChargeSuppression = Math.max(0, this.collisionChargeSuppression - dt);
     this.rollCooldown = Math.max(0, this.rollCooldown - dt);
     if (this.isRolling) this.updateRoll(dt);
     else if (this.mode === 'autopilot') this.updateAutopilot(dt, boostHeld ? 1 : 0);
@@ -251,8 +271,12 @@ export class FlightController {
 
     this.syncOrientation();
     this.forward.set(0, 0, 1).applyQuaternion(this.orientation).normalize();
-    this.updateDriftAndBoost(dt, driftHeld, boostHeld);
-    this.updateControlVelocity(dt, driftHeld && this.mode === 'manual');
+    const boostPressed = input.boostPressed ?? (boostHeld && !this.previousBoostHeld);
+    const boostReleased = input.boostReleased ?? (!boostHeld && this.previousBoostHeld);
+    this.updateBoostState(dt, boostHeld, boostPressed, boostReleased);
+    this.updateControlVelocity(dt);
+    this.updateSlipSignal(true);
+    this.updateDriftEnergy(dt);
     this.wings.update(dt, this.throttle);
     this.position.addScaledVector(this.controlVelocity, dt);
     const blastMoved = this.advanceExternal(dt);
@@ -276,11 +300,16 @@ export class FlightController {
     }
     if (!this.contactSeenThisStep) this.checkCollision(dt);
     this.finishContactStep();
+    this.updateSlipSignal(false);
+    this.updateVisualSlip(dt);
     this.actualSpeed = this.position.distanceTo(this.previousPosition) / dt;
     this.updateCheckpoint(dt);
+    this.previousForward.copy(this.forward);
+    this.previousBoostHeld = boostHeld;
   }
 
   private updateManual(dt: number, input: FlightInput): void {
+    this.autopilotSafetyAlignment = false;
     this.pitch = clamp(this.pitch + input.pitch * this.tuning.pitchRate * dt, -1.05, 1.05);
     this.roll = clamp(this.roll + input.roll * this.tuning.rollRate * dt, -1.25, 1.25);
     this.yaw = wrapAngle(this.yaw + (
@@ -292,28 +321,35 @@ export class FlightController {
   }
 
   private updateThrottle(dt: number, throttleInput: number): void {
-    const cruiseThrottle = (FLIGHT.nominalSpeed - FLIGHT.minSpeed)
-      / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
+    const boostTopSpeed = this.tuning.normalBoostTopSpeed;
+    const cruiseThrottle = (this.tuning.normalTopSpeed - FLIGHT.minSpeed)
+      / (boostTopSpeed - FLIGHT.minSpeed);
     if (throttleInput > 0.01) {
       this.throttle = clamp(this.throttle + throttleInput * 0.28 * dt, 0, 1);
     } else {
       this.throttle = approach(this.throttle, cruiseThrottle, 0.32 * dt);
     }
-    const targetSpeed = FLIGHT.minSpeed + this.throttle * (FLIGHT.maxSpeed - FLIGHT.minSpeed);
+    const targetSpeed = FLIGHT.minSpeed + this.throttle * (boostTopSpeed - FLIGHT.minSpeed);
     this.speed = approach(this.speed, targetSpeed, 15 * dt);
   }
 
   configure(settings: FlightTuningSettings): void {
     this.tuning = sanitizeFlightTuning(settings);
+    this.rebuildSlipCurve();
+    this.throttle = clamp(
+      (this.speed - FLIGHT.minSpeed) / (this.tuning.normalBoostTopSpeed - FLIGHT.minSpeed),
+      0,
+      1,
+    );
     this.driftEnergy = clamp(this.driftEnergy, 0, 100);
     this.updateDriftTier();
   }
 
   get settings(): Readonly<FlightTuningSettings> { return this.tuning; }
   get controllableSpeed(): number { return this.controlVelocity.length(); }
-  get driftBoostActive(): boolean { return this.driftState === 'drift-boost'; }
+  get driftBoostActive(): boolean { return this.boostState === 'drift-boost'; }
   get boostActive(): boolean {
-    return this.driftState === 'drift-boost' || this.driftState === 'normal-boost';
+    return this.boostState !== 'cruise';
   }
 
   sampleRenderVelocity(alpha: number, target: Vector3): Vector3 {
@@ -324,130 +360,183 @@ export class FlightController {
     );
   }
 
-  private updateDriftAndBoost(dt: number, driftHeld: boolean, boostHeld: boolean): void {
-    const driftPressed = driftHeld && !this.previousDriftHeld;
-    const driftReleased = !driftHeld && this.previousDriftHeld;
-    const boostPressed = boostHeld && !this.previousBoostHeld;
-
-    if (driftPressed) {
-      if (this.driftState === 'drift-boost') {
-        this.driftEnergy = 0;
-        this.driftTier = 0;
+  private updateBoostState(dt: number, boostHeld: boolean, boostPressed: boolean, boostReleased: boolean): void {
+    if (boostReleased) {
+      if (this.boostState === 'normal-boost' && this.driftEnergy > 1e-6) {
+        this.boostReleaseLatch = this.tuning.boostRepressWindow;
+      } else {
+        this.boostReleaseLatch = 0;
+        this.boostState = 'cruise';
+      }
+    }
+    if (!boostHeld && this.boostReleaseLatch > 0) {
+      this.boostReleaseLatch = Math.max(0, this.boostReleaseLatch - dt);
+      if (this.boostReleaseLatch === 0) this.boostState = 'cruise';
+    }
+    if (boostPressed) {
+      const canDriftBoost = this.driftEnergy > 1e-6;
+      this.boostReleaseLatch = 0;
+      this.boostState = canDriftBoost ? 'drift-boost' : 'normal-boost';
+      if (canDriftBoost && this.boostKickAvailable) {
+        this.updateDriftTier();
+        this.applyDriftBoostKick(this.driftTier);
         this.boostKickAvailable = false;
       }
-      this.driftEnergyAtStart = this.driftEnergy;
-      this.driftState = 'drift';
-      this.boostSuppressed = boostHeld;
+    } else if (boostHeld && this.boostState === 'cruise') {
+      this.boostState = this.driftEnergy > 1e-6 ? 'drift-boost' : 'normal-boost';
     }
-    if (this.boostSuppressed && !boostHeld) this.boostSuppressed = false;
 
-    if (this.mode === 'autopilot') {
-      this.clearDriftEnergy();
-      this.driftState = boostHeld ? 'normal-boost' : 'cruise';
-    } else if (driftHeld) {
-      this.driftState = 'drift';
-      this.driftGraceRemaining = this.tuning.driftGraceTime;
-      this.approachManualSpeed(dt, FLIGHT.nominalSpeed, this.tuning.normalAcceleration);
-    } else {
-      if (driftReleased && this.driftEnergy > this.driftEnergyAtStart + 1e-6) {
-        this.boostKickAvailable = true;
-        this.driftGraceRemaining = this.tuning.driftGraceTime;
-      }
-      const effectiveBoost = boostHeld && !this.boostSuppressed;
-      if (effectiveBoost && this.driftEnergy > 1e-6) {
-        const entering = this.driftState !== 'drift-boost';
-        this.updateDriftTier();
-        this.driftState = 'drift-boost';
-        if (entering && boostPressed && this.boostKickAvailable) {
-          this.applyDriftBoostKick(this.driftTier);
-          this.boostKickAvailable = false;
-        }
-        this.approachManualSpeed(
-          dt,
-          this.tierValue(
-            this.tuning.driftBoostSpeedOne,
-            this.tuning.driftBoostSpeedTwo,
-            this.tuning.driftBoostSpeedThree,
-          ),
-          this.tierValue(
-            this.tuning.driftBoostAccelerationOne,
-            this.tuning.driftBoostAccelerationTwo,
-            this.tuning.driftBoostAccelerationThree,
-          ),
-        );
-        this.driftEnergy = Math.max(0, this.driftEnergy - this.tierValue(
-          this.tuning.driftBoostDrainOne,
-          this.tuning.driftBoostDrainTwo,
-          this.tuning.driftBoostDrainThree,
-        ) * dt);
-        this.updateDriftTier();
-        if (this.driftEnergy <= 1e-6) {
-          this.clearDriftEnergy();
-          this.driftState = 'normal-boost';
-        }
-      } else {
-        if (effectiveBoost) {
-          this.driftState = 'normal-boost';
-          this.approachManualSpeed(dt, FLIGHT.maxSpeed, this.tuning.normalAcceleration);
-        } else {
-          this.approachManualSpeed(dt, FLIGHT.nominalSpeed, this.tuning.normalAcceleration);
-          if (this.driftEnergy > 1e-6) {
-            this.driftState = 'banked';
-            if (this.driftGraceRemaining > 0) {
-              this.driftGraceRemaining = Math.max(0, this.driftGraceRemaining - dt);
-            } else {
-              this.driftEnergy = Math.max(0, this.driftEnergy - this.tuning.driftPassiveDecay * dt);
-              this.updateDriftTier();
-            }
-          } else {
-            this.clearDriftEnergy();
-            this.driftState = 'cruise';
-          }
-        }
-      }
+    if (this.boostState === 'drift-boost' && this.driftEnergy <= 1e-6) {
+      this.boostState = boostHeld ? 'normal-boost' : 'cruise';
+    }
+    if (this.boostState === 'drift-boost') {
+      this.updateDriftTier();
+      this.approachManualSpeed(dt, this.tierValue(
+        this.tuning.driftBoostSpeedOne,
+        this.tuning.driftBoostSpeedTwo,
+        this.tuning.driftBoostSpeedThree,
+      ), this.tierValue(
+        this.tuning.driftBoostAccelerationOne,
+        this.tuning.driftBoostAccelerationTwo,
+        this.tuning.driftBoostAccelerationThree,
+      ));
+    } else if (this.boostState === 'normal-boost' && this.mode !== 'autopilot') {
+      this.approachManualSpeed(dt, this.tuning.normalBoostTopSpeed, this.tuning.normalAcceleration);
+    } else if (this.mode !== 'autopilot') {
+      this.approachManualSpeed(dt, this.tuning.normalTopSpeed, this.tuning.normalAcceleration);
     }
 
     if (this.mode !== 'autopilot') {
-      const cruiseThrottle = (FLIGHT.nominalSpeed - FLIGHT.minSpeed)
-        / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
+      const cruiseThrottle = (this.tuning.normalTopSpeed - FLIGHT.minSpeed)
+        / (this.tuning.normalBoostTopSpeed - FLIGHT.minSpeed);
       const throttleTarget = this.boostActive ? 1 : cruiseThrottle;
       this.throttle = approach(this.throttle, throttleTarget, (this.boostActive ? 0.28 : 0.32) * dt);
     }
-    this.previousDriftHeld = driftHeld;
-    this.previousBoostHeld = boostHeld;
   }
 
-  private updateControlVelocity(dt: number, drifting: boolean): void {
+  private updateControlVelocity(dt: number): void {
     if (this.controlVelocity.lengthSq() < 1e-8) {
       this.travelDirection.copy(this.forward);
     } else {
       this.travelDirection.copy(this.controlVelocity).normalize();
     }
-    const grip = drifting ? this.tuning.driftGrip : this.tuning.normalGrip;
+    const turnRate = this.previousForward.lengthSq() > 0 && dt > 0
+      ? this.previousForward.angleTo(this.forward) / dt : 0;
+    const requestedReduction = this.mode === 'autopilot' ? 0 : smoothstep(
+      this.tuning.turnSlipStartRate,
+      this.tuning.turnSlipFullRate,
+      turnRate,
+    );
+    const response = requestedReduction > this.gripReduction
+      ? this.tuning.gripEngageResponse : this.tuning.gripRecoveryResponse;
+    this.gripReduction += (requestedReduction - this.gripReduction)
+      * (1 - Math.exp(-dt / Math.max(0.001, response)));
+    const grip = this.mode === 'autopilot'
+      ? this.tuning.normalGrip
+      : this.tuning.normalGrip
+        + (this.tuning.hardTurnGrip - this.tuning.normalGrip) * this.gripReduction;
     const alignment = 1 - Math.exp(-Math.max(0, grip) * dt);
-    if (this.mode === 'autopilot') this.travelDirection.copy(this.forward);
+    if (this.mode === 'autopilot' && this.autopilotSafetyAlignment) this.travelDirection.copy(this.forward);
     else this.travelDirection.lerp(this.forward, alignment);
     if (this.travelDirection.lengthSq() < 1e-8) this.travelDirection.copy(this.forward);
     else this.travelDirection.normalize();
     this.controlVelocity.copy(this.travelDirection).multiplyScalar(Math.max(0, this.speed));
     this.speed = this.controlVelocity.length();
-    this.driftAngle = Math.acos(clamp(this.forward.dot(this.travelDirection), -1, 1)) * 180 / Math.PI;
+  }
 
-    if (drifting && !this.isRolling && this.mode === 'manual') {
-      const scoringAngle = Math.min(this.tuning.driftMaxAngle, this.driftAngle);
-      const angleFactor = smoothstep(
-        this.tuning.driftMinAngle,
-        this.tuning.driftFullAngle,
-        scoringAngle,
+  private rebuildSlipCurve(): void {
+    buildSlipCurveLookup({
+      preset: this.tuning.slipCurvePreset,
+      x1: this.tuning.slipCurveX1,
+      y1: this.tuning.slipCurveY1,
+      x2: this.tuning.slipCurveX2,
+      y2: this.tuning.slipCurveY2,
+    }, this.slipCurveLookup);
+  }
+
+  private updateSlipSignal(forScoring: boolean): void {
+    this.effectiveVelocity.copy(this.controlVelocity).add(this.externalVelocity);
+    const effectiveSpeed = this.effectiveVelocity.length();
+    this.slipVector.copy(this.effectiveVelocity)
+      .addScaledVector(this.forward, -this.effectiveVelocity.dot(this.forward));
+    const reverseSpeed = Math.max(0, -this.effectiveVelocity.dot(this.forward));
+    this.slipSpeed = Math.hypot(this.slipVector.length(), reverseSpeed);
+    this.driftAngle = effectiveSpeed > 1e-6
+      ? Math.acos(clamp(this.forward.dot(this.effectiveVelocity) / effectiveSpeed, -1, 1)) * 180 / Math.PI
+      : 0;
+    this.normalizedSlip = clamp(
+      (this.slipSpeed - this.tuning.slipStartSpeed)
+        / Math.max(1e-6, this.tuning.slipFullSpeed - this.tuning.slipStartSpeed),
+      0,
+      1,
+    );
+    this.slipIntensity = evaluateSlipCurve(this.slipCurveLookup, this.normalizedSlip);
+    if (!forScoring) return;
+    this.scoringVelocity.copy(this.controlVelocity);
+    if (this.collisionChargeSuppression > 0 || this.contactActive) {
+      this.scoringVelocity.copy(this.forward).multiplyScalar(this.controlVelocity.dot(this.forward));
+    }
+    this.scoringVelocity.add(this.externalVelocity);
+    this.scoringSlip.copy(this.scoringVelocity)
+      .addScaledVector(this.forward, -this.scoringVelocity.dot(this.forward));
+    const scoringReverse = Math.max(0, -this.scoringVelocity.dot(this.forward));
+    const scoringSpeed = Math.hypot(this.scoringSlip.length(), scoringReverse);
+    const scoringNormalized = clamp(
+      (scoringSpeed - this.tuning.slipStartSpeed)
+        / Math.max(1e-6, this.tuning.slipFullSpeed - this.tuning.slipStartSpeed),
+      0,
+      1,
+    );
+    this.currentChargeRate = this.isRolling
+      ? 0 : this.tuning.slipChargeRate * evaluateSlipCurve(this.slipCurveLookup, scoringNormalized);
+  }
+
+  private updateDriftEnergy(dt: number): void {
+    const hadEnergy = this.driftEnergy > 1e-6;
+    this.currentDrainRate = 0;
+    if (this.boostState === 'drift-boost') {
+      this.currentDrainRate = this.tierValue(
+        this.tuning.driftBoostDrainOne,
+        this.tuning.driftBoostDrainTwo,
+        this.tuning.driftBoostDrainThree,
       );
-      const speedRatio = clamp(this.speed / FLIGHT.nominalSpeed, 0.5, 1.5);
-      const speedFactor = 1 + (speedRatio - 1) * this.tuning.driftSpeedInfluence;
-      this.driftEnergy = Math.min(
+      this.driftEnergy = clamp(
+        this.driftEnergy + (this.currentChargeRate - this.currentDrainRate) * dt,
+        0,
         100,
-        this.driftEnergy + this.tuning.driftChargeRate * angleFactor * speedFactor * dt,
       );
+      this.energyActivity = this.currentChargeRate > 1e-6 ? 'charging' : 'banked';
+    } else if (this.currentChargeRate > 1e-6) {
+      this.driftEnergy = Math.min(100, this.driftEnergy + this.currentChargeRate * dt);
+      this.driftGraceRemaining = this.tuning.driftGraceTime;
+      this.energyActivity = 'charging';
+    } else if (this.driftEnergy > 1e-6) {
+      if (this.driftGraceRemaining > 0) {
+        this.driftGraceRemaining = Math.max(0, this.driftGraceRemaining - dt);
+        this.energyActivity = 'banked';
+      } else {
+        this.driftEnergy = Math.max(0, this.driftEnergy - this.tuning.driftPassiveDecay * dt);
+        this.energyActivity = this.driftEnergy > 1e-6 ? 'decaying' : 'idle';
+      }
+    } else {
+      this.energyActivity = 'idle';
+    }
+    if (!hadEnergy && this.driftEnergy > 1e-6) this.boostKickAvailable = true;
+    if (this.driftEnergy <= 1e-6) {
+      this.clearDriftEnergy();
+      if (this.boostState === 'drift-boost') {
+        this.boostState = this.boostHeldThisStep ? 'normal-boost' : 'cruise';
+      }
+    } else {
       this.updateDriftTier();
     }
+  }
+
+  private updateVisualSlip(dt: number): void {
+    const response = this.slipIntensity > this.visualSlipIntensity
+      ? this.tuning.slipVisualAttack : this.tuning.slipVisualRelease;
+    this.visualSlipIntensity += (this.slipIntensity - this.visualSlipIntensity)
+      * (1 - Math.exp(-dt / Math.max(0.001, response)));
   }
 
   private approachManualSpeed(dt: number, target: number, acceleration: number): void {
@@ -491,15 +580,22 @@ export class FlightController {
     this.driftTier = 0;
     this.driftGraceRemaining = 0;
     this.boostKickAvailable = false;
+    this.currentChargeRate = 0;
+    this.currentDrainRate = 0;
+    this.energyActivity = 'idle';
   }
 
   private resetDriftState(): void {
     this.clearDriftEnergy();
     this.driftAngle = 0;
-    this.driftState = 'cruise';
-    this.previousDriftHeld = false;
+    this.slipSpeed = 0;
+    this.normalizedSlip = 0;
+    this.slipIntensity = 0;
+    this.visualSlipIntensity = 0;
+    this.boostState = 'cruise';
     this.previousBoostHeld = false;
-    this.boostSuppressed = false;
+    this.boostReleaseLatch = 0;
+    this.gripReduction = 0;
   }
 
   get isRolling(): boolean { return this.rollDirection !== 0; }
@@ -583,6 +679,9 @@ export class FlightController {
     );
     const yawError = wrapAngle(desiredYaw - this.yaw);
     const pitchError = desiredPitch - this.pitch;
+    this.autopilotSafetyAlignment = avoidance > 0
+      || Math.abs(yawError) > 0.08
+      || Math.abs(pitchError) > 0.07;
     const desiredRoll = clamp(-yawError * 1.65, -0.82, 0.82);
 
     this.yaw = wrapAngle(this.yaw + clamp(yawError * (2.25 + avoidance * 0.75), -1.5, 1.5) * dt);
@@ -608,10 +707,12 @@ export class FlightController {
       if (blocked) this.speed = approach(previousSpeed, 8, 45 * dt);
       return;
     }
-    const cruiseThrottle = (FLIGHT.nominalSpeed - FLIGHT.minSpeed) / (FLIGHT.maxSpeed - FLIGHT.minSpeed);
+    const cruiseThrottle = (this.tuning.normalTopSpeed - FLIGHT.minSpeed)
+      / (this.tuning.normalBoostTopSpeed - FLIGHT.minSpeed);
     const targetThrottle = cruiseThrottle - turnPenalty;
     this.throttle = approach(this.throttle, targetThrottle, 0.22 * dt);
-    const targetSpeed = FLIGHT.minSpeed + this.throttle * (FLIGHT.maxSpeed - FLIGHT.minSpeed);
+    const targetSpeed = FLIGHT.minSpeed
+      + this.throttle * (this.tuning.normalBoostTopSpeed - FLIGHT.minSpeed);
     this.speed = approach(this.speed, blocked ? 8 : targetSpeed, (blocked ? 45 : 10) * dt);
   }
 
@@ -711,6 +812,7 @@ export class FlightController {
     this.contactFreeSteps = 0;
     this.contactSource = source;
     this.contactNormal.copy(this.impactNormal);
+    this.collisionChargeSuppression = this.tuning.slipCollisionSuppressTime;
 
     this.impactVelocity.copy(this.controlVelocity).add(this.externalVelocity);
     this.impactRelativeBefore.copy(this.impactVelocity).sub(surfaceVelocity);
@@ -833,6 +935,7 @@ export class FlightController {
     this.contactFreeSteps = 0;
     this.syncOrientation();
     this.forward.set(0, 0, 1).applyQuaternion(this.orientation).normalize();
+    this.previousForward.copy(this.forward);
     this.controlVelocity.copy(this.forward).multiplyScalar(this.speed);
     this.previousControlVelocity.copy(this.controlVelocity);
     this.resetDriftState();
@@ -889,12 +992,6 @@ export class FlightController {
   private setMode(mode: FlightMode): void {
     if (mode === this.mode) return;
     this.mode = mode;
-    if (mode === 'autopilot') {
-      this.resetDriftState();
-      this.forward.set(0, 0, 1).applyQuaternion(this.orientation).normalize();
-      this.controlVelocity.copy(this.forward).multiplyScalar(this.speed);
-      this.previousControlVelocity.copy(this.controlVelocity);
-    }
     this.onModeChange?.(mode);
   }
 }

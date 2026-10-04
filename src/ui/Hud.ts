@@ -1,5 +1,5 @@
 import { Euler, Quaternion, Vector3 } from 'three';
-import type { CameraMode, DriftState, ExperienceMode, FlightMode, FlightSnapshot } from '../core/types.ts';
+import type { BoostState, EnergyActivity, CameraMode, ExperienceMode, FlightMode, FlightSnapshot } from '../core/types.ts';
 import { bindButtonAction } from './bindButtonAction.ts';
 import type { FlightTuningSettings } from '../flight/FlightTuning.ts';
 import { createDriftMeterGeometry } from './DriftMeterGeometry.ts';
@@ -54,7 +54,6 @@ export class Hud {
   readonly rollLeftButton = element<HTMLButtonElement>('roll-left-button');
   readonly rollRightButton = element<HTMLButtonElement>('roll-right-button');
   readonly throttleButton = element<HTMLButtonElement>('throttle-button');
-  readonly driftButton = element<HTMLButtonElement>('drift-button');
   readonly touchJoystick = element<HTMLElement>('touch-joystick');
   readonly touchJoystickThumb = element<HTMLElement>('touch-joystick-thumb');
   private readonly hud = element<HTMLElement>('hud');
@@ -72,7 +71,7 @@ export class Hud {
   private readonly horizon = element<HTMLElement>('horizon');
   private readonly pulseStatus = element<HTMLElement>('pulse-status');
   private readonly reticle = element<HTMLElement>('reticle');
-  private readonly driftCluster = element<HTMLElement>('drift-cluster');
+  private readonly primaryActionCluster = element<HTMLElement>('primary-action-cluster');
   private readonly driftMeter = element<HTMLElement>('drift-meter');
   private readonly driftStatus = element<HTMLElement>('drift-status');
   private readonly navigationCue = element<HTMLElement>('navigation-cue');
@@ -84,6 +83,8 @@ export class Hud {
   private driftSettings: FlightTuningSettings | undefined;
   private paused = false;
   private wrongWayVisible: boolean | undefined;
+  private pulseWasCooling = false;
+  private probeWasCooling = false;
 
   constructor() {
     bindButtonAction(this.legendToggle, () => {
@@ -156,7 +157,6 @@ export class Hud {
     this.pulseButton.disabled = paused;
     this.probeButton.disabled = paused;
     this.throttleButton.disabled = paused;
-    this.driftButton.disabled = paused;
     this.rollLeftButton.disabled = paused;
     this.rollRightButton.disabled = paused;
   }
@@ -173,9 +173,13 @@ export class Hud {
     const busy = enabled && ready && !terrainReady;
     const disabled = this.paused || !enabled || cooling || busy || unavailable;
     this.pulseButton.disabled = disabled;
-    this.pulseButton.style.setProperty('--pulse-cooldown', `${Math.max(0, Math.min(1, cooldownFraction)) * 100}%`);
-    this.pulseButton.classList.toggle('is-cooling', cooling);
+    const refillProgress = 1 - Math.max(0, Math.min(1, cooldownFraction));
+    this.pulseButton.style.setProperty('--refill-progress', `${refillProgress * 100}%`);
+    this.pulseButton.classList.toggle('is-refilling', cooling);
     this.pulseButton.classList.toggle('is-terrain-busy', busy);
+    if (this.pulseWasCooling && !cooling && enabled && ready) this.flashRefillComplete(this.pulseButton);
+    if (cooling) this.pulseButton.classList.remove('is-refill-complete');
+    this.pulseWasCooling = cooling;
     let label = 'Fire Pulse Cannon';
     let status = 'Pulse Cannon ready';
     if (!enabled) label = status = 'Pulse Cannon disabled in settings';
@@ -190,6 +194,9 @@ export class Hud {
 
   configureDrift(settings: FlightTuningSettings): void {
     this.driftSettings = settings;
+    this.hud.style.setProperty('--boost-tier-one-color', settings.driftBoostColorOne);
+    this.hud.style.setProperty('--boost-tier-two-color', settings.driftBoostColorTwo);
+    this.hud.style.setProperty('--boost-tier-three-color', settings.driftBoostColorThree);
     this.driftMeter.hidden = !settings.driftMeterEnabled;
     const geometry = createDriftMeterGeometry(
       settings.driftMeterArcLength,
@@ -202,7 +209,7 @@ export class Hud {
     }
     this.driftMeter.style.setProperty('--meter-fill-width', String(geometry.radialThickness));
     this.reticle.style.setProperty('--drift-cue-opacity', String(settings.driftCueOpacity));
-    this.driftCluster.style.setProperty('--primary-control-scale', String(settings.touchPrimaryScale));
+    this.primaryActionCluster.style.setProperty('--primary-control-scale', String(settings.touchPrimaryScale));
     this.driftMeter.classList.toggle('is-tier-pulsing', settings.driftTierPulse);
     this.navigationCue.hidden = !settings.navigationArrowEnabled;
   }
@@ -214,41 +221,61 @@ export class Hud {
     this.wrongWayIndicator.hidden = !visible;
   }
 
-  setProbeActive(active: boolean): void {
-    this.probeButton.classList.toggle('is-active', active);
-    this.probeButton.setAttribute('aria-pressed', String(active));
+  setProbeState(ready: boolean, cooldownFraction: number, cooldownSeconds: number, unavailable = false): void {
+    const cooling = !ready;
+    this.probeButton.disabled = this.paused || cooling || unavailable;
+    const refillProgress = 1 - Math.max(0, Math.min(1, cooldownFraction));
+    this.probeButton.style.setProperty('--refill-progress', `${refillProgress * 100}%`);
+    this.probeButton.classList.toggle('is-refilling', cooling);
+    if (this.probeWasCooling && !cooling && !unavailable) this.flashRefillComplete(this.probeButton);
+    if (cooling) this.probeButton.classList.remove('is-refill-complete');
+    this.probeWasCooling = cooling;
+    const label = unavailable
+      ? 'Terrain scan unavailable'
+      : cooling
+        ? `Terrain scan refilling, ${cooldownSeconds.toFixed(1)} seconds remaining`
+        : 'Trigger terrain scan';
+    this.probeButton.setAttribute('aria-label', label);
+    this.probeButton.dataset.cooldown = cooldownSeconds.toFixed(1);
+  }
+
+  private flashRefillComplete(button: HTMLButtonElement): void {
+    button.classList.remove('is-refill-complete');
+    void button.offsetWidth;
+    button.classList.add('is-refill-complete');
   }
 
   private updateDrift(snapshot: FlightSnapshot): void {
     const energy = Math.max(0, Math.min(100, snapshot.driftEnergy ?? 0));
     const tier = snapshot.driftTier ?? 0;
-    const state = snapshot.driftState ?? 'cruise';
-    this.driftCluster.dataset.tier = String(tier);
+    const boostState = snapshot.boostState ?? 'cruise';
+    const energyActivity = snapshot.energyActivity ?? 'idle';
+    this.primaryActionCluster.dataset.tier = String(tier);
     this.driftMeter.dataset.tier = String(tier);
+    this.driftMeter.dataset.boostState = boostState;
     this.throttleButton.dataset.tier = String(tier);
+    this.throttleButton.dataset.boostState = boostState;
     this.driftMeter.setAttribute('aria-valuenow', energy.toFixed(0));
-    this.driftMeter.setAttribute('aria-valuetext', `${this.driftLabel(state, tier)}, ${energy.toFixed(0)} percent`);
-    this.driftStatus.textContent = this.driftLabel(state, tier);
+    const label = this.driftLabel(boostState, energyActivity, tier);
+    this.driftMeter.setAttribute('aria-valuetext', `${label}, ${energy.toFixed(0)} percent`);
+    this.driftStatus.textContent = label;
     const thresholds = [0, this.driftSettings?.driftTierTwo ?? 35, this.driftSettings?.driftTierThree ?? 70, 100];
     for (let index = 0; index < this.driftSegments.length; index += 1) {
       const fill = Math.max(0, Math.min(1, (energy - thresholds[index]) / (thresholds[index + 1] - thresholds[index])));
       this.driftSegments[index].style.setProperty('--segment-fill', String(fill));
     }
-    const drifting = state === 'drift';
-    const boosting = state === 'drift-boost' || state === 'normal-boost';
-    this.driftButton.classList.toggle('is-active', drifting);
-    this.driftButton.setAttribute('aria-pressed', String(drifting));
+    const boosting = boostState !== 'cruise';
     this.throttleButton.classList.toggle('is-active', boosting);
     this.throttleButton.setAttribute('aria-pressed', String(boosting));
-    this.throttleButton.setAttribute('aria-label', state === 'drift-boost'
+    this.throttleButton.setAttribute('aria-label', boostState === 'drift-boost'
       ? `Hold for drift boost tier ${tier}`
       : 'Hold to boost');
 
     const settings = this.driftSettings;
-    const velocity = snapshot.controlVelocity;
-    const angle = snapshot.driftAngle ?? 0;
+    const velocity = snapshot.effectiveVelocity;
+    const intensity = snapshot.slipIntensity ?? 0;
     const cueVisible = Boolean(settings?.driftCueEnabled && velocity && velocity.lengthSq() > 1e-8
-      && angle >= settings.driftMinAngle);
+      && intensity > 1e-4);
     this.reticle.classList.toggle('has-drift-slip', cueVisible);
     if (!cueVisible || !settings || !velocity) return;
     this.localTravel.copy(velocity).normalize().applyQuaternion(
@@ -257,7 +284,7 @@ export class Hud {
     const projectedLength = Math.hypot(this.localTravel.x, this.localTravel.y);
     const directionX = projectedLength > 1e-6 ? this.localTravel.x / projectedLength : 0;
     const directionY = projectedLength > 1e-6 ? -this.localTravel.y / projectedLength : 0;
-    const distance = Math.min(settings.driftCueSize, settings.driftCueSize * angle / settings.cameraMaxLag);
+    const distance = settings.driftCueSize * Math.max(0, Math.min(1, intensity));
     const x = directionX * distance;
     const y = directionY * distance;
     this.reticle.style.setProperty('--drift-cue-x', `${x}px`);
@@ -266,11 +293,12 @@ export class Hud {
     this.reticle.style.setProperty('--drift-cue-angle', `${Math.atan2(y, x)}rad`);
   }
 
-  private driftLabel(state: DriftState, tier: number): string {
-    if (state === 'drift-boost') return `BOOST ${['', 'I', 'II', 'III'][tier] ?? ''}`.trim();
-    if (state === 'normal-boost') return 'NORMAL BOOST';
-    if (state === 'drift') return 'DRIFT';
-    if (state === 'banked') return 'BANKED';
+  private driftLabel(boost: BoostState, activity: EnergyActivity, tier: number): string {
+    if (boost === 'drift-boost') return `BOOST ${['', 'I', 'II', 'III'][tier] ?? ''}`.trim();
+    if (boost === 'normal-boost') return 'NORMAL BOOST';
+    if (activity === 'charging') return 'CHARGING';
+    if (activity === 'decaying') return 'DECAYING';
+    if (activity === 'banked') return 'BANKED';
     return 'CRUISE';
   }
 }

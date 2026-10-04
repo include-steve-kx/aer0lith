@@ -56,6 +56,18 @@ test('shell finishes cleanly, settings stay live on pause, and animation uses si
   scan.dispose(); depth.dispose();
 });
 
+test('configured scan distance controls shell radius and end fade', () => {
+  const scan = new ScanGlass();
+  scan.configure(true, 2, 0.3, 1, 0.04, 1, 200, 400);
+  scan.sync(zero, zero, 350, true);
+  assert.equal(scan.mesh.scale.x, 350);
+  assert.equal(scan.mesh.material.uniforms.uFade.value, 0.25);
+  scan.sync(zero, zero, 500, true);
+  assert.equal(scan.mesh.scale.x, 400);
+  assert.equal(scan.active, false);
+  scan.dispose();
+});
+
 test('shell disposal releases both GPU resources exactly once and detaches its mesh', () => {
   const scan = new ScanGlass();
   let geometryDisposals = 0, materialDisposals = 0;

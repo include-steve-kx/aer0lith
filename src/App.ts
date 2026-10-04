@@ -103,6 +103,7 @@ export class App {
   private readonly renderAircraftOrientation = new Quaternion();
   private readonly renderCameraOrientation = new Quaternion();
   private readonly renderControlVelocity = new Vector3();
+  private readonly renderEffectiveVelocity = new Vector3();
   private renderManeuverRollAngle = 0;
   private readonly originShift = new Vector3();
   private readonly blurVelocity = new Vector3();
@@ -128,6 +129,8 @@ export class App {
   private boostShakeBaseStrength = 0.65;
   private experienceMode: ExperienceMode = 'analysis';
   private collisionDebugEnabled = false;
+  private scanCooldownDuration = 5;
+  private scanCooldownRemaining = 0;
 
   constructor(root: HTMLElement, seed: string) {
     this.root = root;
@@ -236,7 +239,6 @@ export class App {
       joystick: this.hud.touchJoystick,
       joystickThumb: this.hud.touchJoystickThumb,
       throttleButton: this.hud.throttleButton,
-      driftButton: this.hud.driftButton,
       rollLeftButton: this.hud.rollLeftButton,
       rollRightButton: this.hud.rollRightButton,
     });
@@ -286,7 +288,8 @@ export class App {
       this.aircraft.syncWings();
       this.collisionDebug.syncWings();
       this.post.setScanSettings(settings.scanGlassEnabled, settings.scanGlassStrength, settings.scanGlassDispersion, settings.scanGlassPersistence,
-        settings.scanGlassFlutter, settings.scanGlassFlutterRate, settings.scanTerrainSpeed);
+        settings.scanGlassFlutter, settings.scanGlassFlutterRate, settings.scanTerrainSpeed,
+        settings.scanTerrainDistance);
       this.route.setColor(settings.autopilotGuideColor);
       this.wind.applyVisualSettings(settings);
       this.flocks.applyVisualSettings(settings);
@@ -311,6 +314,8 @@ export class App {
       this.navigationArrow.configure(settings);
       this.hud.configureDrift(settings);
       this.input.configureTouch(settings.touchDeadZone, settings.touchResponseCurve);
+      this.scanCooldownDuration = Math.max(0.5, settings.scanResetInterval);
+      this.scanCooldownRemaining = Math.min(this.scanCooldownRemaining, this.scanCooldownDuration);
       document.documentElement.dataset.font = settings.fontChoice;
     };
     this.settings.onReset = () => {
@@ -374,6 +379,7 @@ export class App {
       let substeps = 0;
       while (this.accumulator >= FLIGHT.fixedStep && substeps < FLIGHT.maxSubsteps) {
         const dt = FLIGHT.fixedStep;
+        this.scanCooldownRemaining = Math.max(0, this.scanCooldownRemaining - dt);
         if (this.flight.mode !== 'crashed') {
           this.meteors.advance(dt, this.flight.position, this.flight.orientation);
           if (this.probeScheduler.update(dt, this.flight.mode === 'autopilot')) this.triggerProbe();
@@ -419,26 +425,28 @@ export class App {
         : 1);
       this.terrain.update(this.flight.position, this.renderOrigin);
 
-      this.hud.setProbeActive(this.terrain.isProbeActive);
       this.trail.add(this.renderPlaneWorldPosition, this.renderAircraftOrientation, this.renderOrigin);
       const throttleActive = this.flight.boostActive
         && this.flight.mode !== 'paused'
         && this.flight.mode !== 'crashed';
       this.throttleActive = throttleActive;
+      const driftBoostColor = this.flight.boostState === 'drift-boost'
+        ? this.flight.driftTier === 3
+          ? this.flight.settings.driftBoostColorThree
+          : this.flight.driftTier === 2
+            ? this.flight.settings.driftBoostColorTwo
+            : this.flight.settings.driftBoostColorOne
+        : undefined;
+      this.flightEffects.setDriftBoostColor(driftBoostColor);
       this.flightEffects.update(rawDelta, throttleActive, this.flight.speed, this.flight.mode === 'crashed');
-      const driftVisual = this.flight.driftState === 'drift'
-        ? Math.max(0, Math.min(1,
-          (this.flight.driftAngle - this.flight.settings.driftMinAngle)
-          / Math.max(1, this.flight.settings.driftFullAngle - this.flight.settings.driftMinAngle),
-        )) * this.flight.settings.driftTrailResponse
-        : 0;
+      const driftVisual = this.flight.visualSlipIntensity * this.flight.settings.driftTrailResponse;
       const flightVisualIntensity = Math.max(throttleActive ? 1 : 0, Math.min(1, driftVisual));
       this.trail.update(rawDelta, throttleActive);
       this.driftTrail.update(
         rawDelta,
         this.renderPlanePosition,
         this.renderAircraftOrientation,
-        this.renderControlVelocity,
+        this.renderEffectiveVelocity,
         Math.min(1, driftVisual),
         this.flight.mode === 'paused',
       );
@@ -458,7 +466,7 @@ export class App {
         this.flight.speed,
         flightVisualIntensity,
         this.flight.mode === 'paused' || this.flight.mode === 'crashed',
-        this.renderControlVelocity,
+        this.renderEffectiveVelocity,
       );
       this.flocks.update(
         rawDelta,
@@ -481,7 +489,7 @@ export class App {
     }
     this.cameraRig.update(rawDelta, this.renderPlanePosition, this.renderCameraOrientation,
       this.flight.crashIntensity, this.throttleActive, this.paused,
-      this.renderControlVelocity, this.flight.driftState);
+      this.renderEffectiveVelocity, this.flight.visualSlipIntensity);
     const routeTarget = this.terrainModel.sample(
       this.flight.position.z + this.flight.settings.navigationLookAhead,
       this.navigationRouteSample,
@@ -510,7 +518,7 @@ export class App {
       this.updateHud(this.frameAverage);
       this.lastHudUpdate = this.renderElapsed;
     }
-    this.blurVelocity.copy(this.renderControlVelocity);
+    this.blurVelocity.copy(this.renderEffectiveVelocity);
     if (this.flight.mode === 'crashed') this.blurVelocity.set(0, 0, 0);
     this.post.setScanWave(this.terrain.currentProbeWorldCenter, this.renderOrigin,
       this.terrain.currentProbeRadius, this.terrain.isProbeExpanding);
@@ -595,6 +603,7 @@ export class App {
       this.renderCameraOrientation,
     );
     this.flight.sampleRenderVelocity(alpha, this.renderControlVelocity);
+    this.renderEffectiveVelocity.copy(this.renderControlVelocity).add(this.flight.externalVelocity);
     this.renderPlanePosition.copy(this.renderPlaneWorldPosition).sub(this.renderOrigin);
   }
 
@@ -626,9 +635,10 @@ export class App {
   }
 
   private triggerProbe(): void {
-    if (this.paused) return;
+    if (this.paused || this.flight.mode === 'crashed' || this.scanCooldownRemaining > 0) return;
     this.scan.id++;
     this.terrain.triggerProbe(this.flight.position);
+    this.scanCooldownRemaining = this.scanCooldownDuration;
     this.probeScheduler.reset();
     this.audio.beep(920, 0.035);
   }
@@ -702,13 +712,13 @@ export class App {
     this.pulseShakeEnvelope.reset();
     this.scan.expanding = false;
     this.scan.id++;
+    this.scanCooldownRemaining = 0;
     this.probeScheduler.reset();
   }
 
   private resetFlight(): void {
     if (this.paused) return;
     this.input.boost.reset();
-    this.input.drift.reset();
     this.flight.reset();
     this.flightEffects.reset();
     this.renderInterpolationReady = false;
@@ -760,16 +770,31 @@ export class App {
       seed: this.seed,
       audioEnabled: this.audio.enabled,
       controlVelocity: this.renderControlVelocity,
+      explosionVelocity: this.flight.externalVelocity,
+      effectiveVelocity: this.renderEffectiveVelocity,
+      slipVector: this.flight.slipVector,
+      slipSpeed: this.flight.slipSpeed,
+      normalizedSlip: this.flight.normalizedSlip,
+      slipIntensity: this.flight.slipIntensity,
       driftAngle: this.flight.driftAngle,
       driftEnergy: this.flight.driftEnergy,
       driftTier: this.flight.driftTier,
-      driftState: this.flight.driftState,
+      boostState: this.flight.boostState,
+      energyActivity: this.flight.energyActivity,
+      currentChargeRate: this.flight.currentChargeRate,
+      currentDrainRate: this.flight.currentDrainRate,
       boostKickAvailable: this.flight.boostKickAvailable,
     };
     this.hud.update(snapshot, fps, {
       distanceTravelled: this.travelDistance.total,
     });
     this.syncPulseHud(snapshot.mode === 'loading' || snapshot.mode === 'crashed');
+    this.hud.setProbeState(
+      this.scanCooldownRemaining <= 0,
+      this.scanCooldownDuration > 0 ? this.scanCooldownRemaining / this.scanCooldownDuration : 0,
+      this.scanCooldownRemaining,
+      snapshot.mode === 'loading' || snapshot.mode === 'crashed',
+    );
   }
 
   private syncPulseHud(unavailable = this.flight.mode === 'crashed'): void {

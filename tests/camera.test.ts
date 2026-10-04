@@ -186,7 +186,7 @@ test('hybrid chase frame reveals the aircraft side during a large drift', () => 
   const orientation = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2);
   const travel = new Vector3(0, 0, 90);
   for (let frame = 0; frame < 240; frame += 1) {
-    rig.update(1 / 60, plane, orientation, 0, false, false, travel, 'drift');
+    rig.update(1 / 60, plane, orientation, 0, false, false, travel, 1);
   }
   const cameraOffset = rig.camera.position.clone().sub(plane).normalize();
   const rearOfNose = new Vector3(0, 0, -1).applyQuaternion(orientation).normalize();

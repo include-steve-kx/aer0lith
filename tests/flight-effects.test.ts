@@ -64,6 +64,18 @@ test('idle visual boost stays on without physical boost and release returns to i
   effects.dispose();
 });
 
+test('drift boost tier colors tint the exhaust light and restore the normal boost color', () => {
+  const effects = new FlightEffects();
+  effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, boostExhaustColor: '#8ab7ff' });
+  effects.setDriftBoostColor('#ffad42');
+  assert.equal(effects.lightColor.getHexString(), 'ffad42');
+  effects.setDriftBoostColor('#ff4fc3');
+  assert.equal(effects.lightColor.getHexString(), 'ff4fc3');
+  effects.setDriftBoostColor();
+  assert.equal(effects.lightColor.getHexString(), '8ab7ff');
+  effects.dispose();
+});
+
 test('effects follow rotation and floating origin without moving on a paused appearance edit', () => {
   const effects = new FlightEffects();
   const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2);

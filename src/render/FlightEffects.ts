@@ -75,6 +75,8 @@ export class FlightEffects {
   private boostFlutterTime = 0;
   private speed = 55;
   private settings = { ...DEFAULT_FLIGHT_EFFECTS };
+  private baseBoostColor = DEFAULT_FLIGHT_EFFECTS.boostExhaustColor;
+  private activeBoostColor = '';
   private readonly sheets = [new WakeSheetGeometry(), new WakeSheetGeometry()];
   private pathRevision = -1;
   private readonly pathOrigin = new Vector3(Infinity, 0, 0);
@@ -310,9 +312,23 @@ export class FlightEffects {
       || settings.wingWarpThickness !== this.settings.wingWarpThickness;
     this.settings = { ...settings };
     this.burst.fadeDuration = settings.boostFadeDuration;
-    this.lightColor.set(settings.boostExhaustColor);
-    this.light.color.copy(this.lightColor);
+    this.baseBoostColor = settings.boostExhaustColor;
+    if (!this.activeBoostColor) this.applyBoostColor(this.baseBoostColor);
     this.refresh();
+  }
+
+  /** Applies a drift-tier color, or restores the configured normal-boost color. */
+  setDriftBoostColor(color?: string): void {
+    const next = color ?? '';
+    if (next === this.activeBoostColor) return;
+    this.activeBoostColor = next;
+    this.applyBoostColor(next || this.baseBoostColor);
+    this.refresh();
+  }
+
+  private applyBoostColor(color: string): void {
+    this.lightColor.set(color);
+    this.light.color.copy(this.lightColor);
   }
 
   syncWake(trail: TrailView, origin: Vector3): void {

@@ -12,9 +12,10 @@ function element<T extends HTMLElement>(id: string): T {
   return result as T;
 }
 
-const STORAGE_KEY = 'aer0lith.settings.v4';
+const STORAGE_KEY = 'aer0lith.settings.v5';
 const SECTION_STATE_KEY = 'aer0lith.settings-sections.v1';
-const PREVIOUS_STORAGE_KEY = 'aer0lith.settings.v3';
+const PREVIOUS_STORAGE_KEY = 'aer0lith.settings.v4';
+const PREVIOUS_STORAGE_KEY_V3 = 'aer0lith.settings.v3';
 const AEROLITH_LEGACY_STORAGE_KEY = 'aer0lith.visual-settings.v2';
 const LEGACY_STORAGE_KEY_V1 = 'vector-flight.visual-settings.v1';
 const LEGACY_STORAGE_KEY_V2 = 'vector-flight.visual-settings.v2';
@@ -41,7 +42,32 @@ export function migrateVisualSettingsV1(saved: Record<string, unknown>): Record<
   };
 }
 
+export function migrateAutomaticSlipSettings(saved: Record<string, unknown>): Record<string, unknown> {
+  if (typeof saved.slipStartSpeed === 'number') return saved;
+  const normalSpeed = typeof saved.normalTopSpeed === 'number' && Number.isFinite(saved.normalTopSpeed)
+    ? saved.normalTopSpeed : 130;
+  const minimumAngle = typeof saved.driftMinAngle === 'number' ? saved.driftMinAngle : 6;
+  const fullAngle = typeof saved.driftFullAngle === 'number' ? saved.driftFullAngle : 45;
+  const shippedAngles = minimumAngle === 6 && fullAngle === 45;
+  const oldGrip = typeof saved.driftGrip === 'number' ? saved.driftGrip : 0.35;
+  const oldCharge = typeof saved.driftChargeRate === 'number' ? saved.driftChargeRate : 100;
+  return {
+    ...saved,
+    hardTurnGrip: oldGrip === 0.35 ? 1.25 : clamp(oldGrip, 0.25, 3.5),
+    slipStartSpeed: shippedAngles ? 12 : clamp(normalSpeed * Math.sin(minimumAngle * Math.PI / 180), 0, 100),
+    slipFullSpeed: shippedAngles ? 90 : clamp(normalSpeed * Math.sin(fullAngle * Math.PI / 180), 5, 260),
+    slipChargeRate: clamp(oldCharge / 5, 1, 80),
+    slipCurvePreset: 's-curve',
+    slipCurveX1: 1 / 3,
+    slipCurveY1: 0,
+    slipCurveX2: 2 / 3,
+    slipCurveY2: 1,
+  };
+}
+
 export interface AppSettings extends FlightEffectSettings, CombatSettings, FlightTuningSettings {
+  scanResetInterval: number;
+  scanTerrainDistance: number;
   scanTerrainSpeed: number;
   scanTerrainPattern: 'dot' | 'plus';
   scanTerrainPatternSpacing: number;
@@ -96,6 +122,8 @@ export interface AppSettings extends FlightEffectSettings, CombatSettings, Fligh
   flockEnabled: boolean;
   flockMinSize: number;
   flockMaxSize: number;
+  flockSpawnDistanceMin: number;
+  flockSpawnDistanceMax: number;
   flockInterval: number;
   flockSpread: number;
   flockSpeed: number;
@@ -148,6 +176,10 @@ export class SettingsPanel {
   private readonly terrainCrystalColor = element<HTMLInputElement>('terrain-crystal-color');
   private readonly scanTerrainSpeed = element<HTMLInputElement>('scan-terrain-speed');
   private readonly scanTerrainSpeedValue = element<HTMLOutputElement>('scan-terrain-speed-value');
+  private readonly scanResetInterval = element<HTMLInputElement>('scan-reset-interval');
+  private readonly scanResetIntervalValue = element<HTMLOutputElement>('scan-reset-interval-value');
+  private readonly scanTerrainDistance = element<HTMLInputElement>('scan-terrain-distance');
+  private readonly scanTerrainDistanceValue = element<HTMLOutputElement>('scan-terrain-distance-value');
   private readonly scanTerrainPattern = element<HTMLSelectElement>('scan-terrain-pattern');
   private readonly scanTerrainPatternSpacing = element<HTMLInputElement>('scan-terrain-pattern-spacing');
   private readonly scanTerrainPatternSpacingValue = element<HTMLOutputElement>('scan-terrain-pattern-spacing-value');
@@ -258,6 +290,9 @@ export class SettingsPanel {
   private readonly flockSizeRange = element<HTMLElement>('flock-size-range');
   private readonly flockMinSize = element<HTMLInputElement>('flock-size-min');
   private readonly flockMaxSize = element<HTMLInputElement>('flock-size-max');
+  private readonly flockSpawnDistanceRange = element<HTMLElement>('flock-spawn-distance-range');
+  private readonly flockSpawnDistanceMin = element<HTMLInputElement>('flock-spawn-distance-min');
+  private readonly flockSpawnDistanceMax = element<HTMLInputElement>('flock-spawn-distance-max');
   private readonly flockInterval = element<HTMLInputElement>('flock-interval');
   private readonly flockSpread = element<HTMLInputElement>('flock-spread');
   private readonly flockSpeed = element<HTMLInputElement>('flock-speed');
@@ -297,6 +332,7 @@ export class SettingsPanel {
   private readonly windSpeedThresholdValue = element<HTMLOutputElement>('wind-speed-threshold-value');
   private readonly windOpacityValue = element<HTMLOutputElement>('wind-opacity-value');
   private readonly flockSizeValue = element<HTMLOutputElement>('flock-size-value');
+  private readonly flockSpawnDistanceValue = element<HTMLOutputElement>('flock-spawn-distance-value');
   private readonly flockIntervalValue = element<HTMLOutputElement>('flock-interval-value');
   private readonly flockSpreadValue = element<HTMLOutputElement>('flock-spread-value');
   private readonly flockSpeedValue = element<HTMLOutputElement>('flock-speed-value');
@@ -346,6 +382,16 @@ export class SettingsPanel {
         this.flockMaxSize.value = this.flockMinSize.value;
       }
     });
+    this.flockSpawnDistanceMin.addEventListener('input', () => {
+      if (this.flockSpawnDistanceMin.valueAsNumber > this.flockSpawnDistanceMax.valueAsNumber) {
+        this.flockSpawnDistanceMin.value = this.flockSpawnDistanceMax.value;
+      }
+    });
+    this.flockSpawnDistanceMax.addEventListener('input', () => {
+      if (this.flockSpawnDistanceMax.valueAsNumber < this.flockSpawnDistanceMin.valueAsNumber) {
+        this.flockSpawnDistanceMax.value = this.flockSpawnDistanceMin.value;
+      }
+    });
     bindButtonAction(this.button, () => this.toggle());
     bindButtonAction(this.applyWorldSettingsButton, () => this.onApplyWorldSettings?.());
     bindButtonAction(this.boostGlassDebugButton, () => {
@@ -386,6 +432,8 @@ export class SettingsPanel {
       terrainCrystalDispersion: this.terrainCrystalDispersion.valueAsNumber,
       terrainCrystalColor: this.terrainCrystalColor.value,
       planeColor: this.planeColor.value,
+      scanResetInterval: this.scanResetInterval.valueAsNumber,
+      scanTerrainDistance: this.scanTerrainDistance.valueAsNumber,
       scanTerrainSpeed: this.scanTerrainSpeed.valueAsNumber,
       scanTerrainPattern: this.scanTerrainPattern.value as AppSettings['scanTerrainPattern'],
       scanTerrainPatternSpacing: this.scanTerrainPatternSpacing.valueAsNumber,
@@ -451,6 +499,8 @@ export class SettingsPanel {
       flockEnabled: this.flockEnabled.checked,
       flockMinSize: this.flockMinSize.valueAsNumber,
       flockMaxSize: this.flockMaxSize.valueAsNumber,
+      flockSpawnDistanceMin: this.flockSpawnDistanceMin.valueAsNumber,
+      flockSpawnDistanceMax: this.flockSpawnDistanceMax.valueAsNumber,
       flockInterval: this.flockInterval.valueAsNumber,
       flockSpread: this.flockSpread.valueAsNumber,
       flockSpeed: this.flockSpeed.valueAsNumber,
@@ -498,8 +548,8 @@ export class SettingsPanel {
       'settings-drift-trail-title',
       'settings-impact-title',
       'settings-navigation-title',
-      'settings-world-route-title',
       'settings-touch-title',
+      'settings-world-route-title',
     ];
     const sections = Array.from(this.panel.querySelectorAll<HTMLElement>(':scope > .settings-section'));
     const first = sections[0];
@@ -587,14 +637,15 @@ export class SettingsPanel {
     try {
       const currentRaw = localStorage.getItem(STORAGE_KEY);
       const previousRaw = currentRaw ? null : localStorage.getItem(PREVIOUS_STORAGE_KEY);
-      const aerolithLegacyRaw = currentRaw || previousRaw ? null : localStorage.getItem(AEROLITH_LEGACY_STORAGE_KEY);
-      const legacyV2Raw = currentRaw || previousRaw || aerolithLegacyRaw ? null : localStorage.getItem(LEGACY_STORAGE_KEY_V2);
-      const legacyV1Raw = currentRaw || previousRaw || aerolithLegacyRaw || legacyV2Raw
+      const previousV3Raw = currentRaw || previousRaw ? null : localStorage.getItem(PREVIOUS_STORAGE_KEY_V3);
+      const aerolithLegacyRaw = currentRaw || previousRaw || previousV3Raw ? null : localStorage.getItem(AEROLITH_LEGACY_STORAGE_KEY);
+      const legacyV2Raw = currentRaw || previousRaw || previousV3Raw || aerolithLegacyRaw ? null : localStorage.getItem(LEGACY_STORAGE_KEY_V2);
+      const legacyV1Raw = currentRaw || previousRaw || previousV3Raw || aerolithLegacyRaw || legacyV2Raw
         ? null
         : localStorage.getItem(LEGACY_STORAGE_KEY_V1);
-      const parsed = JSON.parse(currentRaw ?? previousRaw ?? aerolithLegacyRaw ?? legacyV2Raw ?? legacyV1Raw ?? 'null') as unknown;
+      const parsed = JSON.parse(currentRaw ?? previousRaw ?? previousV3Raw ?? aerolithLegacyRaw ?? legacyV2Raw ?? legacyV1Raw ?? 'null') as unknown;
       if (!isRecord(parsed)) return;
-      const saved = legacyV1Raw ? migrateVisualSettingsV1(parsed) : parsed;
+      const saved = migrateAutomaticSlipSettings(legacyV1Raw ? migrateVisualSettingsV1(parsed) : parsed);
       this.combatControls.restore(saved);
       this.flightControls.restore(saved);
       if (
@@ -623,6 +674,8 @@ export class SettingsPanel {
       this.restoreRange(this.terrainCrystalDispersion, saved.terrainCrystalDispersion);
       this.restoreColor(this.terrainCrystalColor, saved.terrainCrystalColor);
       this.restoreColor(this.planeColor, this.migrateColor(saved.planeColor, '#b7bdbb', '#e6e6e6'));
+      this.restoreRange(this.scanResetInterval, saved.scanResetInterval);
+      this.restoreRange(this.scanTerrainDistance, saved.scanTerrainDistance);
       this.restoreRange(this.scanTerrainSpeed, saved.scanTerrainSpeed);
       if (saved.scanTerrainPattern === 'dot' || saved.scanTerrainPattern === 'plus') {
         this.scanTerrainPattern.value = saved.scanTerrainPattern;
@@ -650,6 +703,11 @@ export class SettingsPanel {
       if (typeof saved.flockEnabled === 'boolean') this.flockEnabled.checked = saved.flockEnabled;
       this.restoreRange(this.flockMinSize, saved.flockMinSize);
       this.restoreRange(this.flockMaxSize, saved.flockMaxSize);
+      this.restoreRange(this.flockSpawnDistanceMin, saved.flockSpawnDistanceMin);
+      this.restoreRange(this.flockSpawnDistanceMax, saved.flockSpawnDistanceMax);
+      if (this.flockSpawnDistanceMin.valueAsNumber > this.flockSpawnDistanceMax.valueAsNumber) {
+        this.flockSpawnDistanceMin.value = this.flockSpawnDistanceMax.value;
+      }
       this.restoreRange(this.flockInterval, saved.flockInterval === 20 ? 8 : saved.flockInterval);
       this.restoreRange(this.flockSpread, saved.flockSpread === 18 ? 30 : saved.flockSpread);
       this.restoreRange(this.flockSpeed, saved.flockSpeed);
@@ -770,6 +828,8 @@ export class SettingsPanel {
     this.terrainCrystalOpacityValue.textContent = `${Math.round(this.terrainCrystalOpacity.valueAsNumber * 100)}%`;
     this.terrainCrystalRefractionValue.textContent = this.terrainCrystalRefraction.valueAsNumber.toFixed(2);
     this.terrainCrystalDispersionValue.textContent = this.terrainCrystalDispersion.valueAsNumber.toFixed(2);
+    this.scanResetIntervalValue.textContent = `${this.scanResetInterval.valueAsNumber.toFixed(1)} S`;
+    this.scanTerrainDistanceValue.textContent = `${this.scanTerrainDistance.valueAsNumber.toFixed(0)} M`;
     this.scanTerrainSpeedValue.textContent = `${this.scanTerrainSpeed.valueAsNumber.toFixed(0)} M/S`;
     this.scanTerrainPatternSpacingValue.textContent = `${this.scanTerrainPatternSpacing.valueAsNumber.toFixed(0)} M`;
     this.scanTerrainPatternSizeValue.textContent = `${this.scanTerrainPatternSize.valueAsNumber.toFixed(1)} M`;
@@ -795,6 +855,18 @@ export class SettingsPanel {
       `${((this.flockMaxSize.valueAsNumber - rangeMin) / denominator) * 100}%`,
     );
     this.flockSizeValue.textContent = `${this.flockMinSize.valueAsNumber.toFixed(0)}–${this.flockMaxSize.valueAsNumber.toFixed(0)}`;
+    const flockDistanceMin = Number(this.flockSpawnDistanceMin.min);
+    const flockDistanceMax = Number(this.flockSpawnDistanceMin.max);
+    const flockDistanceSpan = Math.max(1, flockDistanceMax - flockDistanceMin);
+    this.flockSpawnDistanceRange.style.setProperty(
+      '--range-min',
+      `${((this.flockSpawnDistanceMin.valueAsNumber - flockDistanceMin) / flockDistanceSpan) * 100}%`,
+    );
+    this.flockSpawnDistanceRange.style.setProperty(
+      '--range-max',
+      `${((this.flockSpawnDistanceMax.valueAsNumber - flockDistanceMin) / flockDistanceSpan) * 100}%`,
+    );
+    this.flockSpawnDistanceValue.textContent = `${this.flockSpawnDistanceMin.valueAsNumber.toFixed(0)}–${this.flockSpawnDistanceMax.valueAsNumber.toFixed(0)} M`;
     this.flockIntervalValue.textContent = `${this.flockInterval.valueAsNumber.toFixed(0)} S`;
     this.flockSpreadValue.textContent = `${this.flockSpread.valueAsNumber.toFixed(0)} M`;
     this.flockSpeedValue.textContent = `${this.flockSpeed.valueAsNumber.toFixed(0)} M/S`;

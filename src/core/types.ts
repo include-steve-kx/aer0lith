@@ -4,7 +4,8 @@ export type FlightMode = 'loading' | 'autopilot' | 'manual' | 'crashed' | 'pause
 export type CameraMode = 'cockpit' | 'chase' | 'far-chase';
 export type ExperienceMode = 'ambient' | 'analysis';
 export type DriftTier = 0 | 1 | 2 | 3;
-export type DriftState = 'cruise' | 'drift' | 'banked' | 'drift-boost' | 'normal-boost';
+export type BoostState = 'cruise' | 'normal-boost' | 'drift-boost';
+export type EnergyActivity = 'idle' | 'charging' | 'banked' | 'decaying';
 export type FlightImpactSource = 'terrain' | 'meteor';
 
 export interface FlightImpactSnapshot {
@@ -58,10 +59,19 @@ export interface FlightSnapshot {
   seed: string;
   audioEnabled: boolean;
   controlVelocity?: Vector3;
+  explosionVelocity?: Vector3;
+  effectiveVelocity?: Vector3;
+  slipVector?: Vector3;
+  slipSpeed?: number;
+  normalizedSlip?: number;
+  slipIntensity?: number;
   driftAngle?: number;
   driftEnergy?: number;
   driftTier?: DriftTier;
-  driftState?: DriftState;
+  boostState?: BoostState;
+  energyActivity?: EnergyActivity;
+  currentChargeRate?: number;
+  currentDrainRate?: number;
   boostKickAvailable?: boolean;
 }
 
@@ -79,8 +89,6 @@ export interface FlightInput {
   roll: number;
   yaw: number;
   throttle: number;
-  driftHeld?: boolean;
-  driftPressed?: boolean;
   boostHeld?: boolean;
   boostPressed?: boolean;
   boostReleased?: boolean;

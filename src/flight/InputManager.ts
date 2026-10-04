@@ -22,7 +22,6 @@ export interface PointerFlightControls {
   joystick: HTMLElement;
   joystickThumb: HTMLElement;
   throttleButton: HTMLButtonElement;
-  driftButton: HTMLButtonElement;
   rollLeftButton: HTMLButtonElement;
   rollRightButton: HTMLButtonElement;
   fireButton?: HTMLButtonElement;
@@ -37,13 +36,33 @@ export interface JoystickInput {
 }
 
 const CAPTURED = new Set([
-  'KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyJ', 'KeyK',
+  'KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyK',
   'KeyT', 'KeyC', 'Digit1', 'Digit2', 'Digit3',
   'KeyM', 'KeyI', 'KeyP', 'Escape', 'KeyN', 'KeyF',
   'KeyG', 'KeyU', 'KeyQ', 'KeyE', 'Space',
 ]);
 
 const DIRECTION_KEYS = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD']);
+
+const SHORTCUT_BUTTON_IDS: Readonly<Record<string, string>> = {
+  KeyQ: 'roll-left-button',
+  KeyE: 'roll-right-button',
+  KeyK: 'throttle-button',
+  KeyT: 'mode-button',
+  KeyC: 'camera-button',
+  Digit1: 'camera-button',
+  Digit2: 'camera-button',
+  Digit3: 'camera-button',
+  KeyM: 'audio-button',
+  KeyP: 'pause-button',
+  Escape: 'pause-button',
+  KeyN: 'seed-button',
+  KeyU: 'view-button',
+  KeyF: 'probe-button',
+  KeyG: 'pulse-button',
+  Space: 'fire-button',
+  Enter: 'fullscreen-button',
+};
 
 export function flightInputFromKeys(pressed: ReadonlySet<string>): FlightInput {
   const has = (...codes: string[]): boolean => codes.some((code) => pressed.has(code));
@@ -53,7 +72,6 @@ export function flightInputFromKeys(pressed: ReadonlySet<string>): FlightInput {
     yaw: (has('KeyA') ? 1 : 0) + (has('KeyD') ? -1 : 0),
     throttle: has('KeyK') ? 1 : 0,
     boostHeld: has('KeyK'),
-    driftHeld: has('KeyJ'),
   };
 }
 
@@ -87,7 +105,6 @@ export function joystickInputFromOffset(
 
 export class InputManager {
   readonly boost = new HoldAction();
-  readonly drift = new HoldAction();
   private readonly events = new AbortController();
   private firePointer: number | undefined;
   private fireKeyboard = false;
@@ -148,7 +165,6 @@ export class InputManager {
   private readonly pointerControls: PointerFlightControls | undefined;
   private joystickPointerId: number | undefined;
   private throttlePointerId: number | undefined;
-  private driftPointerId: number | undefined;
   private pointerPitch = 0;
   private pointerRoll = 0;
   private pointerYaw = 0;
@@ -205,10 +221,6 @@ export class InputManager {
     controls.throttleButton.addEventListener('pointerup', this.onThrottlePointerUp, { signal });
     controls.throttleButton.addEventListener('pointercancel', this.onThrottlePointerUp, { signal });
     controls.throttleButton.addEventListener('lostpointercapture', this.onThrottlePointerUp, { signal });
-    controls.driftButton.addEventListener('pointerdown', this.onDriftPointerDown, { signal });
-    controls.driftButton.addEventListener('pointerup', this.onDriftPointerUp, { signal });
-    controls.driftButton.addEventListener('pointercancel', this.onDriftPointerUp, { signal });
-    controls.driftButton.addEventListener('lostpointercapture', this.onDriftPointerUp, { signal });
   }
 
   private onJoystickPointerDown = (event: PointerEvent): void => {
@@ -278,25 +290,6 @@ export class InputManager {
     this.consumeFlightPointer(event);
   };
 
-  private onDriftPointerDown = (event: PointerEvent): void => {
-    if (this.driftPointerId !== undefined || (event.pointerType === 'mouse' && event.button !== 0)) return;
-    this.driftPointerId = event.pointerId;
-    this.pointerControls?.driftButton.setPointerCapture(event.pointerId);
-    this.drift.setHeld('pointer', true);
-    this.actions.onManualInput();
-    this.consumeFlightPointer(event);
-  };
-
-  private onDriftPointerUp = (event: PointerEvent): void => {
-    if (event.pointerId !== this.driftPointerId) return;
-    this.driftPointerId = undefined;
-    if (this.pointerControls?.driftButton.hasPointerCapture(event.pointerId)) {
-      this.pointerControls.driftButton.releasePointerCapture(event.pointerId);
-    }
-    this.drift.setHeld('pointer', false);
-    this.consumeFlightPointer(event);
-  };
-
   /**
    * OrbitControls listens for pointer movement on the owner document while a
    * canvas gesture is active. A separately captured joystick/throttle pointer
@@ -330,6 +323,15 @@ export class InputManager {
     return active === this.root || (active instanceof Node && this.root.contains(active));
   }
 
+  private setShortcutPressed(event: KeyboardEvent, pressed: boolean): void {
+    if (event.code === 'KeyN' && !event.shiftKey && pressed) return;
+    if (event.code === 'Enter' && !event.altKey && pressed) return;
+    const id = SHORTCUT_BUTTON_IDS[event.code];
+    if (!id) return;
+    const button = document.getElementById?.(id);
+    button?.classList.toggle('is-shortcut-pressed', pressed);
+  }
+
   private onKeyDown = (event: KeyboardEvent): void => {
     if (!this.hasExperienceFocus()) return;
     if (event.target instanceof Element && event.target.closest('input, select, textarea, [contenteditable=true]')) return;
@@ -337,14 +339,12 @@ export class InputManager {
       && !event.ctrlKey && !event.metaKey;
     if (fullscreenShortcut) {
       event.preventDefault();
+      this.setShortcutPressed(event, true);
       if (!event.repeat) this.actions.onToggleFullscreen();
       return;
     }
     if (event.target === this.pointerControls?.throttleButton && ['Space', 'Enter'].includes(event.code)) {
       event.preventDefault(); this.boost.setHeld(event.code, true); return;
-    }
-    if (event.target === this.pointerControls?.driftButton && ['Space', 'Enter'].includes(event.code)) {
-      event.preventDefault(); this.drift.setHeld(event.code, true); this.actions.onManualInput(); return;
     }
     if (['Space', 'Enter'].includes(event.code)
       && (event.target === this.pointerControls?.rollLeftButton || event.target === this.pointerControls?.rollRightButton)) {
@@ -358,6 +358,7 @@ export class InputManager {
     if (event.code === 'Space' || (event.code === 'Enter' && event.target === this.pointerControls?.fireButton)) {
       if (event.target instanceof Element && event.target.closest('button') && event.target !== this.pointerControls?.fireButton) return;
       event.preventDefault();
+      this.setShortcutPressed(event, true);
       if (!event.repeat) { this.fireKeyboard = true; this.fireTapPending = true; }
       return;
     }
@@ -366,12 +367,12 @@ export class InputManager {
     // an unmodified game action (for example, Ctrl/Cmd+F remains Find).
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (CAPTURED.has(event.code)) event.preventDefault();
+    this.setShortcutPressed(event, true);
     const alreadyPressed = this.pressed.has(event.code);
     this.pressed.add(event.code);
-    if (DIRECTION_KEYS.has(event.code) || event.code === 'KeyJ') this.actions.onManualInput();
+    if (DIRECTION_KEYS.has(event.code)) this.actions.onManualInput();
     if (event.repeat || alreadyPressed) return;
     if (event.code === 'KeyK') this.boost.setHeld(event.code, true);
-    if (event.code === 'KeyJ') this.drift.setHeld(event.code, true);
     switch (event.code) {
       case 'KeyQ': this.actions.onRoll(-1); break;
       case 'KeyE': this.actions.onRoll(1); break;
@@ -392,34 +393,31 @@ export class InputManager {
   };
 
   private onKeyUp = (event: KeyboardEvent): void => {
+    this.setShortcutPressed(event, false);
     if (event.code === 'Space' || event.code === 'Enter') this.fireKeyboard = false;
     this.pressed.delete(event.code);
     this.boost.setHeld(event.code, false);
-    this.drift.setHeld(event.code, false);
   };
 
   clearFlightActions = (): void => {
     this.clearFire();
     this.pressed.clear();
     this.boost.releaseAll();
-    this.drift.releaseAll();
+    for (const button of this.root.querySelectorAll('.is-shortcut-pressed')) {
+      button.classList.remove('is-shortcut-pressed');
+    }
     if (this.joystickPointerId !== undefined && this.pointerControls?.joystick.hasPointerCapture(this.joystickPointerId)) {
       this.pointerControls.joystick.releasePointerCapture(this.joystickPointerId);
     }
     if (this.throttlePointerId !== undefined && this.pointerControls?.throttleButton.hasPointerCapture(this.throttlePointerId)) {
       this.pointerControls.throttleButton.releasePointerCapture(this.throttlePointerId);
     }
-    if (this.driftPointerId !== undefined && this.pointerControls?.driftButton.hasPointerCapture(this.driftPointerId)) {
-      this.pointerControls.driftButton.releasePointerCapture(this.driftPointerId);
-    }
     this.joystickPointerId = undefined;
     this.throttlePointerId = undefined;
-    this.driftPointerId = undefined;
     this.pointerPitch = 0;
     this.pointerRoll = 0;
     this.pointerYaw = 0;
     this.boost.setHeld('pointer', false);
-    this.drift.setHeld('pointer', false);
     if (this.pointerControls) {
       this.pointerControls.joystick.classList.remove('is-active');
       this.pointerControls.joystickThumb.style.transform = 'translate(-50%, -50%)';
@@ -432,7 +430,6 @@ export class InputManager {
     const keyboard = flightInputFromKeys(this.pressed);
     const boostPressed = this.boost.consumePressed();
     const boostReleased = this.boost.consumeReleased();
-    const driftPressed = this.drift.consumePressed();
     return {
       pitch: Math.max(-1, Math.min(1, keyboard.pitch + this.pointerPitch)),
       roll: Math.max(-1, Math.min(1, keyboard.roll + this.pointerRoll)),
@@ -441,8 +438,6 @@ export class InputManager {
       boostHeld: this.boost.active,
       boostPressed,
       boostReleased,
-      driftHeld: this.drift.active,
-      driftPressed,
     };
   }
 }
