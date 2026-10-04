@@ -13,12 +13,15 @@ export const DEFAULT_METEORS = {
   meteorEnabled: true,
   meteorProximityEnabled: true,
   meteorMinTriggerDistance: 50,
-  meteorMaxTriggerDistance: 65,
+  meteorMaxTriggerDistance: 80,
   meteorMinFuseDelay: 0,
   meteorMaxFuseDelay: 0.5,
   meteorMinDiameter: 6,
-  meteorMaxDiameter: 36,
-  meteorCount: 12,
+  meteorMaxDiameter: 50,
+  meteorSpawnDistanceMin: 1200,
+  meteorSpawnDistanceMax: 1400,
+  meteorCountMin: 8,
+  meteorCountMax: 12,
   meteorInterval: 10,
   meteorSpeed: 6.5,
   meteorSpin: 40,
@@ -36,7 +39,7 @@ export const DEFAULT_METEORS = {
 };
 export const DEFAULT_MISSILES = {
   missileEnabled: true,
-  missileSpeed: 180,
+  missileSpeed: 300,
   missileTurn: 150,
   missileCapacity: 3,
   missileReload: 3,
@@ -50,14 +53,14 @@ export const DEFAULT_MISSILES = {
   missileHud: true,
 };
 export const DEFAULT_IMPACTS = {
-  explosionPush: 20,
+  explosionPush: 25,
   explosionVelocityAxisFactor: 0.5,
   explosionPushLife: 2,
   explosionSize: 1.5,
   explosionLife: 1.2,
   explosionRefraction: 0.8,
   explosionDispersion: 0.16,
-  explosionBrightness: 0.6,
+  explosionBrightness: 0.7,
   fragmentEnabled: true,
   fragmentCount: 8,
   fragmentLife: 2.5,
@@ -82,7 +85,7 @@ export const DEFAULT_PULSE = {
   pulseRange: 800,
   pulseRadius: 80,
   pulsePlasmaRadius: 8,
-  pulseCooldown: 1,
+  pulseCooldown: 10,
   pulseDuration: 0.6,
   pulseColor: '#9ffcff',
   pulseBrightness: 1.35,
@@ -141,18 +144,21 @@ export const METEOR_CONTROLS: readonly ControlSpec[] = [
   ['meteorMaxTriggerDistance', 'MAX EXPLOSION SURFACE DISTANCE', 5, 150, 1, ' M'],
   ['meteorMinFuseDelay', 'MIN EXPLOSION WAIT', 0, 8, 0.1, ' S'],
   ['meteorMaxFuseDelay', 'MAX EXPLOSION WAIT', 0, 8, 0.1, ' S'],
-  ['meteorMinDiameter', 'MIN DIAMETER', 2, 72, 1, ' M'],
-  ['meteorMaxDiameter', 'MAX DIAMETER', 2, 72, 1, ' M'],
-  ['meteorCount', 'METEORS / ENCOUNTER', 1, 24, 1],
+  ['meteorMinDiameter', 'MIN DIAMETER', 2, 100, 1, ' M'],
+  ['meteorMaxDiameter', 'MAX DIAMETER', 2, 100, 1, ' M'],
+  ['meteorSpawnDistanceMin', 'MIN SPAWN AHEAD DISTANCE', 180, 2000, 10, ' M'],
+  ['meteorSpawnDistanceMax', 'MAX SPAWN AHEAD DISTANCE', 180, 2000, 10, ' M'],
+  ['meteorCountMin', 'MIN METEORS / ENCOUNTER', 1, 24, 1],
+  ['meteorCountMax', 'MAX METEORS / ENCOUNTER', 1, 24, 1],
   ['meteorInterval', 'ENCOUNTER INTERVAL', 4, 40, 1, ' S'],
   ['meteorSpeed', 'DRIFT SPEED', 0, 10, 0.1, ' M/S'],
-  ['meteorSpin', 'ROTATION SPEED', 0, 40, 0.5, ' °/S'],
+  ['meteorSpin', 'ROTATION SPEED', 0, 80, 0.5, ' °/S'],
   ['meteorSpread', 'ENCOUNTER SPREAD', 15, 100, 1, ' M'],
   ['meteorColor', 'DORMANT METEOR COLOR'],
   ['meteorProximityColor', 'TRIGGER HOTSPOT + FRESH FRAGMENT COLOR'],
   ['meteorProximityFalloff', 'TRIGGER HOTSPOT FALLOFF', 1, 64, 1],
   ['meteorAshColor', 'ASH FRAGMENT COLOR'],
-  ['meteorIrregularity', 'SHAPE IRREGULARITY', 0, 0.5, 0.125],
+  ['meteorIrregularity', 'SHAPE IRREGULARITY', 0, 1, 0.125],
   ['meteorDetection', 'DETECTION DURATION', 3, 15, 0.5, ' S'],
   ['meteorTargetColor', 'TARGET COLOR'],
   ['meteorTargetThickness', 'BOX THICKNESS', 0.04, 0.3, 0.01, ' M'],
@@ -161,7 +167,7 @@ export const METEOR_CONTROLS: readonly ControlSpec[] = [
 ];
 export const MISSILE_CONTROLS: readonly ControlSpec[] = [
   ['missileEnabled', 'AUTOMATIC MISSILES'],
-  ['missileSpeed', 'MISSILE SPEED', 160, 400, 5, ' M/S'],
+  ['missileSpeed', 'MISSILE SPEED', 160, 600, 5, ' M/S'],
   ['missileTurn', 'TRACKING TURN RATE', 45, 300, 5, ' °/S'],
   ['missileCapacity', 'STORED / WING', 1, 8, 1],
   ['missileReload', 'RELOAD TIME', 0.5, 10, 0.1, ' S'],
@@ -220,7 +226,7 @@ export const BULLET_CONTROLS: readonly ControlSpec[] = [
 ];
 export const PULSE_CONTROLS: readonly ControlSpec[] = [
   ['pulseEnabled', 'PULSE CANNON ENABLED'],
-  ['pulseRange', 'RANGE', 160, 800, 20, ' M'],
+  ['pulseRange', 'RANGE', 160, 1600, 20, ' M'],
   ['pulseRadius', 'IMPACT BEAM RADIUS', 4, 160, 2, ' M'],
   ['pulsePlasmaRadius', 'INNER PLASMA RADIUS', 4, 80, 2, ' M'],
   ['pulseCooldown', 'COOLDOWN', 0.25, 15, 0.25, ' S'],
@@ -233,7 +239,7 @@ export const PULSE_CONTROLS: readonly ControlSpec[] = [
   ['pulseShakeStrength', 'CAMERA SHAKE', 0, 2, 0.05],
   ['pulseShakeFrequency', 'SHAKE FREQUENCY', 4, 30, 1, ' HZ'],
   ['pulseShakeDuration', 'SHAKE DURATION', 0.3, 8, 0.1, ' S'],
-  ['pulseGlassWidth', 'OUTER GLASS WIDTH', 0.5, 2, 0.01, '×'],
+  ['pulseGlassWidth', 'OUTER GLASS WIDTH', 0.5, 4, 0.01, '×'],
   ['pulseGlassLength', 'OUTER GLASS LENGTH', 0.5, 1.2, 0.01, '×'],
   ['pulseElectricStrength', 'ELECTRIC STRENGTH', 0, 4, 0.05],
   ['pulseElectricSpread', 'ELECTRIC SPREAD', 0, 2, 0.05, '×'],
@@ -257,6 +263,18 @@ export function migrateCombatSettings(
   input: Partial<Record<keyof CombatSettings, unknown>>,
 ): Partial<Record<keyof CombatSettings, unknown>> {
   const migrated = { ...input };
+  const legacyCount = (input as Record<string, unknown>).meteorCount;
+  if (
+    input.meteorCountMin === undefined &&
+    input.meteorCountMax === undefined &&
+    typeof legacyCount === 'number' &&
+    Number.isFinite(legacyCount)
+  ) {
+    // The former shipped value was a fixed 12. Move saves that retained it to
+    // the new varied default, while preserving intentionally customized counts.
+    migrated.meteorCountMin = legacyCount === 12 ? 8 : legacyCount;
+    migrated.meteorCountMax = legacyCount;
+  }
   // Adopt the new darker lifecycle default for saves that still contain the
   // exact former default, while preserving intentional custom meteor colors.
   if (input.meteorProximityColor === undefined && input.meteorColor === '#8b8f92')
@@ -311,6 +329,14 @@ export function sanitizeCombatSettings(
   result.meteorMinTriggerDistance = Math.min(
     result.meteorMinTriggerDistance,
     result.meteorMaxTriggerDistance,
+  );
+  result.meteorSpawnDistanceMin = Math.min(
+    result.meteorSpawnDistanceMin,
+    result.meteorSpawnDistanceMax,
+  );
+  result.meteorCountMin = Math.min(
+    result.meteorCountMin,
+    result.meteorCountMax,
   );
   result.meteorMinFuseDelay = Math.min(
     result.meteorMinFuseDelay,

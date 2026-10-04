@@ -58,6 +58,14 @@ export class CombatSettingsControls {
       'meteorMinDiameter', 'meteorMaxDiameter',
       'DIAMETER RANGE', 'Meteor diameter range', ' M',
     );
+    this.addDualRange(
+      'meteorSpawnDistanceMin', 'meteorSpawnDistanceMax',
+      'SPAWN AHEAD DISTANCE', 'Meteor spawn-ahead distance range', ' M',
+    );
+    this.addDualRange(
+      'meteorCountMin', 'meteorCountMax',
+      'METEORS / ENCOUNTER', 'Meteor count per encounter range', '',
+    );
     this.restore(DEFAULT_COMBAT);
   }
   private addDualRange(

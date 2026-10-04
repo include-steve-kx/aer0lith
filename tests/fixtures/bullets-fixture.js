@@ -144,7 +144,8 @@ button("Start 5-minute soak", () => {
     bulletRange: 1600,
     bulletTrailLife: 1,
     bulletTrailLength: 100,
-    meteorCount: 12,
+    meteorCountMin: 12,
+    meteorCountMax: 12,
     meteorInterval: 4,
   });
   running = automatic = true;

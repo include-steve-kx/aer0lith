@@ -136,7 +136,8 @@ button('Start 5-minute soak', () => {
   app.paused = false;
   app.resetFlight();
   configure({
-    meteorCount: 12,
+    meteorCountMin: 12,
+    meteorCountMax: 12,
     meteorInterval: 4,
     missileReload: 0.5,
     missileCapacity: 8,

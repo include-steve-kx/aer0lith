@@ -7,6 +7,7 @@ import { PushVectorView } from '../src/combat/PushVectorView.ts';
 import { explosionImpulse } from '../src/combat/ExplosionForce.ts';
 import { DEFAULT_COMBAT } from '../src/combat/settings.ts';
 import { FlightController } from '../src/flight/FlightController.ts';
+import { DEFAULT_FLIGHT_TUNING } from '../src/flight/FlightTuning.ts';
 import type { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 const air = { densityAt:()=>-1000, collisionDensityAt:()=>-1000,
   sample:()=>({x:0,y:0,tangentX:0,tangentY:0,openness:1,width:200,height:200,floorY:-100}) };
@@ -18,6 +19,11 @@ const neutral = { pitch:0, roll:0, yaw:0, throttle:0 };
 test('speed is measured travel including blast vectors, opposite thrust, rolls, and reset', () => {
   for (const impulse of [new Vector3(30,0,0),new Vector3(0,0,30),new Vector3(0,0,-30)]) {
     const flight = new FlightController(air as unknown as ProceduralTerrain);
+    flight.configure({
+      ...DEFAULT_FLIGHT_TUNING,
+      normalTopSpeed: 120,
+      normalBoostTopSpeed: 120,
+    });
     flight.speed = 120; flight.throttle = 1;
     const before = flight.position.clone();
     flight.applyExternalImpulse(impulse,2);
@@ -79,7 +85,7 @@ test('shared prediction equals destruction impulse, uses size, and handles coinc
     meteors.applyHit({slot:meteors.rocks.indexOf(rock),generation:rock.generation},new Vector3(0,0,95),new Vector3(1,0,0),true);
   }
   const coincident=meteors.predictExplosionImpulse(new Vector3(),{position:zero,diameter:12});
-  assert.deepEqual(coincident.toArray(),[0,0,-10]);
+  assert.deepEqual(coincident.toArray(), [0, 0, -DEFAULT_COMBAT.explosionPush / 2]);
   meteors.dispose();
 });
 

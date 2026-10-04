@@ -412,9 +412,13 @@ test('velocity-axis push factor scales only the component parallel to ship trave
 
 test("tuned explosion push scales with size without clipping and settles in two seconds", () => {
   const flight = new FlightController(air as unknown as ProceduralTerrain);
-  flight.applyExternalImpulse(new Vector3(DEFAULT_COMBAT.explosionPush * 1.5, 0, 0), DEFAULT_COMBAT.explosionPushLife);
+  const initialPush = DEFAULT_COMBAT.explosionPush * 1.5;
+  flight.applyExternalImpulse(new Vector3(initialPush, 0, 0), DEFAULT_COMBAT.explosionPushLife);
   flight.update(0.01, neutral);
-  assert.ok(Math.abs(flight.externalVelocity.x - 29.85) < 1e-8);
+  assert.ok(Math.abs(
+    flight.externalVelocity.x
+      - initialPush * (1 - 0.01 / DEFAULT_COMBAT.explosionPushLife),
+  ) < 1e-8);
   assert.equal(flight.mode, "autopilot");
   for (let i = 1; i < 200; i++) flight.update(0.01, neutral);
   assert.equal(flight.externalVelocity.length(), 0);

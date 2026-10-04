@@ -363,7 +363,10 @@ export class MeteorSystem implements DynamicObstacleProvider {
   }
   private spawnEncounter(ship: Vector3, q: Quaternion): void {
     this.forward.set(0, 0, 1).applyQuaternion(q);
-    for (let n = 0; n < this.settings.meteorCount; n++)
+    const count = this.settings.meteorCountMin + Math.floor(
+      this.random.next() * (this.settings.meteorCountMax - this.settings.meteorCountMin + 1),
+    );
+    for (let n = 0; n < count; n++)
       for (let attempt = 0; attempt < 16; attempt++) {
         if (this.activeCount >= COMBAT_LIMITS.meteors) return;
         const diameter = this.random.range(
@@ -377,7 +380,13 @@ export class MeteorSystem implements DynamicObstacleProvider {
         const radius = this.library.variants[variant].shape.radius * diameter;
         this.candidate
           .copy(ship)
-          .addScaledVector(this.forward, this.random.range(300, 550));
+          .addScaledVector(
+            this.forward,
+            this.random.range(
+              this.settings.meteorSpawnDistanceMin,
+              this.settings.meteorSpawnDistanceMax,
+            ),
+          );
         const path = this.terrain.sample(this.candidate.z);
         const angle = this.random.range(0, Math.PI * 2),
           r = this.random.range(
@@ -452,7 +461,7 @@ export class MeteorSystem implements DynamicObstacleProvider {
       this.delta.subVectors(m.position, ship);
       if (
         m.age > 60 ||
-        this.delta.lengthSq() > 1200 ** 2 ||
+        this.delta.lengthSq() > Math.max(1200, this.settings.meteorSpawnDistanceMax + 400) ** 2 ||
         this.delta.dot(this.forward) < -350
       ) {
         m.active = false;

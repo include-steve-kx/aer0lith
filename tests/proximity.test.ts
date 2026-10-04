@@ -5,6 +5,7 @@ import { MeteorSystem } from '../src/combat/MeteorSystem.ts';
 import { RockLibrary } from '../src/combat/geometry.ts';
 import { DEFAULT_COMBAT, migrateCombatSettings, sanitizeCombatSettings, METEOR_CONTROLS, MISSILE_CONTROLS, DESTRUCTION_CONTROLS, PULSE_CONTROLS, BULLET_CONTROLS } from '../src/combat/settings.ts';
 import { FlightController } from '../src/flight/FlightController.ts';
+import { DEFAULT_FLIGHT_TUNING } from '../src/flight/FlightTuning.ts';
 import { FLIGHT } from '../src/core/config.ts';
 import type { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 
@@ -93,12 +94,14 @@ test('spawned meteors retain sampled lifecycle values while later settings affec
 test('new defaults fit slider bounds and restoration preserves saved custom settings', () => {
   assert.equal(DEFAULT_COMBAT.explosionShakeRadius, 400);
   assert.equal(DEFAULT_COMBAT.bulletRate, 36);
-  assert.equal(DEFAULT_COMBAT.explosionPush, 20);
+  assert.equal(DEFAULT_COMBAT.explosionPush, 25);
   assert.equal(DEFAULT_COMBAT.explosionVelocityAxisFactor, 0.5);
   assert.equal(DEFAULT_COMBAT.explosionPushLife, 2);
-  assert.equal(DEFAULT_COMBAT.meteorMaxDiameter, 36);
+  assert.equal(DEFAULT_COMBAT.meteorMaxDiameter, 50);
   assert.equal(DEFAULT_COMBAT.meteorMinTriggerDistance, 50);
-  assert.equal(DEFAULT_COMBAT.meteorMaxTriggerDistance, 65);
+  assert.equal(DEFAULT_COMBAT.meteorMaxTriggerDistance, 80);
+  assert.equal(DEFAULT_COMBAT.meteorSpawnDistanceMin, 1200);
+  assert.equal(DEFAULT_COMBAT.meteorSpawnDistanceMax, 1400);
   assert.equal(DEFAULT_COMBAT.meteorMinFuseDelay, 0);
   assert.equal(DEFAULT_COMBAT.meteorMaxFuseDelay, 0.5);
   assert.equal(DEFAULT_COMBAT.meteorColor, '#555b5e');
@@ -116,11 +119,27 @@ test('new defaults fit slider bounds and restoration preserves saved custom sett
     migrateCombatSettings({ meteorArmedColor: '#123456' } as never).meteorProximityColor,
     '#123456',
   );
-  assert.equal(DEFAULT_COMBAT.meteorCount, 12);
+  assert.equal(DEFAULT_COMBAT.meteorCountMin, 8);
+  assert.equal(DEFAULT_COMBAT.meteorCountMax, 12);
   assert.equal(DEFAULT_COMBAT.meteorInterval, 10);
   assert.equal(DEFAULT_COMBAT.meteorSpeed, 6.5);
   assert.equal(DEFAULT_COMBAT.meteorSpin, 40);
   assert.equal(DEFAULT_COMBAT.missileTrailLife, 6);
+  assert.equal(DEFAULT_COMBAT.missileSpeed, 300);
+  assert.deepEqual(
+    [
+      migrateCombatSettings({ meteorCount: 12 } as never).meteorCountMin,
+      migrateCombatSettings({ meteorCount: 12 } as never).meteorCountMax,
+    ],
+    [8, 12],
+  );
+  assert.deepEqual(
+    [
+      migrateCombatSettings({ meteorCount: 6 } as never).meteorCountMin,
+      migrateCombatSettings({ meteorCount: 6 } as never).meteorCountMax,
+    ],
+    [6, 6],
+  );
   const restored = sanitizeCombatSettings({
     explosionShakeRadius: 200,
     meteorMinTriggerDistance: 90,
@@ -136,7 +155,7 @@ test('new defaults fit slider bounds and restoration preserves saved custom sett
   assert.equal(DEFAULT_COMBAT.pulseRange, 800);
   assert.equal(DEFAULT_COMBAT.pulseRadius, 80);
   assert.equal(DEFAULT_COMBAT.pulsePlasmaRadius, 8);
-  assert.equal(DEFAULT_COMBAT.pulseCooldown, 1);
+  assert.equal(DEFAULT_COMBAT.pulseCooldown, 10);
   assert.equal(DEFAULT_COMBAT.pulseDuration, 0.6);
   assert.equal('pulsePlasmaWidth' in DEFAULT_COMBAT, false);
   const minimumPulseRadii = sanitizeCombatSettings({ pulseRadius: 4, pulsePlasmaRadius: 4 });
@@ -175,16 +194,15 @@ test('new defaults fit slider bounds and restoration preserves saved custom sett
   }
 });
 
-test('manual and autopilot cruise at 90 on a straight route and boost still caps at 120', () => {
-  assert.equal(FLIGHT.nominalSpeed, 90);
+test('manual and autopilot use the shipped cruise and boost caps on a straight route', () => {
   const neutral = { pitch: 0, roll: 0, yaw: 0, throttle: 0 };
   for (const manual of [false, true]) {
     const flight = new FlightController(air as unknown as ProceduralTerrain);
     if (manual) flight.takeManualControl();
     for (let i = 0; i < 1200; i++) flight.update(FLIGHT.fixedStep, neutral);
-    assert.ok(Math.abs(flight.speed - 90) < 1e-8);
+    assert.ok(Math.abs(flight.speed - DEFAULT_FLIGHT_TUNING.normalTopSpeed) < 1e-8);
     for (let i = 0; i < 1200; i++) flight.update(FLIGHT.fixedStep, { ...neutral, throttle: 1 });
-    assert.equal(flight.speed, 120);
+    assert.equal(flight.speed, DEFAULT_FLIGHT_TUNING.normalBoostTopSpeed);
     assert.equal(flight.mode, manual ? 'manual' : 'autopilot');
   }
 });

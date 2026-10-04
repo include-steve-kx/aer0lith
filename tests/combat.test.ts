@@ -51,6 +51,8 @@ test('combat settings restore finite defaults, bounds, min/max and nonpersisted 
     {
       meteorMinDiameter: 30,
       meteorMaxDiameter: 4,
+      meteorCountMin: 20,
+      meteorCountMax: 5,
       missileSpeed: Infinity,
       missileCapacity: 99,
       meteorColor: 'javascript:x',
@@ -60,6 +62,7 @@ test('combat settings restore finite defaults, bounds, min/max and nonpersisted 
     true,
   );
   assert.ok(s.meteorMinDiameter <= s.meteorMaxDiameter);
+  assert.deepEqual([s.meteorCountMin, s.meteorCountMax], [5, 5]);
   assert.equal(s.missileSpeed, DEFAULT_COMBAT.missileSpeed);
   assert.equal(s.missileCapacity, 8);
   assert.equal(s.meteorColor, '#555b5e');
@@ -114,7 +117,8 @@ test('encounters are deterministic, bounded, leave a bypass, and reject terrain'
     if (!m.active) return;
     assert.deepEqual(m.position, b.rocks[i].position);
     assert.ok(m.diameter >= DEFAULT_COMBAT.meteorMinDiameter && m.diameter <= DEFAULT_COMBAT.meteorMaxDiameter);
-    assert.ok(m.position.z > 290 && m.position.z < 560);
+    assert.ok(m.position.z > DEFAULT_COMBAT.meteorSpawnDistanceMin - 10);
+    assert.ok(m.position.z < DEFAULT_COMBAT.meteorSpawnDistanceMax + 10);
     assert.ok(Math.hypot(m.position.x, m.position.y) > m.radius + 14);
     assert.ok(m.speedFactor >= 0.5 && m.speedFactor <= 1.5);
   });
@@ -124,6 +128,39 @@ test('encounters are deterministic, bounded, leave a bypass, and reject terrain'
   for (let i = 0; i < 100; i++)
     a.spawnAt(new Vector3(200 + i * 40, 0, 300), 10, 16);
   assert.equal(a.activeCount, COMBAT_LIMITS.meteors);
+});
+
+test('meteor spawn-ahead range controls encounter placement', () => {
+  const meteors = systems('spawn-ahead').meteors;
+  meteors.configure({
+    ...DEFAULT_COMBAT,
+    meteorCountMin: 1,
+    meteorCountMax: 1,
+    meteorSpeed: 0,
+    meteorSpawnDistanceMin: 700,
+    meteorSpawnDistanceMax: 700,
+  });
+  meteors.advance(4, zero, identity);
+  const spawned = meteors.rocks.find(meteor => meteor.active);
+  assert.ok(spawned);
+  assert.equal(spawned.position.z, 700);
+});
+
+test('encounter size is an inclusive deterministic value within the configured range', () => {
+  const counts = new Set<number>();
+  for (let index = 0; index < 24; index += 1) {
+    const meteors = systems(`count-range-${index}`).meteors;
+    meteors.configure({
+      ...DEFAULT_COMBAT,
+      meteorSpeed: 0,
+      meteorCountMin: 8,
+      meteorCountMax: 12,
+    });
+    meteors.advance(4, zero, identity);
+    assert.ok(meteors.activeCount >= 8 && meteors.activeCount <= 12);
+    counts.add(meteors.activeCount);
+  }
+  assert.ok(counts.size > 1, 'the default range produces varied encounter sizes');
 });
 
 test('birth size stays fixed, rates apply live, pause and generation recycling invalidate stale targets', () => {
@@ -356,6 +393,9 @@ test('reloads run concurrently, edits preserve progress and added capacity start
 
 test('wing tip transforms include rolls and guided hits destroy exactly once with detached trails', () => {
   const { meteors, missiles, impacts } = systems();
+  // Keep this guidance/transform fixture at its original approach speed. The
+  // shipped missile speed is tested separately and is intentionally faster.
+  missiles.configure({ ...DEFAULT_COMBAT, missileSpeed: 180 });
   const q = new Quaternion().setFromAxisAngle(
       new Vector3(0, 0, 1),
       Math.PI * 0.7,
