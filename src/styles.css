@@ -888,7 +888,7 @@ kbd {
 }
 .drift-meter-segments path {
   fill: none;
-  stroke: var(--drift-energy-color, #59d8ff);
+  stroke: var(--drift-energy-color, #ffdd80);
   stroke-linecap: butt;
   stroke-width: var(--meter-fill-width);
   stroke-dasharray: var(--segment-fill, 0) 1;

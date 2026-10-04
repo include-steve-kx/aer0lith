@@ -90,9 +90,9 @@ test('shipped handling defaults use the tighter player-tuned profile', () => {
   assert.equal(DEFAULT_FLIGHT_TUNING.cameraPositionResponse, 0.07);
   assert.equal(DEFAULT_FLIGHT_TUNING.cameraHeadingResponse, 0.1);
   assert.equal(DEFAULT_FLIGHT_TUNING.cameraRecoveryResponse, 0.1);
-  assert.equal(DEFAULT_FLIGHT_TUNING.cameraTravelInfluence, 0.8);
+  assert.equal(DEFAULT_FLIGHT_TUNING.cameraTravelInfluence, 0.9);
   assert.equal(DEFAULT_FLIGHT_TUNING.cameraBankResponse, 0.1);
-  assert.equal(DEFAULT_FLIGHT_TUNING.cameraMaxLag, 24);
+  assert.equal(DEFAULT_FLIGHT_TUNING.cameraMaxLag, 12);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftCueOpacity, 0.7);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftMeterArcLength, 20);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftMeterRadialThickness, 0.5);
@@ -105,7 +105,7 @@ test('shipped handling defaults use the tighter player-tuned profile', () => {
   assert.equal(DEFAULT_FLIGHT_TUNING.collisionSparkSpeed, 50);
   assert.equal(DEFAULT_FLIGHT_TUNING.collisionSparkLifetime, 0.8);
   assert.equal(DEFAULT_FLIGHT_TUNING.collisionSparkSpread, 1);
-  assert.equal(DEFAULT_FLIGHT_TUNING.slipChargeRate, 20);
+  assert.equal(DEFAULT_FLIGHT_TUNING.slipChargeRate, 40);
   assert.equal(DEFAULT_FLIGHT_TUNING.slipStartSpeed, 12);
   assert.equal(DEFAULT_FLIGHT_TUNING.slipFullSpeed, 90);
   assert.equal(DEFAULT_FLIGHT_TUNING.slipCurvePreset, 's-curve');
@@ -113,15 +113,31 @@ test('shipped handling defaults use the tighter player-tuned profile', () => {
     DEFAULT_FLIGHT_TUNING.driftBoostColorOne,
     DEFAULT_FLIGHT_TUNING.driftBoostColorTwo,
     DEFAULT_FLIGHT_TUNING.driftBoostColorThree,
-  ], ['#59d8ff', '#ffad42', '#ff4fc3']);
-  assert.equal(DEFAULT_FLIGHT_TUNING.hardTurnGrip, 1.25);
+  ], ['#ffdd80', '#ff7a7a', '#bf80ff']);
+  assert.equal(DEFAULT_FLIGHT_TUNING.normalGrip, 6);
+  assert.equal(DEFAULT_FLIGHT_TUNING.hardTurnGrip, 3.75);
   assert.equal(DEFAULT_FLIGHT_TUNING.normalTopSpeed, 130);
   assert.equal(DEFAULT_FLIGHT_TUNING.normalBoostTopSpeed, 200);
   assert.deepEqual([
     DEFAULT_FLIGHT_TUNING.driftBoostSpeedOne,
     DEFAULT_FLIGHT_TUNING.driftBoostSpeedTwo,
     DEFAULT_FLIGHT_TUNING.driftBoostSpeedThree,
-  ], [200, 200, 200]);
+  ], [215, 230, 250]);
+  assert.deepEqual([
+    DEFAULT_FLIGHT_TUNING.driftBoostAccelerationOne,
+    DEFAULT_FLIGHT_TUNING.driftBoostAccelerationTwo,
+    DEFAULT_FLIGHT_TUNING.driftBoostAccelerationThree,
+  ], [50, 60, 75]);
+  assert.deepEqual([
+    DEFAULT_FLIGHT_TUNING.driftBoostKickOne,
+    DEFAULT_FLIGHT_TUNING.driftBoostKickTwo,
+    DEFAULT_FLIGHT_TUNING.driftBoostKickThree,
+  ], [10, 20, 30]);
+  assert.deepEqual([
+    DEFAULT_FLIGHT_TUNING.driftBoostDrainOne,
+    DEFAULT_FLIGHT_TUNING.driftBoostDrainTwo,
+    DEFAULT_FLIGHT_TUNING.driftBoostDrainThree,
+  ], [50, 60, 75]);
   assert.equal(DEFAULT_FLIGHT_TUNING.terrainCrystalClusterScale, 1.8);
   assert.equal(DEFAULT_FLIGHT_TUNING.terrainAheadDistance, 1280);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftTrailRate, 64);
@@ -144,10 +160,10 @@ test('shipped handling defaults use the tighter player-tuned profile', () => {
 });
 
 test('one active tier color drives the whole drift-energy presentation', () => {
-  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 0), '#59d8ff');
-  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 1), '#59d8ff');
-  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 2), '#ffad42');
-  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 3), '#ff4fc3');
+  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 0), '#ffdd80');
+  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 1), '#ffdd80');
+  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 2), '#ff7a7a');
+  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 3), '#bf80ff');
 });
 
 test('drift meter uses one shared tier color and configurable active-state pulse', () => {

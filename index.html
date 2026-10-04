@@ -140,9 +140,9 @@
             <label for="roll-auto-level"><span>ROLL AUTO-LEVEL</span><output id="roll-auto-level-value"></output></label>
             <input id="roll-auto-level" data-flight-setting="rollAutoLevel" data-unit="/S" type="range" min="0" max="1.5" step="0.01" value="0.42" />
             <label for="normal-grip"><span>NORMAL GRIP</span><output id="normal-grip-value"></output></label>
-            <input id="normal-grip" data-flight-setting="normalGrip" data-unit="/S" type="range" min="0.1" max="12" step="0.05" value="3.5" />
+            <input id="normal-grip" data-flight-setting="normalGrip" data-unit="/S" type="range" min="0.1" max="12" step="0.05" value="6" />
             <label for="hard-turn-grip"><span>HARD-TURN GRIP</span><output id="hard-turn-grip-value"></output></label>
-            <input id="hard-turn-grip" data-flight-setting="hardTurnGrip" data-unit="/S" type="range" min="0.25" max="12" step="0.05" value="1.25" />
+            <input id="hard-turn-grip" data-flight-setting="hardTurnGrip" data-unit="/S" type="range" min="0.25" max="12" step="0.05" value="3.75" />
             <label for="turn-slip-start-rate"><span>GRIP REDUCTION START</span><output id="turn-slip-start-rate-value"></output></label>
             <input id="turn-slip-start-rate" data-flight-setting="turnSlipStartRate" data-unit=" RAD/S" type="range" min="0" max="2" step="0.01" value="0.15" />
             <label for="turn-slip-full-rate"><span>FULL REDUCTION RATE</span><output id="turn-slip-full-rate-value"></output></label>
@@ -190,7 +190,7 @@
               <label>H2 Y<input aria-label="Second curve handle Y" data-flight-setting="slipCurveY2" type="number" min="0" max="1" step="0.01" value="1" /></label>
             </div>
             <label for="slip-charge-rate"><span>MAX CHARGE RATE</span><output id="slip-charge-rate-value"></output></label>
-            <input id="slip-charge-rate" data-flight-setting="slipChargeRate" data-unit="/S" data-decimals="0" type="range" min="1" max="80" step="1" value="20" />
+            <input id="slip-charge-rate" data-flight-setting="slipChargeRate" data-unit="/S" data-decimals="0" type="range" min="1" max="80" step="1" value="40" />
             <label for="slip-collision-suppress-time"><span>CONTACT SUPPRESSION</span><output id="slip-collision-suppress-time-value"></output></label>
             <input id="slip-collision-suppress-time" data-flight-setting="slipCollisionSuppressTime" data-unit=" S" type="range" min="0" max="2" step="0.05" value="0.35" />
             <label for="drift-grace-time"><span>DECAY GRACE</span><output id="drift-grace-time-value"></output></label>
@@ -237,25 +237,25 @@
             <div class="settings-tier-grid" aria-label="Drift boost tier tuning">
               <span></span><span>I</span><span>II</span><span>III</span>
               <span>SPEED</span>
-              <input aria-label="Tier I speed" data-flight-setting="driftBoostSpeedOne" type="number" min="120" max="320" step="1" value="200" />
-              <input aria-label="Tier II speed" data-flight-setting="driftBoostSpeedTwo" type="number" min="120" max="320" step="1" value="200" />
-              <input aria-label="Tier III speed" data-flight-setting="driftBoostSpeedThree" type="number" min="120" max="320" step="1" value="200" />
+              <input aria-label="Tier I speed" data-flight-setting="driftBoostSpeedOne" type="number" min="120" max="320" step="1" value="215" />
+              <input aria-label="Tier II speed" data-flight-setting="driftBoostSpeedTwo" type="number" min="120" max="320" step="1" value="230" />
+              <input aria-label="Tier III speed" data-flight-setting="driftBoostSpeedThree" type="number" min="120" max="320" step="1" value="250" />
               <span>ACCEL</span>
-              <input aria-label="Tier I acceleration" data-flight-setting="driftBoostAccelerationOne" type="number" min="5" max="100" step="1" value="24" />
-              <input aria-label="Tier II acceleration" data-flight-setting="driftBoostAccelerationTwo" type="number" min="5" max="100" step="1" value="34" />
-              <input aria-label="Tier III acceleration" data-flight-setting="driftBoostAccelerationThree" type="number" min="5" max="100" step="1" value="45" />
+              <input aria-label="Tier I acceleration" data-flight-setting="driftBoostAccelerationOne" type="number" min="5" max="100" step="1" value="50" />
+              <input aria-label="Tier II acceleration" data-flight-setting="driftBoostAccelerationTwo" type="number" min="5" max="100" step="1" value="60" />
+              <input aria-label="Tier III acceleration" data-flight-setting="driftBoostAccelerationThree" type="number" min="5" max="100" step="1" value="75" />
               <span>KICK</span>
-              <input aria-label="Tier I ignition kick" data-flight-setting="driftBoostKickOne" type="number" min="0" max="30" step="1" value="4" />
-              <input aria-label="Tier II ignition kick" data-flight-setting="driftBoostKickTwo" type="number" min="0" max="30" step="1" value="7" />
-              <input aria-label="Tier III ignition kick" data-flight-setting="driftBoostKickThree" type="number" min="0" max="30" step="1" value="10" />
+              <input aria-label="Tier I ignition kick" data-flight-setting="driftBoostKickOne" type="number" min="0" max="30" step="1" value="10" />
+              <input aria-label="Tier II ignition kick" data-flight-setting="driftBoostKickTwo" type="number" min="0" max="30" step="1" value="20" />
+              <input aria-label="Tier III ignition kick" data-flight-setting="driftBoostKickThree" type="number" min="0" max="30" step="1" value="30" />
               <span>DRAIN</span>
-              <input aria-label="Tier I energy drain" data-flight-setting="driftBoostDrainOne" type="number" min="5" max="100" step="1" value="30" />
-              <input aria-label="Tier II energy drain" data-flight-setting="driftBoostDrainTwo" type="number" min="5" max="100" step="1" value="36" />
-              <input aria-label="Tier III energy drain" data-flight-setting="driftBoostDrainThree" type="number" min="5" max="100" step="1" value="44" />
+              <input aria-label="Tier I energy drain" data-flight-setting="driftBoostDrainOne" type="number" min="5" max="100" step="1" value="50" />
+              <input aria-label="Tier II energy drain" data-flight-setting="driftBoostDrainTwo" type="number" min="5" max="100" step="1" value="60" />
+              <input aria-label="Tier III energy drain" data-flight-setting="driftBoostDrainThree" type="number" min="5" max="100" step="1" value="75" />
               <span>COLOR</span>
-              <input id="drift-boost-color-one" aria-label="Tier I boost color" data-flight-setting="driftBoostColorOne" type="color" value="#59d8ff" />
-              <input id="drift-boost-color-two" aria-label="Tier II boost color" data-flight-setting="driftBoostColorTwo" type="color" value="#ffad42" />
-              <input id="drift-boost-color-three" aria-label="Tier III boost color" data-flight-setting="driftBoostColorThree" type="color" value="#ff4fc3" />
+              <input id="drift-boost-color-one" aria-label="Tier I boost color" data-flight-setting="driftBoostColorOne" type="color" value="#ffdd80" />
+              <input id="drift-boost-color-two" aria-label="Tier II boost color" data-flight-setting="driftBoostColorTwo" type="color" value="#ff7a7a" />
+              <input id="drift-boost-color-three" aria-label="Tier III boost color" data-flight-setting="driftBoostColorThree" type="color" value="#bf80ff" />
             </div>
             <label for="drift-boost-nose-bias"><span>NOSE BIAS</span><output id="drift-boost-nose-bias-value"></output></label>
             <input id="drift-boost-nose-bias" data-flight-setting="driftBoostNoseBias" data-unit="%" data-decimals="0" type="range" min="0" max="1" step="0.05" value="0.85" />
@@ -272,11 +272,11 @@
             <label for="camera-recovery-response"><span>RECOVERY RESPONSE</span><output id="camera-recovery-response-value"></output></label>
             <input id="camera-recovery-response" data-flight-setting="cameraRecoveryResponse" data-unit=" S" type="range" min="0.05" max="2" step="0.05" value="0.1" />
             <label for="camera-travel-influence"><span>TRAVEL INFLUENCE</span><output id="camera-travel-influence-value"></output></label>
-            <input id="camera-travel-influence" data-flight-setting="cameraTravelInfluence" data-unit="%" data-decimals="0" type="range" min="0" max="1" step="0.05" value="0.8" />
+            <input id="camera-travel-influence" data-flight-setting="cameraTravelInfluence" data-unit="%" data-decimals="0" type="range" min="0" max="1" step="0.05" value="0.9" />
             <label for="camera-bank-response"><span>BANK RESPONSE</span><output id="camera-bank-response-value"></output></label>
             <input id="camera-bank-response" data-flight-setting="cameraBankResponse" data-unit=" S" type="range" min="0.05" max="1.5" step="0.05" value="0.1" />
             <label for="camera-max-lag"><span>MAX SIDE ANGLE</span><output id="camera-max-lag-value"></output></label>
-            <input id="camera-max-lag" data-flight-setting="cameraMaxLag" data-unit="°" data-decimals="0" type="range" min="10" max="110" step="1" value="24" />
+            <input id="camera-max-lag" data-flight-setting="cameraMaxLag" data-unit="°" data-decimals="0" type="range" min="10" max="110" step="1" value="12" />
           </section>
 
           <section class="settings-section" aria-labelledby="settings-drift-display-title">

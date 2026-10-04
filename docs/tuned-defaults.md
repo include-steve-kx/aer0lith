@@ -4,11 +4,10 @@ The shipped preset now matches the settings captured from the existing Chrome
 simulator on October 3, 2026. Notable choices include mesh terrain, sky
 `#3f60a2`, mesh `#5e6768`, blue exhaust `#8ab7ff`, 3.5 m high / 0.08 m thick
 side wakes, 36 bullets per second, and 180 m / 6 s missile trails. The crystal
-layer uses 10% coverage, 50% opacity, 3.0 refraction, 1.2 dispersion, and
-`#42e3ff`.
+layer uses 10% coverage, 28% opacity, 3.0 refraction, 1.2 dispersion, and white.
 
-The October 3 profile also raises the Pulse impact radius to **80 m**, drift
-charge to **100/s**, contact friction to **0.6**, and uses the larger white
+The current profile also uses an **80 m** Pulse impact radius, drift charge of
+**40/s**, contact friction of **0.6**, and the larger white
 collision-spark and center-tail ash settings documented in
 [`drift-boost.md`](drift-boost.md). Slider ranges were expanded so these tuned
 values remain adjustable in both directions instead of sitting at an endpoint.
@@ -23,7 +22,7 @@ Ranges now give the tuned values room for adjustment: exhaust strength 0–4,
 booster/scan dispersion 0–1.2, scan refraction 0–4, missile trails up to 360 m /
 12 s, bullet bolts up to 8 m and trails up to 2 s. Thin wake controls have finer
 steps. Blast influence is now 20–1,000 m, default **400 m**, replacing the
-captured 200 m default. Push strength defaults to **20 m/s** (range 0–180 m/s),
+captured 200 m default. Push strength defaults to **25 m/s** (range 0–180 m/s),
 with a **0.5× velocity-axis factor** (range 0–1×) and **2 s** settling
 (range 0.2–4 s). The factor scales only the component parallel to the aircraft's
 current travel direction; perpendicular push remains at full strength. Accumulated
@@ -31,20 +30,21 @@ external velocity is capped at 180 m/s to contain overlapping explosions while
 allowing meteor size scaling.
 This is separate from the engine speed and the proximity detonation distance.
 
-The revised meteor preset uses **6–36 m** rocks, **12** per encounter every **10 s**, **6.5 m/s**
+The revised meteor preset uses **6–50 m** rocks, **8–12** per encounter every **10 s**, **6.5 m/s**
 drift, **40°/s** spin, **30 m** spread, **0.5** irregularity, and **4** bullet hits
-at 12 m diameter. Diameter sliders now reach 72 m, encounter count 24, drift
-10 m/s, and spin 40°/s. The 48-active-rock cap and bounded safe placement remain
+at 12 m diameter. Diameter sliders now reach 100 m, encounter count 24, drift
+10 m/s, and spin 80°/s. The 48-active-rock cap and bounded safe placement remain
 in force; encounters can spawn fewer rocks when space is insufficient.
 Irregularity stays within the five supported prebuilt shape levels (0–0.5).
 
-Cruise speed is **90 m/s**, with the **120 m/s** maximum unchanged. Autopilot
-still slows for turns and obstacle avoidance. The full 360° dodge takes
+Cruise speed is **130 m/s**, normal boost reaches **200 m/s**, and the three
+drift-boost tiers reach **215/230/250 m/s**. Autopilot still slows for turns
+and obstacle avoidance. The full 360° dodge takes
 **0.6 s**, followed by **0.125 s** recovery; lateral displacement stays **44 m**.
 
 Meteors now use a lifecycle rather than a distance-based danger tint. Each new
 meteor deterministically samples a surface trigger clearance from the configured
-**50–65 m** dual range and a wait time from the configured **0–0.5 s** dual range.
+**50–80 m** dual range and a wait time from the configured **0–0.5 s** dual range.
 Crossing that meteor's clearance arms it permanently; leaving the radius does not
 cancel the countdown. Existing meteors retain their sampled values when the
 settings change, while later spawns use the new ranges.
@@ -70,11 +70,11 @@ creating fragments, refraction, shake, and a physical push once. Pause freezes
 unarmed checks, armed countdowns, and physics. Disabling proximity explosions
 disarms pending fuses. There is no splash damage or chain reaction.
 
-Validation: `npm run verify` passes 201 tests and the production build. Browser
+Validation: `npm run verify` passes 220 tests and the production build. Browser
 checks compared every reset control against the captured preset, including the
-400 m radius and 20 m/s push overrides, then verified changed values/debug flags reset and survive
+400 m radius and 25 m/s push overrides, then verified changed values/debug flags reset and survive
 reload. New tests cover warning/fuse boundaries, fast relative sweeps, pause,
-disabled fuses, stale handles, slider bounds, 90/120 m/s cruise/boost, and the
+disabled fuses, stale handles, slider bounds, 130/200 m/s cruise/normal boost, and the
 shortened roll/recovery with unchanged displacement.
 
 Before arming, scanned push arrows use the same immediate
