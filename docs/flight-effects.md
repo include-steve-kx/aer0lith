@@ -10,7 +10,7 @@ The normal collision samples run on every fixed simulation step during the maneu
 
 ## Boost and side wakes
 
-A boost hold (`K` or the touch boost button) intensifies the twin colored plumes. Normal boost preserves autopilot; holding drift (`J` or touch) takes manual control. Earned drift energy automatically selects boost tier I, II, or III and powers a stronger plume until the energy is released or exhausted. The thrusters remain visibly active at 20% by default even when physical boost is zero. They rise in about 65 ms, settle to a sustained boost flame, then return to that visual baseline after release. Release fade defaults to 3.6 seconds and is adjustable from 0.3 to 8 seconds. The baseline is visual only: it does not accelerate the aircraft, trigger boost input, or sustain camera shake. Plumes default to a 54-meter maximum length and cast matching colored light onto nearby objects. Disabling exhaust, setting brightness to zero, or setting the baseline to zero explicitly hides the idle effect.
+A boost hold (`K` or the touch boost button) intensifies the twin colored plumes. Nose-to-velocity slip is detected automatically and can earn energy during manual flight, normal boost, drift boost, and autopilot. Earned energy automatically selects boost tier I, II, or III and powers a stronger plume until the energy is released or exhausted. The thrusters remain visibly active at 20% by default even when physical boost is zero. They rise in about 65 ms, settle to a sustained boost flame, then return to that visual baseline after release. Release fade defaults to 3.6 seconds and is adjustable from 0.3 to 8 seconds. The baseline is visual only: it does not accelerate the aircraft, trigger boost input, or sustain camera shake. Plumes default to a 54-meter maximum length and cast matching colored light onto nearby objects. Disabling exhaust, setting brightness to zero, or setting the baseline to zero explicitly hides the idle effect.
 
 The flame has a straight centerline, broad tapered body, a bright core, and irregular fluttering tongues. Surface detail travels backward from the nozzles while the tongues flutter independently. Both motions integrate aircraft speed; neither uses a fixed-speed wall clock.
 
@@ -24,9 +24,9 @@ Four independent controls set **Side Backward Speed**, **Side Flutter Speed**, *
 
 ## Boost input and drift banks
 
-Hold `K` or the boost button for momentary boost. There is no tap-lock mode. With banked drift energy, the first hold consumes the bank's one ignition kick and starts the automatically selected tier; releasing ends powered drift boost and leaves the remainder to decay. Reholding spends the remaining energy without repeating the kick. At zero energy, a continuing hold becomes normal boost. Autopilot remains engaged only for normal boost.
+Hold `K` or the boost button for momentary boost. There is no tap-lock mode or separate Drift control. With banked automatic-slip energy, the first hold consumes the bank's one ignition kick and starts the selected tier; releasing ends powered drift boost and leaves the remainder to decay. Energy earned during an already-held normal boost requires a quick release and re-press to upgrade. Reholding spends remaining energy without repeating the kick. At zero energy, a continuing hold becomes normal boost. Autopilot remains engaged for both boost modes.
 
-Keyboard repeats and overlapping keyboard/touch holds count as one press. Long holds never lock. Focus loss, pause, and checkpoint restoration clear held inputs so neither action can stick.
+Keyboard repeats and overlapping keyboard/touch holds count as one press. Long holds never lock. Focus loss, pause, and checkpoint restoration clear held input so Boost cannot stick.
 
 ## Controls
 
@@ -41,7 +41,7 @@ Flight effects live under **Settings > Boost + Wakes**. Scan terrain and optics 
 | Booster motion | Flutter amplitude 0.9 m (0–2); backward speed 1× and flutter speed 1× (each 0–3×), independently responding to aircraft speed |
 | Boost camera | Shake strength 1.3 (0–2, zero disables); frequency 20 Hz (4–30) |
 | Boost wing fold | Backward turn 40° (0–60); centerward turn 12° (0–45); animation speed 1× (0.1–4×) |
-| Drift ash | Enabled; 32 particles/s; 4.5 m size; 1.4 s life; 55% opacity; 3.5 m/s turbulence; gray `#c8c8c8` |
+| Drift ash | Enabled; automatic slip response; 64 particles/s; 10 m size; 2 s life; 55% opacity; 6 m/s turbulence; gray `#c8c8c8` |
 | Impact response | 1.1× speed/angle push; 18–120 m/s bounds; 0.45 s decay; 0.65 s local red flash; 0.18 s contact cooldown |
 | Side wakes | Enable; length 120 m (20–240); height 3.5 m (2–32); thickness 0.08 m (0.02–2); flutter 0.65 m (0–2) |
 | Side wake motion | Backward speed 0.5× and flutter speed 1× (each 0–3×), independently responding to aircraft speed |
