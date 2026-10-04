@@ -3,7 +3,7 @@ import test from 'node:test';
 import { Scene, Vector3 } from 'three';
 import { PROBE, TERRAIN } from '../src/core/config.ts';
 import { hashString, SeededNoise } from '../src/world/Noise.ts';
-import { dotSpacingFromDensity, TerrainManager } from '../src/world/TerrainManager.ts';
+import { dotSpacingFromDensity, TerrainManager, terrainRowsAhead } from '../src/world/TerrainManager.ts';
 import { ProceduralTerrain } from '../src/world/TerrainModel.ts';
 import { DEFAULT_TERRAIN_GENERATION } from '../src/flight/FlightTuning.ts';
 import {
@@ -42,7 +42,7 @@ test('density field is stable on shared 3D chunk boundaries', () => {
   }
 });
 
-test('crystal material field is deterministic, independent, and finely mottled', () => {
+test('crystal material field is deterministic, independent, and controllably clustered', () => {
   const a = new ProceduralTerrain('crystal-field');
   const b = new ProceduralTerrain('crystal-field');
   const c = new ProceduralTerrain('other-crystal-field');
@@ -53,6 +53,21 @@ test('crystal material field is deterministic, independent, and finely mottled',
   assert.ok(crystalSamples > lattice.length * 0.02);
   assert.ok(crystalSamples < lattice.length * 0.25);
   assert.ok(new Set(lattice).size > 64, 'field is continuous rather than a binary material mask');
+
+  const scattered = new ProceduralTerrain('cluster-scale', { terrainCrystalClusterScale: 0.5 });
+  const clustered = new ProceduralTerrain('cluster-scale', { terrainCrystalClusterScale: 4 });
+  const roughness = (terrain: ProceduralTerrain): number => {
+    let total = 0;
+    for (let z = 0; z < 240; z += 12) {
+      for (let y = -60; y <= 60; y += 12) {
+        for (let x = -60; x < 60; x += 12) {
+          total += Math.abs(terrain.crystalFieldAt(x + 12, y, z) - terrain.crystalFieldAt(x, y, z));
+        }
+      }
+    }
+    return total;
+  };
+  assert.ok(roughness(clustered) < roughness(scattered) * 0.5);
 });
 
 test('polygonizer interpolates the crystal field at the same density crossing', () => {
@@ -160,7 +175,9 @@ test('terrain chunk recycling and probe state stay bounded', () => {
   const terrain = new ProceduralTerrain('mesh-pool');
   const manager = new TerrainManager(scene, terrain, { synchronousBudget: Number.POSITIVE_INFINITY });
   const origin = new Vector3();
-  const expectedCount = TERRAIN.columns * TERRAIN.verticalLayers * TERRAIN.rows;
+  const retainedRows = TERRAIN.rowsBehind + 1
+    + terrainRowsAhead(terrain.generationSettings.terrainAheadDistance);
+  const expectedCount = TERRAIN.columns * TERRAIN.verticalLayers * retainedRows;
 
   for (let index = 0; index < 5; index += 1) {
     const route = terrain.sample(index * TERRAIN.chunkSize);
@@ -174,11 +191,21 @@ test('terrain chunk recycling and probe state stay bounded', () => {
   assert.equal(manager.currentProbeRadius, PROBE.speed * 0.5);
   assert.equal(manager.isProbeActive, true);
   manager.updateProbe(10, origin);
-  assert.equal(manager.currentProbeRadius, 720);
+  assert.equal(manager.currentProbeRadius, PROBE.maxRadius);
   assert.equal(manager.isProbeExpanding, false);
   assert.equal(manager.isProbeActive, true);
   manager.updateProbe(PROBE.afterglowDuration + 0.1, origin);
   assert.equal(manager.isProbeActive, false);
+});
+
+test('terrain ahead distance sizes the fixed chunk pool in whole forward rows', () => {
+  assert.equal(terrainRowsAhead(640), 4);
+  assert.equal(terrainRowsAhead(1024), 7);
+  const scene = new Scene();
+  const terrain = new ProceduralTerrain('extended-ahead', { terrainAheadDistance: 1024 });
+  const manager = new TerrainManager(scene, terrain);
+  const retainedRows = TERRAIN.rowsBehind + 1 + 7;
+  assert.equal(manager.chunkCount, TERRAIN.columns * TERRAIN.verticalLayers * retainedRows);
 });
 
 test('active terrain chunks remesh in place at the latest coalesced carve revision', () => {

@@ -247,6 +247,7 @@ test('terrain scan uses a configurable sparse plus pattern and independent front
     terrainCrystalColor: '#8fefff',
     meshColor: '#363d3e',
     dangerColor: '#ff0000',
+    scanTerrainDistance: 300,
     scanTerrainSpeed: 260,
     scanTerrainPattern: 'plus',
     scanTerrainPatternSpacing: 14,
@@ -296,9 +297,10 @@ test('terrain scan uses a configurable sparse plus pattern and independent front
     'the bounded trail does not restore the old whole-volume reveal');
 
   manager.triggerProbe(new Vector3());
-  manager.updateProbe(1, new Vector3());
-  assert.equal(manager.currentProbeRadius, 260, 'configured scan speed drives propagation');
+  manager.updateProbe(0.5, new Vector3());
+  assert.equal(manager.currentProbeRadius, 130, 'configured scan speed drives propagation');
   manager.updateProbe(10, new Vector3());
+  assert.equal(manager.currentProbeRadius, 300, 'configured scan distance caps the one-direction radius');
   manager.updateProbe(4, new Vector3());
   assert.equal(manager.isProbeActive, true, 'configured marker persistence outlives the former fixed duration');
   manager.updateProbe(2.1, new Vector3());

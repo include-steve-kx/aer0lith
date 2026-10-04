@@ -41,6 +41,8 @@ test('a seeded flock randomizes its active amount within the configured range', 
     flockEnabled: true,
     flockMinSize: 7,
     flockMaxSize: 11,
+    flockSpawnDistanceMin: 260,
+    flockSpawnDistanceMax: 430,
     flockInterval: 1,
     flockSpread: 30,
     flockSpeed: 34,
@@ -58,6 +60,30 @@ test('a seeded flock randomizes its active amount within the configured range', 
   assert.ok(flocks.activeBoidCount >= 7 && flocks.activeBoidCount <= 11);
 });
 
+test('flock spawn-ahead distance setting controls where a new encounter appears', () => {
+  const flocks = new FlockSystem(new Scene(), openTerrain, 'spawn-distance');
+  flocks.applyVisualSettings({
+    flockEnabled: true,
+    flockMinSize: 1,
+    flockMaxSize: 1,
+    flockSpawnDistanceMin: 200,
+    flockSpawnDistanceMax: 200,
+    flockInterval: 8,
+    flockSpread: 2,
+    flockSpeed: 4,
+    flockColor: '#ffffff',
+    flockTargetColor: '#ffffff',
+    flockTargetThickness: 0.05,
+  });
+  const birds = flocks.group.children[0] as import('three').InstancedMesh;
+  flocks.update(4, new Vector3(0, 40, 0), new Quaternion(), 55, new Vector3());
+  assert.equal(flocks.activeBoidCount, 1);
+  const matrix = new Matrix4();
+  birds.getMatrixAt(0, matrix);
+  const position = new Vector3().setFromMatrixPosition(matrix);
+  assert.ok(position.z > 195 && position.z < 205, `expected flock near 200 m, got ${position.z}`);
+});
+
 test('flocks reuse a fixed-capacity pool during repeated appearances', () => {
   const scene = new Scene();
   const flocks = new FlockSystem(scene, openTerrain, 'pool-check');
@@ -65,6 +91,8 @@ test('flocks reuse a fixed-capacity pool during repeated appearances', () => {
     flockEnabled: true,
     flockMinSize: FLOCK.maxBirdsPerFlock,
     flockMaxSize: FLOCK.maxBirdsPerFlock,
+    flockSpawnDistanceMin: 260,
+    flockSpawnDistanceMax: 430,
     flockInterval: 1,
     flockSpread: 18,
     flockSpeed: 34,
@@ -124,6 +152,8 @@ test('ambient presentation hides scanned flock brackets across settings changes'
     flockEnabled: true,
     flockMinSize: 10,
     flockMaxSize: 26,
+    flockSpawnDistanceMin: 260,
+    flockSpawnDistanceMax: 430,
     flockInterval: 8,
     flockSpread: 30,
     flockSpeed: 34,

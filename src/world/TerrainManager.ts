@@ -39,6 +39,11 @@ export function dotSpacingFromDensity(densityPer100M2: number): number {
   return Math.sqrt(100 / Math.max(0.01, densityPer100M2));
 }
 
+/** Forward chunk rows needed for the configured maximum edge distance. */
+export function terrainRowsAhead(distance: number): number {
+  return Math.max(1, Math.ceil(distance / TERRAIN.chunkSize) - 1);
+}
+
 class TerrainChunk {
   readonly group = new Group();
   private readonly geometry = new BufferGeometry();
@@ -665,6 +670,7 @@ export class TerrainManager {
   private probeTailAge = 0;
   private probeAfterglowDuration: number = PROBE.afterglowDuration;
   private probeSpeed: number = PROBE.speed;
+  private probeMaxRadius: number = PROBE.maxRadius;
   private probeTrailLength = 160;
   private lastCenterX = Number.NaN;
   private lastCenterY = Number.NaN;
@@ -715,9 +721,11 @@ export class TerrainManager {
     // One spare Z slab lets newly generated terrain become visible before the
     // old slab is retired. Diagonal crossings reuse retired chunks as results
     // arrive, so this remains strictly bounded.
+    const rowsAhead = terrainRowsAhead(this.terrain.generationSettings.terrainAheadDistance);
+    const retainedRows = TERRAIN.rowsBehind + 1 + rowsAhead;
     const spareChunks = supportsWorkers ? TERRAIN.columns * TERRAIN.verticalLayers : 0;
     this.chunks = Array.from(
-      { length: TERRAIN.columns * TERRAIN.verticalLayers * TERRAIN.rows + spareChunks },
+      { length: TERRAIN.columns * TERRAIN.verticalLayers * retainedRows + spareChunks },
       () => new TerrainChunk(this.terrainMaterial, this.crystalMaterial, this.crystalScene),
     );
     for (const chunk of this.chunks) this.group.add(chunk.group);
@@ -760,7 +768,11 @@ export class TerrainManager {
 
       const desired: ChunkGenerationRequest[] = [];
       const verticalHalf = Math.floor(TERRAIN.verticalLayers / 2);
-      for (let dz = -TERRAIN.rowsBehind; dz < TERRAIN.rows - TERRAIN.rowsBehind; dz += 1) {
+      // The setting describes the maximum distance from the start of the
+      // aircraft's current chunk to the forward edge of retained terrain.
+      // Subtract the current chunk itself to get the number of rows ahead.
+      const rowsAhead = terrainRowsAhead(this.terrain.generationSettings.terrainAheadDistance);
+      for (let dz = -TERRAIN.rowsBehind; dz <= rowsAhead; dz += 1) {
         for (let dy = -verticalHalf; dy <= verticalHalf; dy += 1) {
           for (let dx = -Math.floor(TERRAIN.columns / 2); dx <= Math.floor(TERRAIN.columns / 2); dx += 1) {
             const chunk = { x: centerX + dx, y: centerY + dy, z: centerZ + dz };
@@ -1246,8 +1258,8 @@ export class TerrainManager {
   updateProbe(dt: number, renderOrigin: Vector3): void {
     if (this.probeExpanding) {
       this.probeRadius += this.probeSpeed * Math.max(0, dt);
-      if (this.probeRadius >= PROBE.maxRadius) {
-        this.probeRadius = PROBE.maxRadius;
+      if (this.probeRadius >= this.probeMaxRadius) {
+        this.probeRadius = this.probeMaxRadius;
         this.probeExpanding = false;
         this.probeTailAge = 0;
       }
@@ -1259,7 +1271,7 @@ export class TerrainManager {
     }
 
     const fadeIn = Math.min(1, this.probeRadius / 20);
-    const fadeOut = Math.min(1, Math.max(0, (1 - this.probeRadius / PROBE.maxRadius) / 0.14));
+    const fadeOut = Math.min(1, Math.max(0, (1 - this.probeRadius / this.probeMaxRadius) / 0.14));
     this.terrainMaterial.uniforms.uProbeRadius.value = this.probeRadius;
     this.terrainMaterial.uniforms.uProbeCenter.value.copy(this.probeWorldCenter).sub(renderOrigin);
     this.terrainMaterial.uniforms.uProbeActive.value = this.probeActive ? 1 : 0;
@@ -1298,6 +1310,16 @@ export class TerrainManager {
     this.terrainMaterial.uniforms.uCrystalDispersion.value = settings.terrainCrystalDispersion;
     this.terrainMaterial.uniforms.uCrystalColor.value.set(settings.terrainCrystalColor);
     this.probeSpeed = settings.scanTerrainSpeed;
+    this.probeMaxRadius = Math.max(1, settings.scanTerrainDistance);
+    if (this.probeRadius >= this.probeMaxRadius) {
+      this.probeRadius = this.probeMaxRadius;
+      if (this.probeExpanding) {
+        this.probeExpanding = false;
+        this.probeTailAge = 0;
+      }
+      this.terrainMaterial.uniforms.uProbeRadius.value = this.probeRadius;
+      this.terrainMaterial.uniforms.uProbeExpanding.value = 0;
+    }
     this.terrainMaterial.uniforms.uProbeSpeed.value = settings.scanTerrainSpeed;
     this.terrainMaterial.uniforms.uProbePatternType.value = settings.scanTerrainPattern === 'plus' ? 1 : 0;
     this.terrainMaterial.uniforms.uProbePatternSpacing.value = settings.scanTerrainPatternSpacing;

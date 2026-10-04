@@ -73,6 +73,16 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
         0.75,
         1.5,
       ),
+      terrainAheadDistance: clamp(
+        settings.terrainAheadDistance ?? DEFAULT_TERRAIN_GENERATION.terrainAheadDistance,
+        512,
+        2560,
+      ),
+      terrainCrystalClusterScale: clamp(
+        settings.terrainCrystalClusterScale ?? DEFAULT_TERRAIN_GENERATION.terrainCrystalClusterScale,
+        0.5,
+        4,
+      ),
     };
     this.noise = new SeededNoise(seed);
     this.crystalNoise = new SeededNoise(`${seed}:crystal`);
@@ -80,17 +90,19 @@ export class ProceduralTerrain implements TerrainSampler, FlightPath {
 
   /** Stable, independent material field. Zero is rock and one is crystal. */
   crystalFieldAt(worldX: number, worldY: number, worldZ: number): number {
+    const clusterScale = this.generationSettings.terrainCrystalClusterScale;
     const broad = this.crystalNoise.noise3(
-      worldX / 52 + 17.1,
-      worldY / 52 - 9.7,
-      worldZ / 52 + 31.3,
+      worldX / (52 * clusterScale) + 17.1,
+      worldY / (52 * clusterScale) - 9.7,
+      worldZ / (52 * clusterScale) + 31.3,
     );
     const detail = this.crystalNoise.noise3(
-      worldX / 27 - 41.2,
-      worldY / 27 + 13.6,
-      worldZ / 27 - 7.4,
+      worldX / (27 * clusterScale) - 41.2,
+      worldY / (27 * clusterScale) + 13.6,
+      worldZ / (27 * clusterScale) - 7.4,
     );
-    return smoothstep(-0.45, 0.45, broad * 0.72 + detail * 0.28);
+    const detailWeight = 0.28 / Math.max(1, clusterScale);
+    return smoothstep(-0.45, 0.45, broad * (1 - detailWeight) + detail * detailWeight);
   }
 
   primeCollisionBaseLattice(chunk: VolumeChunkCoordinate, density: Float32Array): void {

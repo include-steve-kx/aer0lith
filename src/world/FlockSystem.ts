@@ -25,6 +25,8 @@ export interface FlockVisualSettings {
   flockEnabled: boolean;
   flockMinSize: number;
   flockMaxSize: number;
+  flockSpawnDistanceMin: number;
+  flockSpawnDistanceMax: number;
   flockInterval: number;
   flockSpread: number;
   flockSpeed: number;
@@ -203,6 +205,8 @@ export class FlockSystem {
     flockEnabled: true,
     flockMinSize: FLOCK.defaultMinBirdsPerFlock,
     flockMaxSize: FLOCK.defaultMaxBirdsPerFlock,
+    flockSpawnDistanceMin: FLOCK.spawnDistanceMin,
+    flockSpawnDistanceMax: FLOCK.spawnDistanceMax,
     flockInterval: FLOCK.defaultInterval,
     flockSpread: FLOCK.defaultSpread,
     flockSpeed: FLOCK.defaultSpeed,
@@ -292,6 +296,8 @@ export class FlockSystem {
       flockEnabled: settings.flockEnabled,
       flockMinSize: Math.round(MathUtils.clamp(settings.flockMinSize, 1, FLOCK.maxBirdsPerFlock)),
       flockMaxSize: Math.round(MathUtils.clamp(settings.flockMaxSize, 1, FLOCK.maxBirdsPerFlock)),
+      flockSpawnDistanceMin: MathUtils.clamp(settings.flockSpawnDistanceMin, 100, 900),
+      flockSpawnDistanceMax: MathUtils.clamp(settings.flockSpawnDistanceMax, 100, 900),
       flockInterval: Math.max(1, settings.flockInterval),
       flockSpread: Math.max(2, settings.flockSpread),
       flockSpeed: Math.max(4, settings.flockSpeed),
@@ -301,6 +307,9 @@ export class FlockSystem {
     };
     if (this.settings.flockMinSize > this.settings.flockMaxSize) {
       this.settings.flockMinSize = this.settings.flockMaxSize;
+    }
+    if (this.settings.flockSpawnDistanceMin > this.settings.flockSpawnDistanceMax) {
+      this.settings.flockSpawnDistanceMin = this.settings.flockSpawnDistanceMax;
     }
     this.material.color.set(settings.flockColor);
     this.material.emissive.set(settings.flockColor).multiplyScalar(0.05);
@@ -366,7 +375,10 @@ export class FlockSystem {
       this.releaseFlock(slot);
     }
 
-    const distanceAhead = this.random.range(FLOCK.spawnDistanceMin, FLOCK.spawnDistanceMax);
+    const distanceAhead = this.random.range(
+      this.settings.flockSpawnDistanceMin,
+      this.settings.flockSpawnDistanceMax,
+    );
     this.candidate.copy(this.planeForward).multiplyScalar(distanceAhead).add(planePosition);
     const spawnZ = this.candidate.z;
     const path = this.terrain.sample(spawnZ);
