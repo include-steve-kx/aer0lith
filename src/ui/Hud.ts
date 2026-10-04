@@ -35,8 +35,8 @@ export function zeroRollIndicatorRadians(
   return -target.setFromQuaternion(orientation, 'YXZ').z;
 }
 
-export interface RebaseDiagnostic {
-  localDistance: number;
+export interface TravelDiagnostic {
+  distanceTravelled: number;
 }
 
 export class Hud {
@@ -67,7 +67,7 @@ export class Hud {
   private readonly altitudeValue = element<HTMLElement>('altitude-value');
   private readonly modeButtonValue = element<HTMLElement>('mode-button-value');
   private readonly coordinateValue = element<HTMLElement>('coordinates-value');
-  private readonly rebaseValue = element<HTMLElement>('rebase-value');
+  private readonly distanceValue = element<HTMLElement>('distance-value');
   private readonly fpsValue = element<HTMLElement>('fps-value');
   private readonly horizon = element<HTMLElement>('horizon');
   private readonly pulseStatus = element<HTMLElement>('pulse-status');
@@ -94,7 +94,7 @@ export class Hud {
     });
   }
 
-  update(snapshot: FlightSnapshot, fps: number, rebase: RebaseDiagnostic): void {
+  update(snapshot: FlightSnapshot, fps: number, travel: TravelDiagnostic): void {
     const modeLabel = MODE_LABELS[snapshot.mode];
     this.modeValue.textContent = modeLabel;
     this.cameraValue.textContent = snapshot.camera === 'far-chase' ? 'FAR CHASE' : snapshot.camera.toUpperCase();
@@ -104,7 +104,7 @@ export class Hud {
     this.modeButtonValue.textContent = modeLabel;
     this.modeButton.classList.toggle('is-warning', snapshot.mode === 'crashed');
     this.coordinateValue.textContent = `X ${this.signed(snapshot.position.x)} // Z ${this.signed(snapshot.position.z)}`;
-    this.rebaseValue.textContent = `${this.unsigned(rebase.localDistance, 4)}M`;
+    this.distanceValue.textContent = `${this.unsigned(travel.distanceTravelled, 4)}M`;
     this.fpsValue.textContent = `FPS ${padNumber(fps)}`;
     this.cameraButton.textContent = `CAM / ${this.cameraIndex(snapshot.camera)}`;
     this.audioButton.textContent = `AUDIO / ${snapshot.audioEnabled ? 'ON' : 'OFF'}`;

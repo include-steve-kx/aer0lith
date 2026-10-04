@@ -25,6 +25,7 @@ import { FLIGHT, PALETTE, TERRAIN } from './core/config.ts';
 import type { CameraMode, ExperienceMode, FlightPathSample, FlightSnapshot } from './core/types.ts';
 import { FlightController } from './flight/FlightController.ts';
 import { RouteProgress } from './flight/RouteProgress.ts';
+import { TravelDistance } from './flight/TravelDistance.ts';
 import { InputManager } from './flight/InputManager.ts';
 import { CockpitRoll } from './render/CockpitRoll.ts';
 import { BoostCameraShake } from './render/BoostCameraShake.ts';
@@ -89,6 +90,7 @@ export class App {
   private readonly cameraRig: CameraRig;
   private readonly navigationArrow: NavigationArrowView;
   private readonly routeProgress = new RouteProgress();
+  private readonly travelDistance = new TravelDistance();
   private readonly post: PostProcessor;
   private readonly hud = new Hud();
   private readonly settings = new SettingsPanel();
@@ -180,6 +182,7 @@ export class App {
     this.cameraRig = new CameraRig(window.innerWidth / window.innerHeight, this.renderer.domElement);
     this.navigationArrow = new NavigationArrowView();
     this.routeProgress.reset(this.flight.position.z);
+    this.travelDistance.reset(this.flight.position);
     this.post = new PostProcessor(this.renderer);
 
     this.scene.add(this.cameraRig.camera);
@@ -381,6 +384,7 @@ export class App {
           this.scan.center.copy(this.terrain.currentProbeWorldCenter);
         }
         this.flight.update(dt, frameInput);
+        this.travelDistance.update(this.flight.position);
         this.routeProgress.update(
           dt,
           this.flight.position.z,
@@ -713,6 +717,7 @@ export class App {
     this.driftTrail.clear();
     this.collisionSparks.clear();
     this.routeProgress.reset(this.flight.position.z);
+    this.travelDistance.reanchor(this.flight.position);
     this.trail.add(this.renderPlaneWorldPosition, this.renderAircraftOrientation, this.renderOrigin, true);
     this.wind.reset(this.renderPlanePosition, this.renderAircraftOrientation);
   }
@@ -761,12 +766,8 @@ export class App {
       driftState: this.flight.driftState,
       boostKickAvailable: this.flight.boostKickAvailable,
     };
-    const localDistance = Math.hypot(
-      this.flight.position.x - this.renderOrigin.x,
-      this.flight.position.z - this.renderOrigin.z,
-    );
     this.hud.update(snapshot, fps, {
-      localDistance,
+      distanceTravelled: this.travelDistance.total,
     });
     this.syncPulseHud(snapshot.mode === 'loading' || snapshot.mode === 'crashed');
   }
