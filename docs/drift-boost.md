@@ -10,7 +10,7 @@ Hold `K` or the large Boost button. With no energy it is normal boost. With ener
 
 A newly earned bank arms one nose-biased ignition kick. The first drift boost consumes it. Releasing and reholding cannot repeat it; another kick is armed only after the bank reaches zero and new energy is earned.
 
-Each tier has an independent visual color. The shipped cyan-blue, amber-orange, and magenta-pink progression tints its energy-meter segment, the active Boost button, exhaust plume, boost light, and terrain illumination. Tier numerals, segmented geometry, and status labels remain the authoritative non-color cues.
+Each tier has an independent visual color. The shipped cyan-blue, amber-orange, and magenta-pink progression tints the entire stored-energy fill, active Boost button, exhaust plume, boost light, and terrain illumination. Crossing a tier blends the meter and plume smoothly into the new color instead of snapping. While energy is charging or powering drift boost, the fill pulses between configurable minimum and maximum intensities at a configurable frequency. Tier numerals, segmented geometry, and status labels remain the authoritative non-color cues.
 
 The chase cameras favor actual travel direction continuously as slip grows and return elastically afterward. Cockpit view remains rigid. The central cue and three-segment annular meter expose the same authoritative state. Automatic slip emits thick irregular ash from one center-tail anchor through a fixed-capacity, single-draw particle pool.
 

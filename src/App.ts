@@ -24,6 +24,7 @@ import { AudioEngine } from './audio/AudioEngine.ts';
 import { FLIGHT, PALETTE, TERRAIN } from './core/config.ts';
 import type { CameraMode, ExperienceMode, FlightPathSample, FlightSnapshot } from './core/types.ts';
 import { FlightController } from './flight/FlightController.ts';
+import { driftBoostColorForTier } from './flight/FlightTuning.ts';
 import { RouteProgress } from './flight/RouteProgress.ts';
 import { TravelDistance } from './flight/TravelDistance.ts';
 import { InputManager } from './flight/InputManager.ts';
@@ -431,11 +432,7 @@ export class App {
         && this.flight.mode !== 'crashed';
       this.throttleActive = throttleActive;
       const driftBoostColor = this.flight.boostState === 'drift-boost'
-        ? this.flight.driftTier === 3
-          ? this.flight.settings.driftBoostColorThree
-          : this.flight.driftTier === 2
-            ? this.flight.settings.driftBoostColorTwo
-            : this.flight.settings.driftBoostColorOne
+        ? driftBoostColorForTier(this.flight.settings, this.flight.driftTier)
         : undefined;
       this.flightEffects.setDriftBoostColor(driftBoostColor);
       this.flightEffects.update(rawDelta, throttleActive, this.flight.speed, this.flight.mode === 'crashed');

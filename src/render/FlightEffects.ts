@@ -77,6 +77,7 @@ export class FlightEffects {
   private settings = { ...DEFAULT_FLIGHT_EFFECTS };
   private baseBoostColor = DEFAULT_FLIGHT_EFFECTS.boostExhaustColor;
   private activeBoostColor = '';
+  private readonly targetBoostColor = new Color(DEFAULT_FLIGHT_EFFECTS.boostExhaustColor);
   private readonly sheets = [new WakeSheetGeometry(), new WakeSheetGeometry()];
   private pathRevision = -1;
   private readonly pathOrigin = new Vector3(Infinity, 0, 0);
@@ -322,12 +323,23 @@ export class FlightEffects {
     const next = color ?? '';
     if (next === this.activeBoostColor) return;
     this.activeBoostColor = next;
-    this.applyBoostColor(next || this.baseBoostColor);
-    this.refresh();
+    this.targetBoostColor.set(next || this.baseBoostColor);
   }
 
   private applyBoostColor(color: string): void {
     this.lightColor.set(color);
+    this.targetBoostColor.copy(this.lightColor);
+    this.light.color.copy(this.lightColor);
+  }
+
+  private updateBoostColor(dt: number): void {
+    const response = 1 - Math.exp(-Math.max(0, dt) / 0.18);
+    this.lightColor.lerp(this.targetBoostColor, response);
+    if (Math.max(
+      Math.abs(this.lightColor.r - this.targetBoostColor.r),
+      Math.abs(this.lightColor.g - this.targetBoostColor.g),
+      Math.abs(this.lightColor.b - this.targetBoostColor.b),
+    ) < 1e-4) this.lightColor.copy(this.targetBoostColor);
     this.light.color.copy(this.lightColor);
   }
 
@@ -343,6 +355,7 @@ export class FlightEffects {
 
   update(dt: number, pressed: boolean, speed: number, crashed = false): void {
     this.elapsed += Math.max(0, dt);
+    this.updateBoostColor(dt);
     this.crashed = crashed;
     this.speed = crashed ? 0 : speed;
     // Integrate each control separately. Editing a speed while paused must not

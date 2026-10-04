@@ -874,7 +874,11 @@ kbd {
   transform: translateY(-50%);
   font-size: max(8px, calc(9px * var(--ui-scale)));
 }
-.drift-meter-header strong { color: var(--ui-tone); font-weight: 400; }
+.drift-meter-header strong {
+  color: var(--drift-energy-color, var(--ui-tone));
+  font-weight: 400;
+  transition: color 240ms ease;
+}
 .drift-meter path { stroke-linejoin: miter; }
 .drift-meter-track path {
   fill: none;
@@ -884,22 +888,22 @@ kbd {
 }
 .drift-meter-segments path {
   fill: none;
-  stroke: rgb(255 255 255 / 48%);
+  stroke: var(--drift-energy-color, #59d8ff);
   stroke-linecap: butt;
   stroke-width: var(--meter-fill-width);
   stroke-dasharray: var(--segment-fill, 0) 1;
+  transition: stroke 240ms ease;
 }
-.drift-meter-segments path:nth-child(1) { stroke: var(--boost-tier-one-color, #59d8ff); }
-.drift-meter-segments path:nth-child(2) { stroke: var(--boost-tier-two-color, #ffad42); }
-.drift-meter-segments path:nth-child(3) { stroke: var(--boost-tier-three-color, #ff4fc3); }
-.drift-meter[data-boost-state="drift-boost"][data-tier="1"] .drift-meter-header strong { color: var(--boost-tier-one-color); }
-.drift-meter[data-boost-state="drift-boost"][data-tier="2"] .drift-meter-header strong { color: var(--boost-tier-two-color); }
-.drift-meter[data-boost-state="drift-boost"][data-tier="3"] .drift-meter-header strong { color: var(--boost-tier-three-color); }
 .drift-meter[data-tier="2"] .drift-meter-track path { stroke: rgb(255 255 255 / 90%); }
 .drift-meter[data-tier="3"] svg { filter: drop-shadow(0 0 5px rgb(215 222 215 / 22%)); }
-.drift-meter.is-tier-pulsing[data-tier="3"] { animation: drift-tier-pulse 900ms ease-in-out infinite alternate; }
+.drift-meter.is-energy-pulsing .drift-meter-segments {
+  animation: drift-energy-pulse var(--drift-pulse-duration, .667s) ease-in-out infinite alternate;
+}
 
-@keyframes drift-tier-pulse { from { box-shadow: 0 0 0 rgb(215 222 215 / 0%); } to { box-shadow: 0 0 14px rgb(215 222 215 / 18%); } }
+@keyframes drift-energy-pulse {
+  from { filter: brightness(var(--drift-pulse-min-intensity, .7)); }
+  to { filter: brightness(var(--drift-pulse-max-intensity, 1.3)); }
+}
 
 .flight-action {
   --refill-progress: 0%;
@@ -1204,7 +1208,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drift-meter.is-tier-pulsing[data-tier="3"] { animation: none; }
+  .drift-meter.is-energy-pulsing .drift-meter-segments { animation: none; }
+  .drift-meter-header strong, .drift-meter-segments path { transition: none; }
   .flight-action.is-refill-complete { animation: none; }
 }
 

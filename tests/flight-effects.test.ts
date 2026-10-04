@@ -64,14 +64,23 @@ test('idle visual boost stays on without physical boost and release returns to i
   effects.dispose();
 });
 
-test('drift boost tier colors tint the exhaust light and restore the normal boost color', () => {
+test('drift boost tier colors transition smoothly and restore the normal boost color', () => {
   const effects = new FlightEffects();
   effects.configure({ ...DEFAULT_FLIGHT_EFFECTS, boostExhaustColor: '#8ab7ff' });
   effects.setDriftBoostColor('#ffad42');
+  effects.update(0.09, true, 120);
+  assert.notEqual(effects.lightColor.getHexString(), '8ab7ff');
+  assert.notEqual(effects.lightColor.getHexString(), 'ffad42');
+  for (let step = 0; step < 180; step += 1) effects.update(1 / 60, true, 120);
   assert.equal(effects.lightColor.getHexString(), 'ffad42');
   effects.setDriftBoostColor('#ff4fc3');
+  effects.update(0.09, true, 120);
+  assert.notEqual(effects.lightColor.getHexString(), 'ffad42');
+  assert.notEqual(effects.lightColor.getHexString(), 'ff4fc3');
+  for (let step = 0; step < 180; step += 1) effects.update(1 / 60, true, 120);
   assert.equal(effects.lightColor.getHexString(), 'ff4fc3');
   effects.setDriftBoostColor();
+  for (let step = 0; step < 180; step += 1) effects.update(1 / 60, false, 120);
   assert.equal(effects.lightColor.getHexString(), '8ab7ff');
   effects.dispose();
 });

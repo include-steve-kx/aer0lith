@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { DEFAULT_FLIGHT_TUNING, sanitizeFlightTuning } from '../src/flight/FlightTuning.ts';
+import {
+  DEFAULT_FLIGHT_TUNING,
+  driftBoostColorForTier,
+  sanitizeFlightTuning,
+} from '../src/flight/FlightTuning.ts';
 import { DEFAULT_COMBAT, sanitizeCombatSettings } from '../src/combat/settings.ts';
 import { migrateAutomaticSlipSettings, migrateVisualSettingsV1 } from '../src/ui/SettingsPanel.ts';
 
@@ -52,6 +56,9 @@ test('flight tuning sanitizes slip curves, ordered tiers, drain, and speed caps'
     normalBoostTopSpeed: 80,
     terrainCrystalClusterScale: 20,
     terrainAheadDistance: 9999,
+    driftPulseFrequency: 99,
+    driftPulseMinIntensity: 1.8,
+    driftPulseMaxIntensity: 0.2,
   });
   assert.ok(tuned.slipStartSpeed < tuned.slipFullSpeed);
   assert.equal(tuned.slipCurvePreset, 's-curve');
@@ -71,6 +78,9 @@ test('flight tuning sanitizes slip curves, ordered tiers, drain, and speed caps'
   assert.equal(tuned.normalBoostTopSpeed, 200);
   assert.equal(tuned.terrainCrystalClusterScale, 4);
   assert.equal(tuned.terrainAheadDistance, 2560);
+  assert.equal(tuned.driftPulseFrequency, 6);
+  assert.equal(tuned.driftPulseMinIntensity, 1.8);
+  assert.equal(tuned.driftPulseMaxIntensity, 1.8);
 });
 
 test('shipped handling defaults use the tighter player-tuned profile', () => {
@@ -128,6 +138,25 @@ test('shipped handling defaults use the tighter player-tuned profile', () => {
   assert.equal(DEFAULT_FLIGHT_TUNING.wrongWayDelay, 1);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftCueSize, 72);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftShakeStrength, 0.5);
+  assert.equal(DEFAULT_FLIGHT_TUNING.driftPulseFrequency, 1.5);
+  assert.equal(DEFAULT_FLIGHT_TUNING.driftPulseMinIntensity, 0.7);
+  assert.equal(DEFAULT_FLIGHT_TUNING.driftPulseMaxIntensity, 1.3);
+});
+
+test('one active tier color drives the whole drift-energy presentation', () => {
+  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 0), '#59d8ff');
+  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 1), '#59d8ff');
+  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 2), '#ffad42');
+  assert.equal(driftBoostColorForTier(DEFAULT_FLIGHT_TUNING, 3), '#ff4fc3');
+});
+
+test('drift meter uses one shared tier color and configurable active-state pulse', () => {
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.drift-meter-segments path \{[\s\S]*stroke: var\(--drift-energy-color/);
+  assert.doesNotMatch(css, /\.drift-meter-segments path:nth-child/);
+  assert.match(css, /\.drift-meter\.is-energy-pulsing \.drift-meter-segments/);
+  assert.match(css, /--drift-pulse-min-intensity/);
+  assert.match(css, /--drift-pulse-max-intensity/);
 });
 
 test('v4 drift settings migrate to automatic slip while preserving custom tuning', () => {

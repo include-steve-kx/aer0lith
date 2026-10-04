@@ -82,6 +82,9 @@ export interface FlightTuningSettings {
   driftTrailTurbulence: number;
   driftTrailColor: string;
   driftTierPulse: boolean;
+  driftPulseFrequency: number;
+  driftPulseMinIntensity: number;
+  driftPulseMaxIntensity: number;
   driftShakeStrength: number;
   navigationArrowEnabled: boolean;
   navigationArrowScale: number;
@@ -202,6 +205,9 @@ export const DEFAULT_FLIGHT_TUNING: FlightTuningSettings = {
   driftTrailTurbulence: 6,
   driftTrailColor: '#c8c8c8',
   driftTierPulse: true,
+  driftPulseFrequency: 1.5,
+  driftPulseMinIntensity: 0.7,
+  driftPulseMaxIntensity: 1.3,
   driftShakeStrength: 0.5,
   navigationArrowEnabled: true,
   navigationArrowScale: 1,
@@ -219,6 +225,15 @@ export const DEFAULT_FLIGHT_TUNING: FlightTuningSettings = {
   touchResponseCurve: 1,
   touchPrimaryScale: 1,
 };
+
+export function driftBoostColorForTier(
+  settings: Pick<FlightTuningSettings, 'driftBoostColorOne' | 'driftBoostColorTwo' | 'driftBoostColorThree'>,
+  tier: number,
+): string {
+  if (tier >= 3) return settings.driftBoostColorThree;
+  if (tier === 2) return settings.driftBoostColorTwo;
+  return settings.driftBoostColorOne;
+}
 
 function bounded(value: number, fallback: number, min: number, max: number): number {
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
@@ -269,6 +284,24 @@ export function sanitizeFlightTuning(
   next.boostRepressWindow = bounded(next.boostRepressWindow, DEFAULT_FLIGHT_TUNING.boostRepressWindow, 0, 0.5);
   next.slipVisualAttack = bounded(next.slipVisualAttack, DEFAULT_FLIGHT_TUNING.slipVisualAttack, 0.02, 2);
   next.slipVisualRelease = bounded(next.slipVisualRelease, DEFAULT_FLIGHT_TUNING.slipVisualRelease, 0.02, 3);
+  next.driftPulseFrequency = bounded(
+    next.driftPulseFrequency,
+    DEFAULT_FLIGHT_TUNING.driftPulseFrequency,
+    0.25,
+    6,
+  );
+  next.driftPulseMinIntensity = bounded(
+    next.driftPulseMinIntensity,
+    DEFAULT_FLIGHT_TUNING.driftPulseMinIntensity,
+    0.1,
+    2,
+  );
+  next.driftPulseMaxIntensity = bounded(
+    next.driftPulseMaxIntensity,
+    DEFAULT_FLIGHT_TUNING.driftPulseMaxIntensity,
+    next.driftPulseMinIntensity,
+    3,
+  );
   next.driftBoostSpeedOne = Math.max(next.normalBoostTopSpeed, next.driftBoostSpeedOne);
   next.driftBoostSpeedTwo = Math.max(next.driftBoostSpeedOne, next.driftBoostSpeedTwo);
   next.driftBoostSpeedThree = Math.max(next.driftBoostSpeedTwo, next.driftBoostSpeedThree);

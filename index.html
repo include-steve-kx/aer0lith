@@ -297,7 +297,13 @@
             <input id="slip-visual-attack" data-flight-setting="slipVisualAttack" data-unit=" S" type="range" min="0.02" max="2" step="0.01" value="0.12" />
             <label for="slip-visual-release"><span>VISUAL RELEASE</span><output id="slip-visual-release-value"></output></label>
             <input id="slip-visual-release" data-flight-setting="slipVisualRelease" data-unit=" S" type="range" min="0.02" max="3" step="0.01" value="0.3" />
-            <label class="toggle-setting" for="drift-tier-pulse"><span>TIER III PULSE</span><input id="drift-tier-pulse" data-flight-setting="driftTierPulse" type="checkbox" checked /></label>
+            <label class="toggle-setting" for="drift-tier-pulse"><span>ENERGY PULSE</span><input id="drift-tier-pulse" data-flight-setting="driftTierPulse" type="checkbox" checked /></label>
+            <label for="drift-pulse-frequency"><span>PULSE FREQUENCY</span><output id="drift-pulse-frequency-value"></output></label>
+            <input id="drift-pulse-frequency" data-flight-setting="driftPulseFrequency" data-unit=" HZ" type="range" min="0.25" max="6" step="0.05" value="1.5" />
+            <label for="drift-pulse-min-intensity"><span>MIN PULSE INTENSITY</span><output id="drift-pulse-min-intensity-value"></output></label>
+            <input id="drift-pulse-min-intensity" data-flight-setting="driftPulseMinIntensity" type="range" min="0.1" max="2" step="0.05" value="0.7" />
+            <label for="drift-pulse-max-intensity"><span>MAX PULSE INTENSITY</span><output id="drift-pulse-max-intensity-value"></output></label>
+            <input id="drift-pulse-max-intensity" data-flight-setting="driftPulseMaxIntensity" type="range" min="0.1" max="3" step="0.05" value="1.3" />
             <label for="drift-shake-strength"><span>BOOST SHAKE</span><output id="drift-shake-strength-value"></output></label>
             <input id="drift-shake-strength" data-flight-setting="driftShakeStrength" type="range" min="0" max="1.5" step="0.05" value="0.5" />
           </section>

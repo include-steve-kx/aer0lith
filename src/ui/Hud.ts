@@ -1,7 +1,7 @@
 import { Euler, Quaternion, Vector3 } from 'three';
 import type { BoostState, EnergyActivity, CameraMode, ExperienceMode, FlightMode, FlightSnapshot } from '../core/types.ts';
 import { bindButtonAction } from './bindButtonAction.ts';
-import type { FlightTuningSettings } from '../flight/FlightTuning.ts';
+import { driftBoostColorForTier, type FlightTuningSettings } from '../flight/FlightTuning.ts';
 import { createDriftMeterGeometry } from './DriftMeterGeometry.ts';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -197,6 +197,10 @@ export class Hud {
     this.hud.style.setProperty('--boost-tier-one-color', settings.driftBoostColorOne);
     this.hud.style.setProperty('--boost-tier-two-color', settings.driftBoostColorTwo);
     this.hud.style.setProperty('--boost-tier-three-color', settings.driftBoostColorThree);
+    this.driftMeter.style.setProperty('--drift-energy-color', driftBoostColorForTier(settings, 1));
+    this.driftMeter.style.setProperty('--drift-pulse-duration', `${0.5 / settings.driftPulseFrequency}s`);
+    this.driftMeter.style.setProperty('--drift-pulse-min-intensity', String(settings.driftPulseMinIntensity));
+    this.driftMeter.style.setProperty('--drift-pulse-max-intensity', String(settings.driftPulseMaxIntensity));
     this.driftMeter.hidden = !settings.driftMeterEnabled;
     const geometry = createDriftMeterGeometry(
       settings.driftMeterArcLength,
@@ -210,7 +214,6 @@ export class Hud {
     this.driftMeter.style.setProperty('--meter-fill-width', String(geometry.radialThickness));
     this.reticle.style.setProperty('--drift-cue-opacity', String(settings.driftCueOpacity));
     this.primaryActionCluster.style.setProperty('--primary-control-scale', String(settings.touchPrimaryScale));
-    this.driftMeter.classList.toggle('is-tier-pulsing', settings.driftTierPulse);
     this.navigationCue.hidden = !settings.navigationArrowEnabled;
   }
 
@@ -259,6 +262,14 @@ export class Hud {
     const label = this.driftLabel(boostState, energyActivity, tier);
     this.driftMeter.setAttribute('aria-valuetext', `${label}, ${energy.toFixed(0)} percent`);
     this.driftStatus.textContent = label;
+    if (this.driftSettings) {
+      this.driftMeter.style.setProperty('--drift-energy-color', driftBoostColorForTier(this.driftSettings, tier));
+      this.driftMeter.classList.toggle('is-energy-pulsing', Boolean(
+        this.driftSettings.driftTierPulse
+        && energy > 1e-6
+        && (energyActivity === 'charging' || boostState === 'drift-boost')
+      ));
+    }
     const thresholds = [0, this.driftSettings?.driftTierTwo ?? 35, this.driftSettings?.driftTierThree ?? 70, 100];
     for (let index = 0; index < this.driftSegments.length; index += 1) {
       const fill = Math.max(0, Math.min(1, (energy - thresholds[index]) / (thresholds[index + 1] - thresholds[index])));
