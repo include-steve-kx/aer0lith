@@ -54,6 +54,9 @@ test('render interpolation preserves the final degrees of a complete cockpit rol
 test('keyboard directions map to the intended flight axes', () => {
   assert.equal(flightInputFromKeys(new Set(['KeyW'])).pitch, -1);
   assert.equal(flightInputFromKeys(new Set(['KeyS'])).pitch, 1);
+  assert.equal(flightInputFromKeys(new Set(['KeyW']), true).pitch, 1);
+  assert.equal(flightInputFromKeys(new Set(['KeyS']), true).pitch, -1);
+  assert.equal(flightInputFromKeys(new Set(['KeyW', 'KeyS']), true).pitch, 0);
   const left = flightInputFromKeys(new Set(['KeyA']));
   assert.equal(left.roll, -1);
   assert.equal(left.yaw, 1);

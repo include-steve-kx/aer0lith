@@ -42,7 +42,7 @@ Open the preview URL printed by Vite. Run `npm run verify` to type-check, run th
 
 | Input | Action |
 | --- | --- |
-| `W` / `S` | Pitch nose up / down |
+| `W` / `S` | Pitch nose up / down; **Input Controls → Invert Y Axis** reverses both keyboard and touch pitch |
 | `A` / `D` | Coordinated roll and yaw left / right |
 | `Q` / `E` | One 360° dodge roll left / right; also available above the joystick |
 | `K` | Hold to boost. Stored automatic slip energy selects drift-boost tier I, II, or III. Release and quickly re-press to upgrade an active normal boost. |

@@ -64,10 +64,11 @@ const SHORTCUT_BUTTON_IDS: Readonly<Record<string, string>> = {
   Enter: 'fullscreen-button',
 };
 
-export function flightInputFromKeys(pressed: ReadonlySet<string>): FlightInput {
+export function flightInputFromKeys(pressed: ReadonlySet<string>, invertYAxis = false): FlightInput {
   const has = (...codes: string[]): boolean => codes.some((code) => pressed.has(code));
+  const pitch = (has('KeyW') ? -1 : 0) + (has('KeyS') ? 1 : 0);
   return {
-    pitch: (has('KeyW') ? -1 : 0) + (has('KeyS') ? 1 : 0),
+    pitch: invertYAxis && pitch !== 0 ? -pitch : pitch,
     roll: (has('KeyD') ? 1 : 0) + (has('KeyA') ? -1 : 0),
     yaw: (has('KeyA') ? 1 : 0) + (has('KeyD') ? -1 : 0),
     throttle: has('KeyK') ? 1 : 0,
@@ -170,10 +171,12 @@ export class InputManager {
   private pointerYaw = 0;
   private touchDeadZone = 0.08;
   private touchResponseCurve = 1;
+  private invertYAxis = false;
 
-  configureTouch(deadZone: number, responseCurve: number): void {
+  configureControls(deadZone: number, responseCurve: number, invertYAxis: boolean): void {
     this.touchDeadZone = Math.max(0, Math.min(0.4, deadZone));
     this.touchResponseCurve = Math.max(0.4, Math.min(3, responseCurve));
+    this.invertYAxis = invertYAxis;
   }
 
   constructor(root: HTMLElement, actions: InputActions, pointerControls?: PointerFlightControls) {
@@ -427,11 +430,12 @@ export class InputManager {
   private clear = (): void => { this.clearFlightActions(); };
 
   read(_dt = 0): FlightInput {
-    const keyboard = flightInputFromKeys(this.pressed);
+    const keyboard = flightInputFromKeys(this.pressed, this.invertYAxis);
+    const pointerPitch = this.invertYAxis ? -this.pointerPitch : this.pointerPitch;
     const boostPressed = this.boost.consumePressed();
     const boostReleased = this.boost.consumeReleased();
     return {
-      pitch: Math.max(-1, Math.min(1, keyboard.pitch + this.pointerPitch)),
+      pitch: Math.max(-1, Math.min(1, keyboard.pitch + pointerPitch)),
       roll: Math.max(-1, Math.min(1, keyboard.roll + this.pointerRoll)),
       yaw: Math.max(-1, Math.min(1, keyboard.yaw + this.pointerYaw)),
       throttle: this.boost.active ? 1 : 0,

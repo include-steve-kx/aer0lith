@@ -89,6 +89,7 @@ const HELP: Record<string, string> = {
   'combat-meteorSpawnDistanceMax': 'Farthest distance ahead of the aircraft used when placing a new meteor encounter.',
   'combat-meteorCountMin': 'Smallest number of meteors the game can attempt to place in one encounter.',
   'combat-meteorCountMax': 'Largest number of meteors the game can attempt to place in one encounter.',
+  'invert-y-axis': 'Reverses manual pitch so W and joystick-up point the nose down, while S and joystick-down point it up.',
   'touch-dead-zone': 'Joystick movement ignored around its center.',
   'touch-response-curve': 'Changes how quickly touch steering grows away from center.',
   'touch-primary-scale': 'Scales the large Boost button on desktop and touch screens.',

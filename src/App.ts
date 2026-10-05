@@ -314,7 +314,11 @@ export class App {
       this.cameraRig.configure(settings);
       this.navigationArrow.configure(settings);
       this.hud.configureDrift(settings);
-      this.input.configureTouch(settings.touchDeadZone, settings.touchResponseCurve);
+      this.input.configureControls(
+        settings.touchDeadZone,
+        settings.touchResponseCurve,
+        settings.invertYAxis,
+      );
       this.scanCooldownDuration = Math.max(0.5, settings.scanResetInterval);
       this.scanCooldownRemaining = Math.min(this.scanCooldownRemaining, this.scanCooldownDuration);
       document.documentElement.dataset.font = settings.fontChoice;

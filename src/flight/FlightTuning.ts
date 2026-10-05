@@ -102,6 +102,7 @@ export interface FlightTuningSettings {
   routeClearance: number;
   terrainAheadDistance: number;
   terrainCrystalClusterScale: number;
+  invertYAxis: boolean;
   touchDeadZone: number;
   touchResponseCurve: number;
   touchPrimaryScale: number;
@@ -221,6 +222,7 @@ export const DEFAULT_FLIGHT_TUNING: FlightTuningSettings = {
   wrongWayEnabled: true,
   wrongWayDelay: 1,
   ...DEFAULT_TERRAIN_GENERATION,
+  invertYAxis: false,
   touchDeadZone: 0.08,
   touchResponseCurve: 1,
   touchPrimaryScale: 1,

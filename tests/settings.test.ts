@@ -157,6 +157,7 @@ test('shipped handling defaults use the tighter player-tuned profile', () => {
   assert.equal(DEFAULT_FLIGHT_TUNING.driftPulseFrequency, 1.5);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftPulseMinIntensity, 0.7);
   assert.equal(DEFAULT_FLIGHT_TUNING.driftPulseMaxIntensity, 1.3);
+  assert.equal(DEFAULT_FLIGHT_TUNING.invertYAxis, false);
 });
 
 test('one active tier color drives the whole drift-energy presentation', () => {
